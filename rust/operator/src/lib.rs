@@ -306,7 +306,7 @@ impl HiveState {
         );
 
         match role {
-            HiveRole::NameNode => {
+            HiveRole::MetaStore => {
                 cm_conf_data.insert("hive-site.xml".to_string(), NAMENODE_SITE);
                 cm_conf_data.insert("core-site.xml".to_string(), CORE_SITE);
                 cm_conf_data.insert("log4j.properties".to_string(), LOG4J_CONFIG.to_string());
@@ -396,7 +396,7 @@ impl HiveState {
 
         let mut cb = ContainerBuilder::new(&format!("hive-{}", role.to_string()));
         cb.image("hadoop:3.2.2".to_string());
-        cb.command(role.get_command(&HiveVersion::v3_2_2));
+        cb.command(role.get_command(&HiveVersion::v3_1_1));
         cb.add_env_var("JAVA_HOME", "/usr/lib/jvm/java-11-openjdk-amd64/");
         for (map_name, map) in config_maps {
             if let Some(name) = map.metadata.name.as_ref() {
@@ -703,28 +703,18 @@ impl ControllerStrategy for HiveStrategy {
         let mut eligible_nodes = HashMap::new();
 
         eligible_nodes.insert(
-            HiveRole::DataNode.to_string(),
-            role_utils::find_nodes_that_fit_selectors(&context.client, None, &hive_spec.datanodes)
-                .await?,
-        );
-
-        eligible_nodes.insert(
-            HiveRole::NameNode.to_string(),
-            role_utils::find_nodes_that_fit_selectors(&context.client, None, &hive_spec.namenodes)
+            HiveRole::MetaStore.to_string(),
+            role_utils::find_nodes_that_fit_selectors(&context.client, None, &hive_spec.metastore)
                 .await?,
         );
 
         trace!("Eligible Nodes: {:?}", eligible_nodes);
 
         let mut roles = HashMap::new();
-        roles.insert(
-            HiveRole::DataNode.to_string(),
-            (vec![], context.resource.spec.datanodes.clone().into()),
-        );
 
         roles.insert(
-            HiveRole::NameNode.to_string(),
-            (vec![], context.resource.spec.namenodes.clone().into()),
+            HiveRole::MetaStore.to_string(),
+            (vec![], context.resource.spec.metastore.clone().into()),
         );
 
         let role_config = transform_all_roles_to_config(&context.resource, roles);

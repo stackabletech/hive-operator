@@ -3,25 +3,14 @@ kind: HiveCluster
 metadata:
   name: simple
 spec:
-  version: 3.2.2
-  namenodes:
+  version: 3.1.1
+  metastore:
     roleGroups:
       default:
         selector:
           matchExpressions:
             - operator: In
-              key: kubernetes.io/hostname
+              key: kubernetes.io/arch
               values:
-                - main-1.stackable.demo
-  datanodes:
-    roleGroups:
-      default:
-        selector:
-          matchExpressions:
-            - operator: In
-              key: kubernetes.io/hostname
-              values:
-                - worker-1.stackable.demo
-                - worker-2.stackable.demo
-                - worker-3.stackable.demo
-        replicas: 2
+                - stackable-linux
+        replicas: 3

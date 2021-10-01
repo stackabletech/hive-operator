@@ -46,16 +46,15 @@ pub const CONFIG_MAP_TYPE_ID: &str = "id";
 #[kube(status = "HiveClusterStatus")]
 pub struct HiveClusterSpec {
     pub version: HiveVersion,
-    pub datanodes: Role<DataNodeConfig>,
-    pub namenodes: Role<NameNodeConfig>,
+    pub metastore: Role<MetaStoreConfig>,
 }
 
 #[derive(
     Clone, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 pub enum HiveRole {
-    #[strum(serialize = "namenode")]
-    NameNode,
+    #[strum(serialize = "metastore")]
+    MetaStore,
     #[strum(serialize = "datanode")]
     DataNode,
 }
@@ -89,7 +88,7 @@ impl HasRoleRestartOrder for HiveCluster {
     fn get_role_restart_order() -> Vec<String> {
         vec![
             HiveRole::DataNode.to_string(),
-            HiveRole::NameNode.to_string(),
+            HiveRole::MetaStore.to_string(),
         ]
     }
 }
@@ -131,52 +130,26 @@ impl HasClusterExecutionStatus for HiveCluster {
 // TODO: These all should be "Property" Enums that can be either simple or complex where complex allows forcing/ignoring errors and/or warnings
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NameNodeConfig {}
-
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DataNodeConfig {}
-
-impl Configuration for NameNodeConfig {
-    type Configurable = HiveCluster;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        // TODO: Readd if we want jmx metrics gathered
-        //if let Some(metrics_port) = self.metrics_port {
-        //    result.insert(METRICS_PORT.to_string(), Some(metrics_port.to_string()));
-        // }
-        Ok(result)
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        // TODO: Insert configs here
-
-        Ok(result)
-    }
+pub struct MetaStoreConfig {
+    database: DatabaseConnectionSpec,
 }
 
-impl Configuration for DataNodeConfig {
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Eq, PartialEq, Serialize)]
+#[kube(
+group = "external.stackable.tech",
+version = "v1alpha1",
+kind = "DatabaseConnection",
+plural = "databaseconnections",
+shortname = "dbconn",
+namespaced
+)]
+pub struct DatabaseConnectionSpec {
+    pub conn_string: String,
+    pub user: String,
+    pub password: String,
+}
+
+impl Configuration for MetaStoreConfig {
     type Configurable = HiveCluster;
 
     fn compute_env(
@@ -228,13 +201,13 @@ impl Configuration for DataNodeConfig {
     strum_macros::EnumString,
 )]
 pub enum HiveVersion {
-    #[serde(rename = "3.2.2")]
-    #[strum(serialize = "3.2.2")]
-    v3_2_2,
+    #[serde(rename = "2.3.8")]
+    #[strum(serialize = "2.3.8")]
+    v2_3_8,
 
-    #[serde(rename = "3.3.1")]
-    #[strum(serialize = "3.3.1")]
-    v3_3_1,
+    #[serde(rename = "3.1.1")]
+    #[strum(serialize = "3.1.1")]
+    v3_1_1,
 }
 
 impl HiveVersion {
