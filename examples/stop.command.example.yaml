@@ -1,0 +1,7 @@
+apiVersion: command.hive.stackable.tech/v1alpha1
+kind: Stop
+metadata:
+  name: hive-cluster-command-stop
+spec:
+  name: "simple"
+  rolling: true
