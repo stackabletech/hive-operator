@@ -1590,7 +1590,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "stackable-hive-crd"
-version = "0.4.1-nightly"
+version = "0.1.0-nightly"
 dependencies = [
  "duplicate",
  "indoc",
@@ -1612,7 +1612,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hive-operator"
-version = "0.4.1-nightly"
+version = "0.1.0-nightly"
 dependencies = [
  "async-trait",
  "futures",
@@ -1632,7 +1632,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hive-operator-binary"
-version = "0.4.1-nightly"
+version = "0.1.0-nightly"
 dependencies = [
  "built",
  "clap",

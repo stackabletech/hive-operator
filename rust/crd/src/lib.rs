@@ -55,8 +55,6 @@ pub struct HiveClusterSpec {
 pub enum HiveRole {
     #[strum(serialize = "metastore")]
     MetaStore,
-    #[strum(serialize = "datanode")]
-    DataNode,
 }
 
 impl HiveRole {
@@ -87,7 +85,6 @@ impl Status<HiveClusterStatus> for HiveCluster {
 impl HasRoleRestartOrder for HiveCluster {
     fn get_role_restart_order() -> Vec<String> {
         vec![
-            HiveRole::DataNode.to_string(),
             HiveRole::MetaStore.to_string(),
         ]
     }

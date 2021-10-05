@@ -27,7 +27,6 @@ spec:
                   items:
                     enum:
                       - MetaStore
-                      - DataNode
                     type: string
                   nullable: true
                   type: array

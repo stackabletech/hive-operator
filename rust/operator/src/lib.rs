@@ -311,11 +311,6 @@ impl HiveState {
                 cm_conf_data.insert("core-site.xml".to_string(), CORE_SITE);
                 cm_conf_data.insert("log4j.properties".to_string(), LOG4J_CONFIG.to_string());
             }
-            HiveRole::DataNode => {
-                cm_conf_data.insert("hive-site.xml".to_string(), DATANODE_SITE);
-                cm_conf_data.insert("core-site.xml".to_string(), CORE_SITE);
-                cm_conf_data.insert("log4j.properties".to_string(), LOG4J_CONFIG.to_string());
-            }
         }
 
         let mut cm_labels = get_recommended_labels(
