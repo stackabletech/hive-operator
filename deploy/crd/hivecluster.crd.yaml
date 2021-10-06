@@ -142,7 +142,7 @@ spec:
                   type: object
                 version:
                   enum:
-                    - 2.3.8
+                    - 2.3.9
                     - 3.1.1
                   type: string
               required:
@@ -229,13 +229,13 @@ spec:
                   properties:
                     current:
                       enum:
-                        - 2.3.8
+                        - 2.3.9
                         - 3.1.1
                       nullable: true
                       type: string
                     target:
                       enum:
-                        - 2.3.8
+                        - 2.3.9
                         - 3.1.1
                       nullable: true
                       type: string

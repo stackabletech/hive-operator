@@ -27,6 +27,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use strum_macros::Display;
 use strum_macros::EnumIter;
+use tracing::info;
 
 pub const APP_NAME: &str = "hive";
 pub const MANAGED_BY: &str = "hive-operator";
@@ -66,9 +67,8 @@ impl HiveRole {
     pub fn get_command(&self, version: &HiveVersion) -> Vec<String> {
         vec![
             format!("{}/bin/hive", version.package_name()),
-            "--config".to_string(),
-            "{{configroot}}/conf".to_string(),
-            self.to_string(),
+            "--service".to_string(),
+            "metastore".to_string()
         ]
     }
 }
@@ -198,9 +198,9 @@ impl Configuration for MetaStoreConfig {
     strum_macros::EnumString,
 )]
 pub enum HiveVersion {
-    #[serde(rename = "2.3.8")]
-    #[strum(serialize = "2.3.8")]
-    v2_3_8,
+    #[serde(rename = "2.3.9")]
+    #[strum(serialize = "2.3.9")]
+    v2_3_9,
 
     #[serde(rename = "3.1.1")]
     #[strum(serialize = "3.1.1")]
@@ -209,7 +209,7 @@ pub enum HiveVersion {
 
 impl HiveVersion {
     pub fn package_name(&self) -> String {
-        format!("hadoop-{}", self.to_string())
+        format!("apache-hive-{}-bin", self.to_string())
     }
 }
 

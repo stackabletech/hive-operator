@@ -277,38 +277,19 @@ impl HiveState {
 
         let LOG4J_CONFIG = include_str!("log4j.properties");
 
-        let DATANODE_SITE = format!(
-            "<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
+        let HIVE_SITE = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
+<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
 <configuration>
-<property>
-<name>dfs.datanode.data.dir</name>
-<value>file:///tmp/hive/dn</value>
-</property>
+  <property>
+    <name>javax.jdo.option.ConnectionURL</name>
+    <value>jdbc:derby:;databaseName=/home/felix/work/Stackable/agent-stuff/package/hive-2.3.9/metastore_db;create=true</value>
+  </property>
 </configuration>"
         );
-        let NAMENODE_SITE = format!(
-            "<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
-<configuration>
-<property>
-<name>dfs.namenode.name.dir</name>
-<value>file:///tmp/hive/nn</value>
-</property>
-</configuration>"
-        );
-        let CORE_SITE = format!(
-            "<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
-<configuration>
-<property>
-<name>fs.defaultFS</name>
-<value>hive://main-1.stackable.demo</value>
-</property>
-</configuration>"
-        );
-
         match role {
             HiveRole::MetaStore => {
-                cm_conf_data.insert("hive-site.xml".to_string(), NAMENODE_SITE);
-                cm_conf_data.insert("core-site.xml".to_string(), CORE_SITE);
+                cm_conf_data.insert("hive-site.xml".to_string(), HIVE_SITE);
                 cm_conf_data.insert("log4j.properties".to_string(), LOG4J_CONFIG.to_string());
             }
         }
@@ -352,11 +333,11 @@ impl HiveState {
         Ok(config_maps)
     }
 
-    /// Creates the pod required for the HDFS instance.
+    /// Creates the pod required for the Hive instance.
     ///
     /// # Arguments
     ///
-    /// - `role` - spark role.
+    /// - `role` - Hive role.
     /// - `group` - The role group.
     /// - `node_name` - The node name for this pod.
     /// - `config_maps` - The config maps and respective types required for this pod.
@@ -390,8 +371,8 @@ impl HiveState {
         recommended_labels.insert(ID_LABEL.to_string(), pod_id.id().to_string());
 
         let mut cb = ContainerBuilder::new(&format!("hive-{}", role.to_string()));
-        cb.image("hadoop:3.2.2".to_string());
-        cb.command(role.get_command(&HiveVersion::v3_1_1));
+        cb.image("hive:2.3.9".to_string());
+        cb.command(role.get_command(&HiveVersion::v2_3_9));
         cb.add_env_var("JAVA_HOME", "/usr/lib/jvm/java-11-openjdk-amd64/");
         for (map_name, map) in config_maps {
             if let Some(name) = map.metadata.name.as_ref() {
