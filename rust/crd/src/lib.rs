@@ -59,14 +59,15 @@ pub enum HiveRole {
 }
 
 impl HiveRole {
-    /// Returns the container start command for a HDFS node
-    /// Right now works only for images using hadoop2.7
+    /// Returns the container start command for the metastore service.
     /// # Arguments
     ///
-    /// * `version` - Current specified cluster version
+    /// * `version` - Current specified hive version
     pub fn get_command(&self, version: &HiveVersion) -> Vec<String> {
         vec![
             format!("{}/bin/hive", version.package_name()),
+            "--config".to_string(),
+            "{{configroot}}/conf".to_string(),
             "--service".to_string(),
             "metastore".to_string()
         ]
