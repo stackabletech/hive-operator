@@ -35,6 +35,15 @@ pub const MANAGED_BY: &str = "hive-operator";
 pub const CONFIG_MAP_TYPE_DATA: &str = "data";
 pub const CONFIG_MAP_TYPE_ID: &str = "id";
 
+pub const HIVE_SITE_XML: &str = "hive-site.xml";
+
+pub const CONNECTION_URL: &str = "javax.jdo.option.ConnectionURL";
+pub const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
+pub const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
+pub const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
+pub const METASTORE_PORT: &str = "hive.metastore.port";
+pub const JAVA_HOME: &str = "JAVA_HOME";
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "hive.stackable.tech",
@@ -63,14 +72,29 @@ impl HiveRole {
     /// # Arguments
     ///
     /// * `version` - Current specified hive version
-    pub fn get_command(&self, version: &HiveVersion) -> Vec<String> {
-        vec![
-            format!("{}/bin/hive", version.package_name()),
-            "--config".to_string(),
-            "{{configroot}}/conf".to_string(),
-            "--service".to_string(),
-            "metastore".to_string()
-        ]
+    pub fn get_command(
+        &self,
+        version: &HiveVersion,
+        auto_init_schema: bool,
+        db_type: &str,
+    ) -> Vec<String> {
+        if auto_init_schema {
+            vec![
+                format!("{}/stackable/bin/start-metastore", version.package_name()),
+                "--config".to_string(),
+                "{{configroot}}/conf".to_string(),
+                "--db-type".to_string(),
+                db_type.to_string(),
+            ]
+        } else {
+            vec![
+                format!("{}/bin/hive", version.package_name()),
+                "--config".to_string(),
+                "{{configroot}}/conf".to_string(),
+                "--service".to_string(),
+                "metastore".to_string(),
+            ]
+        }
     }
 }
 
@@ -85,9 +109,7 @@ impl Status<HiveClusterStatus> for HiveCluster {
 
 impl HasRoleRestartOrder for HiveCluster {
     fn get_role_restart_order() -> Vec<String> {
-        vec![
-            HiveRole::MetaStore.to_string(),
-        ]
+        vec![HiveRole::MetaStore.to_string()]
     }
 }
 
@@ -129,22 +151,71 @@ impl HasClusterExecutionStatus for HiveCluster {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
+    metastore_port: Option<u16>,
     database: DatabaseConnectionSpec,
+    java_home: String,
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Eq,
+    JsonSchema,
+    PartialEq,
+    Serialize,
+    strum_macros::Display,
+    strum_macros::EnumString,
+)]
+pub enum DbType {
+    #[serde(rename = "derby")]
+    #[strum(serialize = "derby")]
+    Derby,
+
+    #[serde(rename = "mysql")]
+    #[strum(serialize = "mysql")]
+    Mysql,
+
+    #[serde(rename = "postgres")]
+    #[strum(serialize = "postgres")]
+    Postgres,
+
+    #[serde(rename = "oracle")]
+    #[strum(serialize = "oracle")]
+    Oracle,
+
+    #[serde(rename = "mssql")]
+    #[strum(serialize = "mssql")]
+    Mssql,
+}
+
+impl DbType {
+    pub fn get_jdbc_driver_class(&self) -> &str {
+        match self {
+            DbType::Derby => "org.apache.derby.jdbc.EmbeddedDriver",
+            DbType::Mysql => "com.mysql.jdbc.Driver",
+            DbType::Postgres => "org.postgresql.Driver",
+            DbType::Mssql => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+            DbType::Oracle => "oracle.jdbc.driver.OracleDriver",
+        }
+    }
+}
+
+#[serde(rename_all = "camelCase")]
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Eq, PartialEq, Serialize)]
 #[kube(
-group = "external.stackable.tech",
-version = "v1alpha1",
-kind = "DatabaseConnection",
-plural = "databaseconnections",
-shortname = "dbconn",
-namespaced
+    group = "external.stackable.tech",
+    version = "v1alpha1",
+    kind = "DatabaseConnection",
+    plural = "databaseconnections",
+    shortname = "dbconn",
+    namespaced
 )]
 pub struct DatabaseConnectionSpec {
     pub conn_string: String,
     pub user: String,
     pub password: String,
+    pub db_type: DbType,
 }
 
 impl Configuration for MetaStoreConfig {
@@ -156,6 +227,8 @@ impl Configuration for MetaStoreConfig {
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
+
+        result.insert(JAVA_HOME.to_string(), Some(self.java_home.clone()));
 
         // TODO: Readd if we want jmx metrics gathered
         //if let Some(metrics_port) = self.metrics_port {
@@ -180,8 +253,25 @@ impl Configuration for MetaStoreConfig {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        // TODO: Insert configs here
-
+        if let Some(metastore_port) = &self.metastore_port {
+            result.insert(METASTORE_PORT.to_string(), Some(metastore_port.to_string()));
+        }
+        result.insert(
+            CONNECTION_URL.to_string(),
+            Some(self.database.conn_string.clone()),
+        );
+        result.insert(
+            CONNECTION_USER_NAME.to_string(),
+            Some(self.database.user.clone()),
+        );
+        result.insert(
+            CONNECTION_PASSWORD.to_string(),
+            Some(self.database.password.clone()),
+        );
+        result.insert(
+            CONNECTION_DRIVER_NAME.to_string(),
+            Some(self.database.db_type.get_jdbc_driver_class().to_string()),
+        );
         Ok(result)
     }
 }

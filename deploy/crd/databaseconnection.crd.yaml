@@ -22,14 +22,23 @@ spec:
           properties:
             spec:
               properties:
-                conn_string:
+                connString:
+                  type: string
+                dbType:
+                  enum:
+                    - derby
+                    - mysql
+                    - postgres
+                    - oracle
+                    - mssql
                   type: string
                 password:
                   type: string
                 user:
                   type: string
               required:
-                - conn_string
+                - connString
+                - dbType
                 - password
                 - user
               type: object

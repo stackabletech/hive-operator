@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+#
+# Usage: start-metastore <options> namenode [namenode-options]
+# Options:
+#   --help
+#   --config <path-to-hadoop-conf-folder> 
+# 
+# Checks if the metastore database schema is initialized. If so it starts the metastore,
+# otherwise it tries to initialize the schma first.
+#
+
+#set -x
+
+CONF_DIR=""
+DB_TYPE=""
+HIVE_BIN_DIR=""
+NAMENODE_NAME_DIR=""
+
+MYDIR=$(dirname $0)
+HDFS_BIN_DIR=$(dirname $(dirname $MYDIR))/bin
+
+function parse_args {
+  while true; do
+    echo "processing arg $1"
+    case $1 in 
+      --db-type)
+        shift
+        DB_TYPE=$1
+        shift
+      ;;
+      --config)
+        shift
+        CONF_DIR=$1
+        shift
+      ;;
+      --hive-bin-dir)
+        shift
+        HIVE_BIN_DIR=$1
+        shift
+      ;;
+      --help)
+        echo  "Usage: start-namenode <options> namenode [namenode-options]"
+        echo  "Options:"
+        echo  "  --help"
+        echo  "  --config <path-to-hadoop-conf-folder>"
+        exit
+      ;;
+      *)
+        break
+      ;;
+    esac
+  done
+
+  if [ !-f "$CONF_DIR" ]; then
+    echo "Missing namenode configuration file."
+    exit 1
+  fi
+}
+
+function init_schema {
+  if ! $HIVE_BIN_DIR/hive --config $CONF_DIR --service schemaTool -dbType $DB_TYPE -validate ; then
+    echo "No valid schema found, initializing schema ..."
+    $HIVE_BIN_DIR/hive --config $CONF_DIR --service schemaTool -dbType $DB_TYPE -initSchema || exit 1
+  fi
+}
+
+function start_metastore {
+  $HIVE_BIN_DIR/hive --config $CONF_DIR --service metastore
+}
+
+function main {
+  parse_args $@
+  init_schema
+  start_metastore
+}
+
+main

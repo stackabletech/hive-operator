@@ -11,7 +11,7 @@ use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
 use stackable_hive_crd::{
     HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_MAP_TYPE_DATA,
-    CONFIG_MAP_TYPE_ID,
+    CONFIG_MAP_TYPE_ID, HIVE_SITE_XML,
 };
 use stackable_operator::builder::{
     ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
@@ -275,6 +275,8 @@ impl HiveState {
         let mut config_maps = HashMap::new();
         let mut cm_conf_data = BTreeMap::new();
 
+        warn!("validated configs: {:?}", validated_config);
+
         let LOG4J_CONFIG = include_str!("log4j.properties");
 
         let HIVE_SITE = format!(
@@ -372,8 +374,9 @@ impl HiveState {
 
         let mut cb = ContainerBuilder::new(&format!("hive-{}", role.to_string()));
         cb.image("hive:2.3.9".to_string());
-        cb.command(role.get_command(&HiveVersion::v2_3_9));
-        cb.add_env_var("JAVA_HOME", "/usr/lib/jvm/java-11-openjdk-amd64/");
+        cb.command(role.get_command(&HiveVersion::v2_3_9, true, "derby"));
+        // cb.add_env_var("JAVA_HOME", "/usr/lib/jvm/java-11-openjdk-amd64/");
+        cb.add_env_var("HADOOP_HOME", "{{packageroot}}/hadoop-2.10.1/"); // TODO don't hardcode version
         for (map_name, map) in config_maps {
             if let Some(name) = map.metadata.name.as_ref() {
                 cb.add_configmapvolume(name, "conf".to_string());
@@ -690,7 +693,13 @@ impl ControllerStrategy for HiveStrategy {
 
         roles.insert(
             HiveRole::MetaStore.to_string(),
-            (vec![], context.resource.spec.metastore.clone().into()),
+            (
+                vec![
+                    PropertyNameKind::Env,
+                    PropertyNameKind::File(HIVE_SITE_XML.to_string()),
+                ],
+                context.resource.spec.metastore.clone().into(),
+            ),
         );
 
         let role_config = transform_all_roles_to_config(&context.resource, roles);

@@ -34,19 +34,36 @@ spec:
                       properties:
                         database:
                           properties:
-                            conn_string:
+                            connString:
+                              type: string
+                            dbType:
+                              enum:
+                                - derby
+                                - mysql
+                                - postgres
+                                - oracle
+                                - mssql
                               type: string
                             password:
                               type: string
                             user:
                               type: string
                           required:
-                            - conn_string
+                            - connString
+                            - dbType
                             - password
                             - user
                           type: object
+                        javaHome:
+                          type: string
+                        metastorePort:
+                          format: uint16
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
                       required:
                         - database
+                        - javaHome
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -73,19 +90,36 @@ spec:
                             properties:
                               database:
                                 properties:
-                                  conn_string:
+                                  connString:
+                                    type: string
+                                  dbType:
+                                    enum:
+                                      - derby
+                                      - mysql
+                                      - postgres
+                                      - oracle
+                                      - mssql
                                     type: string
                                   password:
                                     type: string
                                   user:
                                     type: string
                                 required:
-                                  - conn_string
+                                  - connString
+                                  - dbType
                                   - password
                                   - user
                                 type: object
+                              javaHome:
+                                type: string
+                              metastorePort:
+                                format: uint16
+                                minimum: 0.0
+                                nullable: true
+                                type: integer
                             required:
                               - database
+                              - javaHome
                             type: object
                           configOverrides:
                             additionalProperties:
