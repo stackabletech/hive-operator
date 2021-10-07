@@ -27,21 +27,25 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use strum_macros::Display;
 use strum_macros::EnumIter;
-use tracing::info;
 
 pub const APP_NAME: &str = "hive";
 pub const MANAGED_BY: &str = "hive-operator";
 
-pub const CONFIG_MAP_TYPE_DATA: &str = "data";
-pub const CONFIG_MAP_TYPE_ID: &str = "id";
+pub const CONFIG_DIR_NAME: &str = "conf";
 
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
+pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
 
 pub const CONNECTION_URL: &str = "javax.jdo.option.ConnectionURL";
 pub const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
 pub const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
 pub const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
-pub const METASTORE_PORT: &str = "hive.metastore.port";
+
+pub const METASTORE_PORT_PROPERTY: &str = "hive.metastore.port";
+pub const METASTORE_PORT: &str = "metastore";
+pub const METRICS_PORT_PROPERTY: &str = "metricsPort";
+pub const METRICS_PORT: &str = "metrics";
+
 pub const JAVA_HOME: &str = "JAVA_HOME";
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -82,7 +86,7 @@ impl HiveRole {
             vec![
                 format!("{}/stackable/bin/start-metastore", version.package_name()),
                 "--config".to_string(),
-                "{{configroot}}/conf".to_string(),
+                format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
                 "--db-type".to_string(),
                 db_type.to_string(),
             ]
@@ -90,7 +94,7 @@ impl HiveRole {
             vec![
                 format!("{}/bin/hive", version.package_name()),
                 "--config".to_string(),
-                "{{configroot}}/conf".to_string(),
+                format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
                 "--service".to_string(),
                 "metastore".to_string(),
             ]
@@ -152,6 +156,7 @@ impl HasClusterExecutionStatus for HiveCluster {
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
     metastore_port: Option<u16>,
+    metrics_port: Option<u16>,
     database: DatabaseConnectionSpec,
     java_home: String,
 }
@@ -201,7 +206,6 @@ impl DbType {
     }
 }
 
-#[serde(rename_all = "camelCase")]
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Eq, PartialEq, Serialize)]
 #[kube(
     group = "external.stackable.tech",
@@ -211,6 +215,7 @@ impl DbType {
     shortname = "dbconn",
     namespaced
 )]
+#[serde(rename_all = "camelCase")]
 pub struct DatabaseConnectionSpec {
     pub conn_string: String,
     pub user: String,
@@ -230,10 +235,13 @@ impl Configuration for MetaStoreConfig {
 
         result.insert(JAVA_HOME.to_string(), Some(self.java_home.clone()));
 
-        // TODO: Readd if we want jmx metrics gathered
-        //if let Some(metrics_port) = self.metrics_port {
-        //    result.insert(METRICS_PORT.to_string(), Some(metrics_port.to_string()));
-        // }
+        if let Some(metrics_port) = self.metrics_port {
+            result.insert(
+                METRICS_PORT_PROPERTY.to_string(),
+                Some(metrics_port.to_string()),
+            );
+        }
+
         Ok(result)
     }
 
@@ -254,7 +262,10 @@ impl Configuration for MetaStoreConfig {
         let mut result = BTreeMap::new();
 
         if let Some(metastore_port) = &self.metastore_port {
-            result.insert(METASTORE_PORT.to_string(), Some(metastore_port.to_string()));
+            result.insert(
+                METASTORE_PORT_PROPERTY.to_string(),
+                Some(metastore_port.to_string()),
+            );
         }
         result.insert(
             CONNECTION_URL.to_string(),
@@ -393,15 +404,15 @@ mod tests {
     #[test]
     fn test_hive_version_versioning() {
         assert_eq!(
-            HiveVersion::v3_4_14.versioning_state(&HiveVersion::v3_5_8),
+            HiveVersion::v2_3_9.versioning_state(&HiveVersion::v3_1_1),
             VersioningState::ValidUpgrade
         );
         assert_eq!(
-            HiveVersion::v3_5_8.versioning_state(&HiveVersion::v3_4_14),
+            HiveVersion::v3_1_1.versioning_state(&HiveVersion::v2_3_9),
             VersioningState::ValidDowngrade
         );
         assert_eq!(
-            HiveVersion::v3_4_14.versioning_state(&HiveVersion::v3_4_14),
+            HiveVersion::v2_3_9.versioning_state(&HiveVersion::v2_3_9),
             VersioningState::NoOp
         );
     }
@@ -409,20 +420,15 @@ mod tests {
     #[test]
     #[test]
     fn test_version_conversion() {
-        // TODO: Adapt to correct product version
-        // HiveVersion::from_str("3.4.14").unwrap();
+        HiveVersion::from_str("2.3.9").unwrap();
+        HiveVersion::from_str("1.2.3").unwrap_err();
     }
 
     #[test]
     fn test_package_name() {
-        // TODO: Adapot to correct package names
         assert_eq!(
-            HiveVersion::v360.package_name(),
-            format!("hive-{}", HiveVersion::v360.to_string())
-        );
-        assert_eq!(
-            HiveVersion::v360.package_name(),
-            format!("hive-server-{}", HiveVersion::v360.to_string())
+            HiveVersion::v2_3_9.package_name(),
+            format!("apache-hive-{}-bin", HiveVersion::v2_3_9.to_string())
         );
     }
 }

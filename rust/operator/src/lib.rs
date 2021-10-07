@@ -3,15 +3,16 @@ use crate::error::Error;
 use stackable_hive_crd::commands::{Restart, Start, Stop};
 
 use async_trait::async_trait;
-use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
+use k8s_openapi::api::core::v1::{ConfigMap, Pod};
 use kube::api::{ListParams, ResourceExt};
 use kube::Api;
 use kube::CustomResourceExt;
 use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
 use stackable_hive_crd::{
-    HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_MAP_TYPE_DATA,
-    CONFIG_MAP_TYPE_ID, HIVE_SITE_XML,
+    HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_DIR_NAME, HIVE_SITE_XML,
+    LOG_4J_PROPERTIES, METASTORE_PORT, METASTORE_PORT_PROPERTY, METRICS_PORT,
+    METRICS_PORT_PROPERTY,
 };
 use stackable_operator::builder::{
     ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
@@ -22,9 +23,7 @@ use stackable_operator::configmap;
 use stackable_operator::controller::Controller;
 use stackable_operator::controller::{ControllerStrategy, ReconciliationState};
 use stackable_operator::error::OperatorResult;
-use stackable_operator::identity::{
-    LabeledPodIdentityFactory, NodeIdentity, PodIdentity, PodToNodeMapping,
-};
+use stackable_operator::identity::{LabeledPodIdentityFactory, PodIdentity, PodToNodeMapping};
 use stackable_operator::labels;
 use stackable_operator::labels::{
     build_common_labels_for_all_managed_resources, get_recommended_labels,
@@ -60,11 +59,7 @@ const FINALIZER_NAME: &str = "hive.stackable.tech/cleanup";
 const ID_LABEL: &str = "hive.stackable.tech/id";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
 
-const CONFIG_MAP_TYPE_CONF: &str = "config";
-
-// TODO: adapt to Hive/.. config files
-// const PROPERTIES_FILE: &str = "zoo.cfg";
-// const CONFIG_DIR_NAME: &str = "conf";
+const CM_TYPE_CONFIG: &str = "config";
 
 type HiveReconcileResult = ReconcileResult<error::Error>;
 
@@ -268,31 +263,31 @@ impl HiveState {
     async fn create_config_maps(
         &self,
         pod_id: &PodIdentity,
-        role: &HiveRole,
+        _role: &HiveRole,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-        id_mapping: &PodToNodeMapping,
+        _id_mapping: &PodToNodeMapping,
     ) -> Result<HashMap<&'static str, ConfigMap>, Error> {
         let mut config_maps = HashMap::new();
-        let mut cm_conf_data = BTreeMap::new();
+        let mut config_maps_data = BTreeMap::new();
 
-        warn!("validated configs: {:?}", validated_config);
+        let log4j_config = include_str!("log4j.properties");
+        config_maps_data.insert(LOG_4J_PROPERTIES.to_string(), log4j_config.to_string());
 
-        let LOG4J_CONFIG = include_str!("log4j.properties");
+        for (property_name_kind, config) in validated_config {
+            match property_name_kind {
+                PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
+                    let mut data = BTreeMap::new();
 
-        let HIVE_SITE = format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
-<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
-<configuration>
-  <property>
-    <name>javax.jdo.option.ConnectionURL</name>
-    <value>jdbc:derby:;databaseName=/home/felix/work/Stackable/agent-stuff/package/hive-2.3.9/metastore_db;create=true</value>
-  </property>
-</configuration>"
-        );
-        match role {
-            HiveRole::MetaStore => {
-                cm_conf_data.insert("hive-site.xml".to_string(), HIVE_SITE);
-                cm_conf_data.insert("log4j.properties".to_string(), LOG4J_CONFIG.to_string());
+                    for (property_name, property_value) in config {
+                        data.insert(property_name.to_string(), Some(property_value.to_string()));
+                    }
+
+                    config_maps_data.insert(
+                        file_name.clone(),
+                        product_config::writer::to_hadoop_xml(data.iter()),
+                    );
+                }
+                _ => {}
             }
         }
 
@@ -306,7 +301,7 @@ impl HiveState {
 
         cm_labels.insert(
             configmap::CONFIGMAP_TYPE_LABEL.to_string(),
-            CONFIG_MAP_TYPE_CONF.to_string(),
+            CM_TYPE_CONFIG.to_string(),
         );
 
         let cm_conf_name = name_utils::build_resource_name(
@@ -315,7 +310,7 @@ impl HiveState {
             pod_id.role(),
             Some(pod_id.group()),
             None,
-            Some(CONFIG_MAP_TYPE_CONF),
+            Some(CM_TYPE_CONFIG),
         )?;
 
         let cm_config = configmap::build_config_map(
@@ -323,15 +318,14 @@ impl HiveState {
             &cm_conf_name,
             &self.context.namespace(),
             cm_labels,
-            cm_conf_data,
+            config_maps_data,
         )?;
 
         config_maps.insert(
-            CONFIG_MAP_TYPE_CONF,
+            CM_TYPE_CONFIG,
             configmap::create_config_map(&self.context.client, cm_config).await?,
         );
 
-        trace!("config_maps to be returned: {:?}", config_maps);
         Ok(config_maps)
     }
 
@@ -353,103 +347,49 @@ impl HiveState {
         config_maps: &HashMap<&'static str, ConfigMap>,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     ) -> Result<Pod, error::Error> {
-        let pod_name = name_utils::build_resource_name(
-            pod_id.app(),
-            &self.context.name(),
-            pod_id.role(),
-            Some(pod_id.group()),
-            Some(node_name),
-            None,
-        )?;
+        let mut metrics_port: Option<&String> = None;
+        let mut metastore_port: Option<&String> = None;
+        let mut _db_type: Option<String> = None;
 
-        let version = &self.context.resource.spec.version;
-        let mut recommended_labels = get_recommended_labels(
-            &self.context.resource,
-            pod_id.app(),
-            &version.to_string(),
-            pod_id.role(),
-            pod_id.group(),
-        );
-        recommended_labels.insert(ID_LABEL.to_string(), pod_id.id().to_string());
+        let spec: &HiveClusterSpec = &self.context.resource.spec;
+        let version: &HiveVersion = &spec.version;
 
-        let mut cb = ContainerBuilder::new(&format!("hive-{}", role.to_string()));
+        let mut cb = ContainerBuilder::new(APP_NAME);
+
+        for (property_name_kind, config) in validated_config {
+            match property_name_kind {
+                PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
+                    metastore_port = config.get(METASTORE_PORT_PROPERTY);
+                }
+                PropertyNameKind::Env => {
+                    for (property_name, property_value) in config {
+                        if property_name.is_empty() {
+                            warn!("Received empty property_name for ENV... skipping");
+                            continue;
+                        }
+                        // if a metrics port is provided (for now by user, it is not required in
+                        // product config to be able to not configure any monitoring / metrics)
+                        if property_name == METRICS_PORT_PROPERTY {
+                            metrics_port = Some(property_value);
+                            // TODO: adapt package and hive_jmx_config.yaml
+                            cb.add_env_var(
+                                "JMX_OPTS".to_string(),
+                                format!("-javaagent:{{{{packageroot}}}}/{}/stackable/bin/jmx_prometheus_javaagent-0.16.1.jar={}:{{{{packageroot}}}}/{}/stackable/conf/hive_jmx_config.yaml",
+                                        version.package_name(), property_value, version.package_name())
+                            );
+                            continue;
+                        }
+
+                        cb.add_env_var(property_name, property_value);
+                    }
+                }
+                _ => {}
+            }
+        }
+
         cb.image("hive:2.3.9".to_string());
         cb.command(role.get_command(&HiveVersion::v2_3_9, true, "derby"));
-        // cb.add_env_var("JAVA_HOME", "/usr/lib/jvm/java-11-openjdk-amd64/");
         cb.add_env_var("HADOOP_HOME", "{{packageroot}}/hadoop-2.10.1/"); // TODO don't hardcode version
-        for (map_name, map) in config_maps {
-            if let Some(name) = map.metadata.name.as_ref() {
-                cb.add_configmapvolume(name, "conf".to_string());
-            } else {
-                return Err(error::Error::MissingConfigMapNameError {
-                    cm_type: CONFIG_MAP_TYPE_CONF,
-                });
-            }
-        }
-
-        let pod = PodBuilder::new()
-            .metadata(
-                ObjectMetaBuilder::new()
-                    .generate_name(pod_name)
-                    .namespace(&self.context.client.default_namespace)
-                    .with_labels(recommended_labels)
-                    .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
-                    .build()?,
-            )
-            .add_stackable_agent_tolerations()
-            .add_container(cb.build())
-            .node_name(node_name)
-            .build()?;
-
-        Ok(self.context.client.create(&pod).await?)
-        /*
-        // extract container ports
-        if let Some(config) =
-            validated_config.get(&PropertyNameKind::File(SPARK_ENV_SH.to_string()))
-        {
-            container_ports = role.container_ports(config);
-        }
-
-        // extract env variables
-        if let Some(config) = validated_config.get(&PropertyNameKind::Env) {
-            for (property_name, property_value) in config {
-                if property_name.is_empty() {
-                    warn!("Received empty property_name for ENV... skipping");
-                    continue;
-                }
-
-                env_vars.push(EnvVar {
-                    name: property_name.clone(),
-                    value: Some(property_value.to_string()),
-                    value_from: None,
-                });
-            }
-        }
-
-        // extract cli
-        if let Some(config) = validated_config.get(&PropertyNameKind::Cli) {
-            // we need to convert to <String, String> to <String, Option<String>> to deal with
-            // CLI flags etc. We can not currently represent that via operator-rs / product-config.
-            // This is a preparation for that.
-            let transformed_config: BTreeMap<String, Option<String>> = config
-                .iter()
-                .map(|(k, v)| (k.to_string(), Some(v.to_string())))
-                .collect();
-
-            for (property_name, property_value) in transformed_config {
-                if property_name.is_empty() {
-                    warn!("Received empty property_name for CLI... skipping");
-                    continue;
-                }
-                // single argument / flag
-                if property_value.is_none() {
-                    cli_arguments.push(property_name.clone());
-                } else {
-                    // key value pair (safe unwrap)
-                    cli_arguments.push(format!("--{} {}", property_name, property_value.unwrap()));
-                }
-            }
-        }
 
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),
@@ -460,7 +400,6 @@ impl HiveState {
             None,
         )?;
 
-        let version = &self.context.resource.spec.version;
         let mut recommended_labels = get_recommended_labels(
             &self.context.resource,
             pod_id.app(),
@@ -470,57 +409,38 @@ impl HiveState {
         );
         recommended_labels.insert(ID_LABEL.to_string(), pod_id.id().to_string());
 
-        let master_pods = filter_pods_for_type(&self.existing_pods, &SparkRole::Master);
-        let master_urls = &config::get_master_urls(&master_pods, &self.validated_role_config)?;
-
-        let mut args = vec![];
-        // add hashed master url label to workers and adapt start command and
-        // adapt worker command with master url(s)
-        if role == &SparkRole::Worker {
-            recommended_labels.insert(
-                MASTER_URLS_HASH_LABEL.to_string(),
-                get_hashed_master_urls(master_urls),
-            );
-
-            if let Some(master_urls) = config::adapt_worker_command(role, master_urls) {
-                args.push(master_urls);
-            }
-        }
-
-        // add cli arguments from product config / user config
-        args.append(&mut cli_arguments);
-
-        let mut cb = ContainerBuilder::new(&format!("hive-{}", role.to_string()));
-        cb.image(format!("spark:{}", version.to_string()));
-        cb.command(vec![role.get_command(version)]);
-        cb.args(args);
-        cb.add_env_vars(env_vars);
-
-        if let Some(config_map_data) = config_maps.get(CONFIG_MAP_TYPE_CONF) {
+        // One mount for the config directory
+        if let Some(config_map_data) = config_maps.get(CM_TYPE_CONFIG) {
             if let Some(name) = config_map_data.metadata.name.as_ref() {
-                cb.add_configmapvolume(name, "conf".to_string());
+                cb.add_configmapvolume(name, CONFIG_DIR_NAME.to_string());
             } else {
                 return Err(error::Error::MissingConfigMapNameError {
-                    cm_type: CONFIG_MAP_TYPE_CONF,
+                    cm_type: CM_TYPE_CONFIG,
                 });
             }
         } else {
             return Err(error::Error::MissingConfigMapError {
-                cm_type: CONFIG_MAP_TYPE_CONF,
+                cm_type: CM_TYPE_CONFIG,
                 pod_name,
             });
         }
 
         let mut annotations = BTreeMap::new();
-
-        // only add metrics container port and annotation if required
-        if let (Some(metrics_port), true) =
-            (http_port, self.context.resource.spec.monitoring_enabled())
-        {
+        // only add metrics container port and annotation if available
+        if let Some(metrics_port) = metrics_port {
             annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
             cb.add_container_port(
                 ContainerPortBuilder::new(metrics_port.parse()?)
-                    .name("metrics")
+                    .name(METRICS_PORT)
+                    .build(),
+            );
+        }
+
+        // add ipc port if available
+        if let Some(metastore_port) = metastore_port {
+            cb.add_container_port(
+                ContainerPortBuilder::new(metastore_port.parse()?)
+                    .name(METASTORE_PORT)
                     .build(),
             );
         }
@@ -540,10 +460,7 @@ impl HiveState {
             .node_name(node_name)
             .build()?;
 
-        trace!("create_pod: {:?}", pod_id);
         Ok(self.context.client.create(&pod).await?)
-
-         */
     }
 
     async fn delete_all_pods(&self) -> OperatorResult<ReconcileFunctionAction> {

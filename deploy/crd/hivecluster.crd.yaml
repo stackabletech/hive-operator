@@ -61,6 +61,11 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        metricsPort:
+                          format: uint16
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
                       required:
                         - database
                         - javaHome
@@ -113,6 +118,11 @@ spec:
                               javaHome:
                                 type: string
                               metastorePort:
+                                format: uint16
+                                minimum: 0.0
+                                nullable: true
+                                type: integer
+                              metricsPort:
                                 format: uint16
                                 minimum: 0.0
                                 nullable: true
