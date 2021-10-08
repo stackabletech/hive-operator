@@ -1,5 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("No pods are found for Hive metastore cluster [{namespace}/{name}]. Please check the Hive metastore custom resource and Hive Operator for errors.")]
+    NoHiveMetastorePodsAvailableForConnectionInfo { namespace: String, name: String },
 
     #[error("Pod has no hostname assignment, this is most probably a transitive failure and should be retried: [{pod}]")]
     PodWithoutHostname { pod: String },

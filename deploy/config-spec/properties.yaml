@@ -88,6 +88,21 @@ properties:
         - name: "metastore"
           required: true
       asOfVersion: "0.0.0"
+  - property:
+      propertyNames:
+        - name: "hive.metastore.metrics.enabled"
+          kind:
+            type: "file"
+            file: "hive-site.xml"
+      datatype:
+        type: "bool"
+      defaultValues:
+        - value: "false"
+      roles:
+        - name: "metastore"
+          required: false
+      asOfVersion: "0.0.0"
+
   ###################################################################################################
   # env vars
   ###################################################################################################

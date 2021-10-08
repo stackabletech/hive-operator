@@ -16,8 +16,9 @@ spec:
         replicas: 1
         config:
           javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
+          metricsPort: 11111
           database:
-            connString: jdbc:derby:;databaseName=/home/felix/work/Stackable/metastore_db;create=true
+            connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
             user: APP
             password: mine
             dbType: derby

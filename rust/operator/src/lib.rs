@@ -10,9 +10,9 @@ use kube::CustomResourceExt;
 use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
 use stackable_hive_crd::{
-    HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_DIR_NAME, HIVE_SITE_XML,
-    LOG_4J_PROPERTIES, METASTORE_PORT, METASTORE_PORT_PROPERTY, METRICS_PORT,
-    METRICS_PORT_PROPERTY, DB_TYPE_CLI
+    DbType, HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_DIR_NAME,
+    DB_TYPE_CLI, HIVE_SITE_XML, LOG_4J_PROPERTIES, METASTORE_PORT, METASTORE_PORT_PROPERTY,
+    METRICS_PORT, METRICS_PORT_PROPERTY,
 };
 use stackable_operator::builder::{
     ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
@@ -49,6 +49,7 @@ use stackable_operator::versioning::{finalize_versioning, init_versioning};
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use strum::IntoEnumIterator;
@@ -349,7 +350,7 @@ impl HiveState {
     ) -> Result<Pod, error::Error> {
         let mut metrics_port: Option<&String> = None;
         let mut metastore_port: Option<&String> = None;
-        let mut db_type: Option<String> = None;
+        let mut db_type: Option<DbType> = None;
 
         let spec: &HiveClusterSpec = &self.context.resource.spec;
         let version: &HiveVersion = &spec.version;
@@ -373,7 +374,7 @@ impl HiveState {
                             metrics_port = Some(property_value);
                             // TODO: adapt package and hive_jmx_config.yaml
                             cb.add_env_var(
-                                "JMX_OPTS".to_string(),
+                                "HADOOP_OPTS".to_string(),
                                 format!("-javaagent:{{{{packageroot}}}}/{}/stackable/bin/jmx_prometheus_javaagent-0.16.1.jar={}:{{{{packageroot}}}}/{}/stackable/conf/hive_jmx_config.yaml",
                                         version.package_name(), property_value, version.package_name())
                             );
@@ -386,7 +387,7 @@ impl HiveState {
                 PropertyNameKind::Cli => {
                     for (property_name, property_value) in config {
                         if property_name == DB_TYPE_CLI {
-                            db_type = Some(property_value.clone());
+                            db_type = Some(DbType::from_str(property_value)?);
                         }
                     }
                 }
@@ -394,11 +395,16 @@ impl HiveState {
             }
         }
 
-        let db_type = db_type.expect("db type needs to be set.");
-
-        cb.image("hive:2.3.9".to_string());
-        cb.command(role.get_command(&HiveVersion::v2_3_9, true, db_type.as_str()));
-        cb.add_env_var("HADOOP_HOME", "{{packageroot}}/hadoop-2.10.1/"); // TODO don't hardcode version
+        cb.image(format!("{}:{}", APP_NAME, version.to_string()));
+        cb.command(role.get_command(version, true, &db_type.unwrap_or_default().to_string()));
+        // TODO don't hardcode version -> check kafka operator with scala
+        cb.add_env_var(
+            "HADOOP_HOME",
+            format!(
+                "{{{{packageroot}}}}/apache-hive-{}-bin/hadoop-2.10.1/",
+                version.to_string()
+            ),
+        );
 
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),

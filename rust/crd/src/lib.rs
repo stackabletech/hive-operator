@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod discovery;
 pub mod error;
 
 use crate::commands::{Restart, Start, Stop};
@@ -40,6 +41,7 @@ pub const CONNECTION_URL: &str = "javax.jdo.option.ConnectionURL";
 pub const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
 pub const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
 pub const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
+pub const METASTORE_METRICS_ENABLED: &str = "hive.metastore.metrics.enabled";
 
 pub const METASTORE_PORT_PROPERTY: &str = "hive.metastore.port";
 pub const METASTORE_PORT: &str = "metastore";
@@ -198,6 +200,12 @@ pub enum DbType {
     Mssql,
 }
 
+impl Default for DbType {
+    fn default() -> Self {
+        Self::Derby
+    }
+}
+
 impl DbType {
     pub fn get_jdbc_driver_class(&self) -> &str {
         match self {
@@ -255,7 +263,10 @@ impl Configuration for MetaStoreConfig {
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
-        result.insert(DB_TYPE_CLI.to_string(), Some(self.database.db_type.to_string()));
+        result.insert(
+            DB_TYPE_CLI.to_string(),
+            Some(self.database.db_type.to_string()),
+        );
         Ok(result)
     }
 
@@ -289,6 +300,14 @@ impl Configuration for MetaStoreConfig {
             CONNECTION_DRIVER_NAME.to_string(),
             Some(self.database.db_type.get_jdbc_driver_class().to_string()),
         );
+
+        if self.metrics_port.is_some() {
+            result.insert(
+                METASTORE_METRICS_ENABLED.to_string(),
+                Some("true".to_string()),
+            );
+        }
+
         Ok(result)
     }
 }
@@ -310,6 +329,10 @@ pub enum HiveVersion {
     #[strum(serialize = "2.3.9")]
     v2_3_9,
 
+    // TODO: we currently only support 2.3.9.
+    //   remove #[serde(skip)] once it is supported and packaged.
+    //#[serde(rename = "1.14.0")]
+    #[serde(skip)]
     #[serde(rename = "3.1.1")]
     #[strum(serialize = "3.1.1")]
     v3_1_1,
@@ -317,7 +340,12 @@ pub enum HiveVersion {
 
 impl HiveVersion {
     pub fn package_name(&self) -> String {
-        format!("apache-hive-{}-bin", self.to_string())
+        // we have to do this twice because of the combined packaging with hadoop.
+        format!(
+            "apache-hive-{}-bin/apache-hive-{}-bin",
+            self.to_string(),
+            self.to_string()
+        )
     }
 }
 
@@ -434,7 +462,11 @@ mod tests {
     fn test_package_name() {
         assert_eq!(
             HiveVersion::v2_3_9.package_name(),
-            format!("apache-hive-{}-bin", HiveVersion::v2_3_9.to_string())
+            format!(
+                "apache-hive-{}-bin/apache-hive-{}-bin",
+                HiveVersion::v2_3_9.to_string(),
+                HiveVersion::v2_3_9.to_string()
+            )
         );
     }
 }

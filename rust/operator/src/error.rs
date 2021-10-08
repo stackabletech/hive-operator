@@ -47,6 +47,12 @@ pub enum Error {
         source: product_config::error::Error,
     },
 
+    #[error("Strum reported error: {source}")]
+    StrumParseError {
+        #[from]
+        source: strum::ParseError,
+    },
+
     #[error("Operator Framework reported config error: {source}")]
     OperatorConfigError {
         #[from]
