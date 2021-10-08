@@ -17,7 +17,7 @@ spec:
         config:
           javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
           database:
-            connString: jdbc:derby:;databaseName=/home/felix/work/Stackable/agent-stuff/package/hive-2.3.9/metastore_db;create=true
+            connString: jdbc:derby:;databaseName=/home/felix/work/Stackable/metastore_db;create=true
             user: APP
             password: mine
             dbType: derby

@@ -89,6 +89,8 @@ impl HiveRole {
                 format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
                 "--db-type".to_string(),
                 db_type.to_string(),
+                "--hive-bin-dir".to_string(),
+                format!("{{{{packageroot}}}}/{}/bin/", version.package_name()),
             ]
         } else {
             vec![

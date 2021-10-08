@@ -14,10 +14,6 @@
 CONF_DIR=""
 DB_TYPE=""
 HIVE_BIN_DIR=""
-NAMENODE_NAME_DIR=""
-
-MYDIR=$(dirname $0)
-HDFS_BIN_DIR=$(dirname $(dirname $MYDIR))/bin
 
 function parse_args {
   while true; do
@@ -39,10 +35,15 @@ function parse_args {
         shift
       ;;
       --help)
-        echo  "Usage: start-namenode <options> namenode [namenode-options]"
+        echo  "Checks if the metastore DB contains the needed schema and initializes it "
+        echo   "if it does not exist.  Starts the metastore."
+        echo  ""
+        echo  "Usage: start-metastore <options>"
         echo  "Options:"
         echo  "  --help"
-        echo  "  --config <path-to-hadoop-conf-folder>"
+        echo  "  --db-type <derby|mssql|mysql|postgres|oracle>"
+        echo  "  --config <path-to-hive-config-directory>"
+        echo  "  --hive-bin-dir <path-to-hive-bin-directory>"
         exit
       ;;
       *)
@@ -51,8 +52,16 @@ function parse_args {
     esac
   done
 
-  if [ !-f "$CONF_DIR" ]; then
-    echo "Missing namenode configuration file."
+  if [ ! -d "$CONF_DIR" ]; then
+    echo "Missing configuration directory."
+    exit 1
+  fi
+  if [ ! -d "$HIVE_BIN_DIR" ]; then
+    echo "Missing hive bin directory."
+    exit 1
+  fi
+  if [ -z "$DB_TYPE" ]; then
+    echo "Missing database type."
     exit 1
   fi
 }
@@ -74,4 +83,4 @@ function main {
   start_metastore
 }
 
-main
+main $@
