@@ -1,6 +1,6 @@
 [package]
 authors = ["Lars Francke <lars.francke@stackable.de>"]
-description = "Stackable Operator for Hive - The Operator Library"
+description = "Stackable Operator for Apache Hive - The Operator Library"
 edition = "2018"
 license = "OSL-3.0"
 name = "stackable-hive-operator"

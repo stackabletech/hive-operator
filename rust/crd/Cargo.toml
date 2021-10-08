@@ -1,6 +1,6 @@
 [package]
 authors = ["Lars Francke <lars.francke@stackable.de>"]
-description = "Contains the Hive CRD structs and utilities"
+description = "Contains the Apache Hive CRD structs and utilities"
 edition = "2018"
 license = "OSL-3.0"
 name = "stackable-hive-crd"

@@ -1,0 +1,34 @@
+= Usage
+
+After installation, the CRD for this operator must be created:
+
+    kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
+
+To create a single node Apache Hive Metastore (v2.3.9) cluster with Prometheus metrics exposed on port 11111:
+
+    cat <<EOF | kubectl apply -f -
+    apiVersion: hive.stackable.tech/v1alpha1
+    kind: HiveCluster
+    metadata:
+      name: simple-derby
+    spec:
+      version: 2.3.9
+      metastore:
+        roleGroups:
+          default:
+            selector:
+              matchExpressions:
+                - operator: In
+                  key: kubernetes.io/arch
+                  values:
+                    - stackable-linux
+            replicas: 1
+            config:
+              javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
+              metricsPort: 11111
+              database:
+                connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
+                user: APP
+                password: mine
+                dbType: derby
+    EOF

@@ -213,9 +213,7 @@ impl HiveState {
                             &self.validated_role_config,
                         )?;
 
-                        let config_maps = self
-                            .create_config_maps(pod_id, &role, validated_config, &state.mapping())
-                            .await?;
+                        let config_maps = self.create_config_maps(pod_id, validated_config).await?;
 
                         self.create_pod(
                             pod_id,
@@ -243,14 +241,8 @@ impl HiveState {
     }
 
     /// Creates the config maps required for a hive instance (or role, role_group combination):
-    /// * The 'zoo.cfg' properties file
-    /// * The 'myid' file
-    ///
-    /// The 'zoo.cfg' properties are read from the product_config and/or merged with the cluster
-    /// custom resource.
-    ///
-    /// Labels are automatically adapted from the `recommended_labels` with a type (data for
-    /// 'zoo.cfg' and id for 'myid'). Names are generated via `name_utils::build_resource_name`.
+    /// * The 'hive-site.xml' properties file
+    /// * The 'log4j.properties'
     ///
     /// Returns a map with a 'type' identifier (e.g. data, id) as key and the corresponding
     /// ConfigMap as value. This is required to set the volume mounts in the pod later on.
@@ -264,9 +256,7 @@ impl HiveState {
     async fn create_config_maps(
         &self,
         pod_id: &PodIdentity,
-        _role: &HiveRole,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-        _id_mapping: &PodToNodeMapping,
     ) -> Result<HashMap<&'static str, ConfigMap>, Error> {
         let mut config_maps = HashMap::new();
         let mut config_maps_data = BTreeMap::new();
