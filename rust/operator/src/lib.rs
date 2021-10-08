@@ -12,7 +12,7 @@ use product_config::ProductConfigManager;
 use stackable_hive_crd::{
     HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_DIR_NAME, HIVE_SITE_XML,
     LOG_4J_PROPERTIES, METASTORE_PORT, METASTORE_PORT_PROPERTY, METRICS_PORT,
-    METRICS_PORT_PROPERTY,
+    METRICS_PORT_PROPERTY, DB_TYPE_CLI
 };
 use stackable_operator::builder::{
     ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
@@ -349,7 +349,7 @@ impl HiveState {
     ) -> Result<Pod, error::Error> {
         let mut metrics_port: Option<&String> = None;
         let mut metastore_port: Option<&String> = None;
-        let mut _db_type: Option<String> = None;
+        let mut db_type: Option<String> = None;
 
         let spec: &HiveClusterSpec = &self.context.resource.spec;
         let version: &HiveVersion = &spec.version;
@@ -383,12 +383,21 @@ impl HiveState {
                         cb.add_env_var(property_name, property_value);
                     }
                 }
+                PropertyNameKind::Cli => {
+                    for (property_name, property_value) in config {
+                        if property_name == DB_TYPE_CLI {
+                            db_type = Some(property_value.clone());
+                        }
+                    }
+                }
                 _ => {}
             }
         }
 
+        let db_type = db_type.expect("db type needs to be set.");
+
         cb.image("hive:2.3.9".to_string());
-        cb.command(role.get_command(&HiveVersion::v2_3_9, true, "derby"));
+        cb.command(role.get_command(&HiveVersion::v2_3_9, true, db_type.as_str()));
         cb.add_env_var("HADOOP_HOME", "{{packageroot}}/hadoop-2.10.1/"); // TODO don't hardcode version
 
         let pod_name = name_utils::build_resource_name(
@@ -613,6 +622,7 @@ impl ControllerStrategy for HiveStrategy {
             (
                 vec![
                     PropertyNameKind::Env,
+                    PropertyNameKind::Cli,
                     PropertyNameKind::File(HIVE_SITE_XML.to_string()),
                 ],
                 context.resource.spec.metastore.clone().into(),

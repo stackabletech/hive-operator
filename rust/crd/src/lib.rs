@@ -46,6 +46,8 @@ pub const METASTORE_PORT: &str = "metastore";
 pub const METRICS_PORT_PROPERTY: &str = "metricsPort";
 pub const METRICS_PORT: &str = "metrics";
 
+pub const DB_TYPE_CLI: &str = "dbType";
+
 pub const JAVA_HOME: &str = "JAVA_HOME";
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -252,7 +254,9 @@ impl Configuration for MetaStoreConfig {
         _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+        let mut result = BTreeMap::new();
+        result.insert(DB_TYPE_CLI.to_string(), Some(self.database.db_type.to_string()));
+        Ok(result)
     }
 
     fn compute_files(
