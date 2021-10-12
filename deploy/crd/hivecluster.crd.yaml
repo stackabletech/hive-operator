@@ -66,6 +66,9 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        warehouseDir:
+                          nullable: true
+                          type: string
                       required:
                         - database
                         - javaHome
@@ -127,6 +130,9 @@ spec:
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
+                              warehouseDir:
+                                nullable: true
+                                type: string
                             required:
                               - database
                               - javaHome

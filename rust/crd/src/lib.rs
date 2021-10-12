@@ -42,6 +42,7 @@ pub const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName"
 pub const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
 pub const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
 pub const METASTORE_METRICS_ENABLED: &str = "hive.metastore.metrics.enabled";
+pub const METASTORE_WAREHOUSE_DIR: &str = "hive.metastore.warehouse.dir";
 
 pub const METASTORE_PORT_PROPERTY: &str = "hive.metastore.port";
 pub const METASTORE_PORT: &str = "metastore";
@@ -163,6 +164,7 @@ impl HasClusterExecutionStatus for HiveCluster {
 pub struct MetaStoreConfig {
     metastore_port: Option<u16>,
     metrics_port: Option<u16>,
+    warehouse_dir: Option<String>,
     database: DatabaseConnectionSpec,
     java_home: String,
 }
@@ -282,6 +284,12 @@ impl Configuration for MetaStoreConfig {
             result.insert(
                 METASTORE_PORT_PROPERTY.to_string(),
                 Some(metastore_port.to_string()),
+            );
+        }
+        if let Some(warehouse_dir) = &self.warehouse_dir {
+            result.insert(
+                METASTORE_WAREHOUSE_DIR.to_string(),
+                Some(warehouse_dir.to_string()),
             );
         }
         result.insert(

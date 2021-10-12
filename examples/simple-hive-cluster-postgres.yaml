@@ -16,6 +16,7 @@ spec:
         replicas: 1
         config:
           javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
+          warehouseDir: /tmp/hive_warehouse
           database:
             connString: jdbc:postgresql://localhost:5432/metastoredb
             user: hiveuser

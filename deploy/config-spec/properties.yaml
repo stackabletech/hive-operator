@@ -102,6 +102,22 @@ properties:
         - name: "metastore"
           required: false
       asOfVersion: "0.0.0"
+  - property:
+      propertyNames:
+        - name: "hive.metastore.warehouse.dir"
+          kind:
+            type: "file"
+            file: "hive-site.xml"
+      datatype:
+        type: "string"
+        unit: *unitUri
+      defaultValues:
+        - value: "/user/hive/warehouse"
+      roles:
+        - name: "metastore"
+          required: false
+      description: "URI of the default location for native tables."
+      asOfVersion: "0.0.0"
 
   ###################################################################################################
   # env vars
