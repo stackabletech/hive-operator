@@ -1638,6 +1638,7 @@ dependencies = [
  "built",
  "clap",
  "k8s-openapi",
+ "kube",
  "stackable-hive-crd",
  "stackable-hive-operator",
  "stackable-operator",

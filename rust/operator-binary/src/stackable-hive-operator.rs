@@ -1,8 +1,10 @@
 use clap::{crate_version, App, AppSettings, SubCommand};
+use kube::CustomResourceExt;
 use stackable_hive_crd::commands::{Restart, Start, Stop};
 use stackable_hive_crd::HiveCluster;
 use stackable_operator::{cli, logging};
 use stackable_operator::{client, error};
+use tracing::error;
 
 mod built_info {
     // The file has been placed there by the build script.
@@ -30,6 +32,15 @@ async fn main() -> Result<(), error::Error> {
         if cli::handle_crd_subcommand::<HiveCluster>(subcommand)? {
             return Ok(());
         };
+        if cli::handle_crd_subcommand::<Start>(subcommand)? {
+            return Ok(());
+        };
+        if cli::handle_crd_subcommand::<Stop>(subcommand)? {
+            return Ok(());
+        };
+        if cli::handle_crd_subcommand::<Restart>(subcommand)? {
+            return Ok(());
+        };
     }
 
     let paths = vec![
@@ -48,6 +59,22 @@ async fn main() -> Result<(), error::Error> {
     );
 
     let client = client::create_client(Some("hive.stackable.tech".to_string())).await?;
+
+    if let Err(error) = stackable_operator::crd::wait_until_crds_present(
+        &client,
+        vec![
+            HiveCluster::crd_name(),
+            Restart::crd_name(),
+            Start::crd_name(),
+            Stop::crd_name(),
+        ],
+        None,
+    )
+    .await
+    {
+        error!("Required CRDs missing, aborting: {:?}", error);
+        return Err(error);
+    };
 
     tokio::try_join!(
         stackable_hive_operator::create_controller(client.clone(), &product_config_path),
