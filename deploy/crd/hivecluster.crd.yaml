@@ -66,6 +66,27 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        s3Connection:
+                          description: Contains all the required connection information for S3.
+                          nullable: true
+                          properties:
+                            accessKey:
+                              type: string
+                            endPoint:
+                              type: string
+                            pathStyleAccess:
+                              type: boolean
+                            secretKey:
+                              type: string
+                            sslEnabled:
+                              type: boolean
+                          required:
+                            - accessKey
+                            - endPoint
+                            - pathStyleAccess
+                            - secretKey
+                            - sslEnabled
+                          type: object
                         warehouseDir:
                           nullable: true
                           type: string
@@ -130,6 +151,27 @@ spec:
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
+                              s3Connection:
+                                description: Contains all the required connection information for S3.
+                                nullable: true
+                                properties:
+                                  accessKey:
+                                    type: string
+                                  endPoint:
+                                    type: string
+                                  pathStyleAccess:
+                                    type: boolean
+                                  secretKey:
+                                    type: string
+                                  sslEnabled:
+                                    type: boolean
+                                required:
+                                  - accessKey
+                                  - endPoint
+                                  - pathStyleAccess
+                                  - secretKey
+                                  - sslEnabled
+                                type: object
                               warehouseDir:
                                 nullable: true
                                 type: string

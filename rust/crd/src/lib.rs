@@ -4,6 +4,7 @@ pub mod error;
 
 use crate::commands::{Restart, Start, Stop};
 
+use crate::discovery::S3Connection;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition;
 use k8s_openapi::schemars::_serde_json::Value;
 use kube::api::ApiResource;
@@ -34,22 +35,31 @@ pub const MANAGED_BY: &str = "hive-operator";
 
 pub const CONFIG_DIR_NAME: &str = "conf";
 
+// config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
 
+// metastore
 pub const CONNECTION_URL: &str = "javax.jdo.option.ConnectionURL";
 pub const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
 pub const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
 pub const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
 pub const METASTORE_METRICS_ENABLED: &str = "hive.metastore.metrics.enabled";
 pub const METASTORE_WAREHOUSE_DIR: &str = "hive.metastore.warehouse.dir";
+pub const DB_TYPE_CLI: &str = "dbType";
 
+// S3
+pub const S3_ENDPOINT: &str = "fs.s3a.endpoint";
+pub const S3_ACCESS_KEY: &str = "fs.s3a.access.key";
+pub const S3_SECRET_KEY: &str = "fs.s3a.secret.key";
+pub const S3_SSL_ENABLED: &str = "fs.s3a.connection.ssl.enabled";
+pub const S3_PATH_STYLE_ACCESS: &str = "fs.s3a.path.style.access";
+
+// ports
 pub const METASTORE_PORT_PROPERTY: &str = "hive.metastore.port";
 pub const METASTORE_PORT: &str = "metastore";
 pub const METRICS_PORT_PROPERTY: &str = "metricsPort";
 pub const METRICS_PORT: &str = "metrics";
-
-pub const DB_TYPE_CLI: &str = "dbType";
 
 pub const JAVA_HOME: &str = "JAVA_HOME";
 
@@ -166,6 +176,7 @@ pub struct MetaStoreConfig {
     metrics_port: Option<u16>,
     warehouse_dir: Option<String>,
     database: DatabaseConnectionSpec,
+    s3_connection: Option<S3Connection>,
     java_home: String,
 }
 
@@ -313,6 +324,33 @@ impl Configuration for MetaStoreConfig {
             result.insert(
                 METASTORE_METRICS_ENABLED.to_string(),
                 Some("true".to_string()),
+            );
+        }
+
+        if let Some(s3_connection) = &self.s3_connection {
+            result.insert(
+                S3_ENDPOINT.to_string(),
+                Some(s3_connection.end_point.clone()),
+            );
+
+            result.insert(
+                S3_ACCESS_KEY.to_string(),
+                Some(s3_connection.access_key.clone()),
+            );
+
+            result.insert(
+                S3_SECRET_KEY.to_string(),
+                Some(s3_connection.secret_key.clone()),
+            );
+
+            result.insert(
+                S3_SSL_ENABLED.to_string(),
+                Some(s3_connection.ssl_enabled.to_string()),
+            );
+
+            result.insert(
+                S3_PATH_STYLE_ACCESS.to_string(),
+                Some(s3_connection.path_style_access.to_string()),
             );
         }
 

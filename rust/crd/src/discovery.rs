@@ -24,6 +24,18 @@ pub enum TicketReferences {
     ErrHivePodWithoutName,
 }
 
+// TODO: This should probably be moved (it is here for now to be shared with Hive and Trino).
+/// Contains all the required connection information for S3.
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct S3Connection {
+    pub end_point: String,
+    pub access_key: String,
+    pub secret_key: String,
+    pub ssl_enabled: bool,
+    pub path_style_access: bool,
+}
+
 /// Contains all necessary information to identify a Stackable managed Hive
 /// cluster and build a connection string for it.
 /// The main purpose for this struct is for other operators that need to reference a
@@ -31,6 +43,7 @@ pub enum TicketReferences {
 /// This has the benefit of keeping references to Hive ensembles consistent
 /// throughout the entire stack.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HiveReference {
     pub namespace: String,
     pub name: String,
