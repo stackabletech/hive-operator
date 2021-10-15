@@ -125,7 +125,7 @@ impl HiveState {
         // The iteration happens in two stages here, to accommodate the way our operators think
         // about roles and role groups.
         // The hierarchy is:
-        // - Roles (Master, Worker, History-Server)
+        // - Roles (Metastore)
         //   - Role groups (user defined)
         for role in HiveRole::iter() {
             let role_str = &role.to_string();
@@ -361,7 +361,6 @@ impl HiveState {
                         // product config to be able to not configure any monitoring / metrics)
                         if property_name == METRICS_PORT_PROPERTY {
                             metrics_port = Some(property_value);
-                            // TODO: adapt package and hive_jmx_config.yaml
                             cb.add_env_var(
                                 "HADOOP_OPTS".to_string(),
                                 format!("-javaagent:{{{{packageroot}}}}/{}/stackable/bin/jmx_prometheus_javaagent-0.16.1.jar={}:{{{{packageroot}}}}/{}/stackable/conf/hive_jmx_config.yaml",

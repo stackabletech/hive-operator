@@ -1,7 +1,7 @@
 use clap::{crate_version, App, AppSettings, SubCommand};
 use kube::CustomResourceExt;
 use stackable_hive_crd::commands::{Restart, Start, Stop};
-use stackable_hive_crd::HiveCluster;
+use stackable_hive_crd::{DatabaseConnection, HiveCluster};
 use stackable_operator::{cli, logging};
 use stackable_operator::{client, error};
 use tracing::error;
@@ -24,7 +24,10 @@ async fn main() -> Result<(), error::Error> {
         .subcommand(
             SubCommand::with_name("crd")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .subcommand(cli::generate_crd_subcommand::<HiveCluster>()),
+                .subcommand(cli::generate_crd_subcommand::<HiveCluster>())
+                .subcommand(cli::generate_crd_subcommand::<Restart>())
+                .subcommand(cli::generate_crd_subcommand::<Start>())
+                .subcommand(cli::generate_crd_subcommand::<Stop>()),
         )
         .get_matches();
 
@@ -67,6 +70,7 @@ async fn main() -> Result<(), error::Error> {
             Restart::crd_name(),
             Start::crd_name(),
             Stop::crd_name(),
+            DatabaseConnection::crd_name(),
         ],
         None,
     )

@@ -72,7 +72,7 @@ impl HiveConnectionInformation {
         con
     }
 
-    /// Returns a connection string (without db) for a name node as defined by Hive.
+    /// Returns a connection string (without db) for a metastore as defined by Hive.
     /// This has the form `thrift://host:port`
     /// For example:
     ///  - thrift://server1:9000
@@ -114,7 +114,7 @@ pub async fn get_hive_connection_info(
 /// Takes a list of pods belonging to this cluster from which the hostnames are retrieved.
 /// Checks the 'metastore' container port instead of the cluster spec to retrieve the correct port.
 ///
-/// WARNING: For now this only works with one name_node.
+/// WARNING: For now this only works with one metastore.
 ///
 /// # Arguments
 ///
@@ -125,10 +125,10 @@ pub fn get_hive_connection_string_from_pods(
     hive_pods: &[Pod],
     root: Option<&str>,
 ) -> HiveOperatorResult<Option<HiveConnectionInformation>> {
-    let name_node_str = &HiveRole::MetaStore.to_string();
+    let metastore_str = &HiveRole::MetaStore.to_string();
     let cleaned_db_root = pad_and_check_chroot(root)?;
 
-    // filter for name nodes
+    // filter for metastore
     let filtered_pods: Vec<&Pod> = hive_pods
         .iter()
         .filter(|pod| {
@@ -136,13 +136,13 @@ pub fn get_hive_connection_string_from_pods(
                 .labels
                 .as_ref()
                 .and_then(|labels| labels.get(APP_COMPONENT_LABEL))
-                == Some(name_node_str)
+                == Some(metastore_str)
         })
         .collect();
 
     if filtered_pods.len() > 1 {
-        warn!("Retrieved more than one name_node pod. This is not supported and may lead to untested side effects. \
-           Please specify only one name_node in the custom resource via 'replicas=1'.");
+        warn!("Retrieved more than one metastore pod. This is not supported and may lead to untested side effects. \
+           Please specify only one metastore in the custom resource via 'replicas=1'.");
     }
 
     for pod in &filtered_pods {
@@ -176,7 +176,7 @@ pub fn get_hive_connection_string_from_pods(
     Ok(None)
 }
 
-/// Build a Labelselector that applies only to name node pods belonging to the cluster instance
+/// Build a Labelselector that applies only to metastore pods belonging to the cluster instance
 /// referenced by `name`.
 ///
 /// # Arguments
