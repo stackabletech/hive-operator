@@ -31,6 +31,7 @@ systemd-units = { enable = false, unit-name = "stackable-hive-operator" }
 assets = [
     ["../../target/release/stackable-hive-operator", "opt/stackable/hive-operator/", "755"],
     ["../../deploy/crd/hivecluster.crd.yaml", "etc/stackable/hive-operator/crd/", "644"],
+    ["../../deploy/crd/databaseconnection.crd.yaml", "etc/stackable/hive-operator/crd/", "644"],
     ["../../deploy/crd/restart.crd.yaml", "etc/stackable/hive-operator/crd/", "644"],
     ["../../deploy/crd/start.crd.yaml", "etc/stackable/hive-operator/crd/", "644"],
     ["../../deploy/crd/stop.crd.yaml", "etc/stackable/hive-operator/crd/", "644"],
