@@ -25,6 +25,7 @@ async fn main() -> Result<(), error::Error> {
             SubCommand::with_name("crd")
                 .setting(AppSettings::ArgRequiredElseHelp)
                 .subcommand(cli::generate_crd_subcommand::<HiveCluster>())
+                .subcommand(cli::generate_crd_subcommand::<DatabaseConnection>())
                 .subcommand(cli::generate_crd_subcommand::<Restart>())
                 .subcommand(cli::generate_crd_subcommand::<Start>())
                 .subcommand(cli::generate_crd_subcommand::<Stop>()),
@@ -33,6 +34,9 @@ async fn main() -> Result<(), error::Error> {
 
     if let ("crd", Some(subcommand)) = matches.subcommand() {
         if cli::handle_crd_subcommand::<HiveCluster>(subcommand)? {
+            return Ok(());
+        };
+        if cli::handle_crd_subcommand::<DatabaseConnection>(subcommand)? {
             return Ok(());
         };
         if cli::handle_crd_subcommand::<Start>(subcommand)? {
