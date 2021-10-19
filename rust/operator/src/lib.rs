@@ -260,7 +260,7 @@ impl HiveState {
         let mut config_maps = HashMap::new();
         let mut config_maps_data = BTreeMap::new();
 
-        let log4j_config = include_str!("log4j.properties");
+        let log4j_config = include_str!("../../../deploy/external/log4j.properties");
         config_maps_data.insert(LOG_4J_PROPERTIES.to_string(), log4j_config.to_string());
 
         for (property_name_kind, config) in validated_config {
