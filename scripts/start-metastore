@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+#
+# Usage: start-metastore <options> namenode [namenode-options]
+# Options:
+#   --help
+#   --config <path-to-hadoop-conf-folder> 
+# 
+# Checks if the metastore database schema is initialized. If so it starts the metastore,
+# otherwise it tries to initialize the schma first.
+#
+
+#set -x
+
+CONF_DIR=""
+DB_TYPE=""
+HIVE_BIN_DIR=""
+
+function parse_args {
+  while true; do
+    echo "processing arg $1"
+    case $1 in 
+      --db-type)
+        shift
+        DB_TYPE=$1
+        shift
+      ;;
+      --config)
+        shift
+        CONF_DIR=$1
+        shift
+      ;;
+      --hive-bin-dir)
+        shift
+        HIVE_BIN_DIR=$1
+        shift
+      ;;
+      --help)
+        echo  "Checks if the metastore DB contains the needed schema and initializes it "
+        echo   "if it does not exist.  Starts the metastore."
+        echo  ""
+        echo  "Usage: start-metastore <options>"
+        echo  "Options:"
+        echo  "  --help"
+        echo  "  --db-type <derby|mssql|mysql|postgres|oracle>"
+        echo  "  --config <path-to-hive-config-directory>"
+        echo  "  --hive-bin-dir <path-to-hive-bin-directory>"
+        exit
+      ;;
+      *)
+        break
+      ;;
+    esac
+  done
+
+  if [ ! -d "$CONF_DIR" ]; then
+    echo "Missing configuration directory."
+    exit 1
+  fi
+  if [ ! -d "$HIVE_BIN_DIR" ]; then
+    echo "Missing hive bin directory."
+    exit 1
+  fi
+  if [ -z "$DB_TYPE" ]; then
+    echo "Missing database type."
+    exit 1
+  fi
+}
+
+function init_schema {
+  if ! $HIVE_BIN_DIR/hive --config $CONF_DIR --service schemaTool -dbType $DB_TYPE -validate ; then
+    echo "No valid schema found, initializing schema ..."
+    $HIVE_BIN_DIR/hive --config $CONF_DIR --service schemaTool -dbType $DB_TYPE -initSchema || exit 1
+  fi
+}
+
+function start_metastore {
+  $HIVE_BIN_DIR/hive --config $CONF_DIR --service metastore
+}
+
+function main {
+  parse_args $@
+  init_schema
+  start_metastore
+}
+
+main $@

@@ -1,0 +1,51 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: databaseconnections.external.stackable.tech
+spec:
+  group: external.stackable.tech
+  names:
+    categories: []
+    kind: DatabaseConnection
+    plural: databaseconnections
+    shortNames:
+      - dbconn
+    singular: databaseconnection
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns: []
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: "Auto-generated derived type for DatabaseConnectionSpec via `CustomResource`"
+          properties:
+            spec:
+              properties:
+                connString:
+                  type: string
+                dbType:
+                  enum:
+                    - derby
+                    - mysql
+                    - postgres
+                    - oracle
+                    - mssql
+                  type: string
+                password:
+                  type: string
+                user:
+                  type: string
+              required:
+                - connString
+                - dbType
+                - password
+                - user
+              type: object
+          required:
+            - spec
+          title: DatabaseConnection
+          type: object
+      served: true
+      storage: true
+      subresources: {}

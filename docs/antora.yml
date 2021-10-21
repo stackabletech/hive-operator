@@ -1,0 +1,5 @@
+name: hive
+version: master
+title: Stackable Operator for Apache Hive
+nav:
+  - modules/ROOT/nav.adoc
