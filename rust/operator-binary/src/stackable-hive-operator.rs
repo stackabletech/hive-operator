@@ -1,7 +1,7 @@
 use clap::{crate_version, App, AppSettings, SubCommand};
-use kube::CustomResourceExt;
 use stackable_hive_crd::commands::{Restart, Start, Stop};
 use stackable_hive_crd::{DatabaseConnection, HiveCluster};
+use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::{cli, logging};
 use stackable_operator::{client, error};
 use tracing::error;

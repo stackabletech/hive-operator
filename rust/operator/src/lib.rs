@@ -3,11 +3,6 @@ use crate::error::Error;
 use stackable_hive_crd::commands::{Restart, Start, Stop};
 
 use async_trait::async_trait;
-use k8s_openapi::api::core::v1::{ConfigMap, Pod};
-use kube::api::{ListParams, ResourceExt};
-use kube::Api;
-use product_config::types::PropertyNameKind;
-use product_config::ProductConfigManager;
 use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterSpec, HiveRole, HiveVersion, APP_NAME, CONFIG_DIR_NAME,
     DB_TYPE_CLI, HIVE_SITE_XML, LOG_4J_PROPERTIES, METASTORE_PORT, METASTORE_PORT_PROPERTY,
@@ -23,11 +18,16 @@ use stackable_operator::controller::Controller;
 use stackable_operator::controller::{ControllerStrategy, ReconciliationState};
 use stackable_operator::error::OperatorResult;
 use stackable_operator::identity::{LabeledPodIdentityFactory, PodIdentity, PodToNodeMapping};
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Pod};
+use stackable_operator::kube::api::{ListParams, ResourceExt};
+use stackable_operator::kube::Api;
 use stackable_operator::labels;
 use stackable_operator::labels::{
     build_common_labels_for_all_managed_resources, get_recommended_labels,
 };
 use stackable_operator::name_utils;
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
     config_for_role_and_group, transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
@@ -274,7 +274,7 @@ impl HiveState {
 
                     config_maps_data.insert(
                         file_name.clone(),
-                        product_config::writer::to_hadoop_xml(data.iter()),
+                        stackable_operator::product_config::writer::to_hadoop_xml(data.iter()),
                     );
                 }
                 _ => {}
