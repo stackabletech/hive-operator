@@ -15,7 +15,7 @@ pub enum Error {
     #[error("Kubernetes reported error: {source}")]
     KubeError {
         #[from]
-        source: kube::Error,
+        source: stackable_operator::kube::Error,
     },
 
     #[error("Operator Framework reported error: {source}")]

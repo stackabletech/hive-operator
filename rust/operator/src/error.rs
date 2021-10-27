@@ -17,7 +17,7 @@ pub enum Error {
     #[error("Kubernetes reported error: {source}")]
     KubeError {
         #[from]
-        source: kube::Error,
+        source: stackable_operator::kube::Error,
     },
 
     #[error("Error from Operator framework: {source}")]
@@ -39,12 +39,12 @@ pub enum Error {
     },
 
     #[error("Error creating properties file")]
-    PropertiesError(#[from] product_config::writer::PropertiesWriterError),
+    PropertiesError(#[from] stackable_operator::product_config::writer::PropertiesWriterError),
 
     #[error("ProductConfig Framework reported error: {source}")]
     ProductConfigError {
         #[from]
-        source: product_config::error::Error,
+        source: stackable_operator::product_config::error::Error,
     },
 
     #[error("Strum reported error: {source}")]
