@@ -8,9 +8,7 @@ use stackable_hive_crd::{
     DB_TYPE_CLI, HIVE_SITE_XML, LOG_4J_PROPERTIES, METASTORE_PORT, METASTORE_PORT_PROPERTY,
     METRICS_PORT, METRICS_PORT_PROPERTY,
 };
-use stackable_operator::builder::{
-    ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
-};
+use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::command::materialize_command;
 use stackable_operator::configmap;
@@ -344,7 +342,7 @@ impl HiveState {
         let spec: &HiveClusterSpec = &self.context.resource.spec;
         let version: &HiveVersion = &spec.version;
 
-        let mut cb = ContainerBuilder::new(APP_NAME);
+        let mut container_builder = ContainerBuilder::new(APP_NAME);
 
         for (property_name_kind, config) in validated_config {
             match property_name_kind {
@@ -361,15 +359,14 @@ impl HiveState {
                         // product config to be able to not configure any monitoring / metrics)
                         if property_name == METRICS_PORT_PROPERTY {
                             metrics_port = Some(property_value);
-                            cb.add_env_var(
+                            container_builder.add_env_var(
                                 "HADOOP_OPTS".to_string(),
-                                format!("-javaagent:{{{{packageroot}}}}/{}/stackable/bin/jmx_prometheus_javaagent-0.16.1.jar={}:{{{{packageroot}}}}/{}/stackable/conf/hive_jmx_config.yaml",
-                                        version.package_name(), property_value, version.package_name())
+                                format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", property_value)
                             );
                             continue;
                         }
 
-                        cb.add_env_var(property_name, property_value);
+                        container_builder.add_env_var(property_name, property_value);
                     }
                 }
                 PropertyNameKind::Cli => {
@@ -383,16 +380,11 @@ impl HiveState {
             }
         }
 
-        cb.image(format!("{}:{}", APP_NAME, version.to_string()));
-        cb.command(role.get_command(version, true, &db_type.unwrap_or_default().to_string()));
-        // TODO don't hardcode version -> check kafka operator with scala
-        cb.add_env_var(
-            "HADOOP_HOME",
-            format!(
-                "{{{{packageroot}}}}/apache-hive-{}-bin/hadoop-2.10.1/",
-                version.to_string()
-            ),
-        );
+        container_builder.image(format!(
+            "docker.stackable.tech/stackable/hive:{}-0.1",
+            version.to_string()
+        ));
+        container_builder.command(role.get_command(true, &db_type.unwrap_or_default().to_string()));
 
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),
@@ -412,10 +404,12 @@ impl HiveState {
         );
         recommended_labels.insert(ID_LABEL.to_string(), pod_id.id().to_string());
 
+        let mut pod_builder = PodBuilder::new();
         // One mount for the config directory
         if let Some(config_map_data) = config_maps.get(CM_TYPE_CONFIG) {
             if let Some(name) = config_map_data.metadata.name.as_ref() {
-                cb.add_configmapvolume(name, CONFIG_DIR_NAME.to_string());
+                container_builder.add_volume_mount("config", CONFIG_DIR_NAME);
+                pod_builder.add_volume(VolumeBuilder::new("config").with_config_map(name).build());
             } else {
                 return Err(error::Error::MissingConfigMapNameError {
                     cm_type: CM_TYPE_CONFIG,
@@ -432,23 +426,15 @@ impl HiveState {
         // only add metrics container port and annotation if available
         if let Some(metrics_port) = metrics_port {
             annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
-            cb.add_container_port(
-                ContainerPortBuilder::new(metrics_port.parse()?)
-                    .name(METRICS_PORT)
-                    .build(),
-            );
+            container_builder.add_container_port(METRICS_PORT, metrics_port.parse()?);
         }
 
         // add ipc port if available
         if let Some(metastore_port) = metastore_port {
-            cb.add_container_port(
-                ContainerPortBuilder::new(metastore_port.parse()?)
-                    .name(METASTORE_PORT)
-                    .build(),
-            );
+            container_builder.add_container_port(METASTORE_PORT, metastore_port.parse()?);
         }
 
-        let pod = PodBuilder::new()
+        let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
                     .generate_name(pod_name)
@@ -458,9 +444,9 @@ impl HiveState {
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
-            .add_stackable_agent_tolerations()
-            .add_container(cb.build())
+            .add_container(container_builder.build())
             .node_name(node_name)
+            .host_network(true)
             .build()?;
 
         Ok(self.context.client.create(&pod).await?)

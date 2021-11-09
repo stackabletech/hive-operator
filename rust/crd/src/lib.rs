@@ -33,7 +33,7 @@ use strum_macros::EnumIter;
 pub const APP_NAME: &str = "hive";
 pub const MANAGED_BY: &str = "hive-operator";
 
-pub const CONFIG_DIR_NAME: &str = "conf";
+pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
@@ -91,30 +91,22 @@ pub enum HiveRole {
 
 impl HiveRole {
     /// Returns the container start command for the metastore service.
-    /// # Arguments
-    ///
-    /// * `version` - Current specified hive version
-    pub fn get_command(
-        &self,
-        version: &HiveVersion,
-        auto_init_schema: bool,
-        db_type: &str,
-    ) -> Vec<String> {
+    pub fn get_command(&self, auto_init_schema: bool, db_type: &str) -> Vec<String> {
         if auto_init_schema {
             vec![
-                format!("{}/stackable/bin/start-metastore", version.package_name()),
+                "bin/start-metastore".to_string(),
                 "--config".to_string(),
-                format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
+                CONFIG_DIR_NAME.to_string(),
                 "--db-type".to_string(),
                 db_type.to_string(),
                 "--hive-bin-dir".to_string(),
-                format!("{{{{packageroot}}}}/{}/bin/", version.package_name()),
+                "bin".to_string(),
             ]
         } else {
             vec![
-                format!("{}/bin/hive", version.package_name()),
+                "/bin/hive".to_string(),
                 "--config".to_string(),
-                format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
+                CONFIG_DIR_NAME.to_string(),
                 "--service".to_string(),
                 "metastore".to_string(),
             ]
@@ -180,7 +172,6 @@ pub struct MetaStoreConfig {
     warehouse_dir: Option<String>,
     database: DatabaseConnectionSpec,
     s3_connection: Option<S3Connection>,
-    java_home: String,
 }
 
 #[derive(
@@ -263,8 +254,6 @@ impl Configuration for MetaStoreConfig {
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
-
-        result.insert(JAVA_HOME.to_string(), Some(self.java_home.clone()));
 
         if let Some(metrics_port) = self.metrics_port {
             result.insert(
@@ -383,22 +372,10 @@ pub enum HiveVersion {
 
     // TODO: we currently only support 2.3.9.
     //   remove #[serde(skip)] once it is supported and packaged.
-    //#[serde(rename = "1.14.0")]
     #[serde(skip)]
     #[serde(rename = "3.1.1")]
     #[strum(serialize = "3.1.1")]
     v3_1_1,
-}
-
-impl HiveVersion {
-    pub fn package_name(&self) -> String {
-        // we have to do this twice because of the combined packaging with hadoop.
-        format!(
-            "apache-hive-{}-bin/apache-hive-{}-bin",
-            self.to_string(),
-            self.to_string()
-        )
-    }
 }
 
 impl Versioning for HiveVersion {
@@ -508,17 +485,5 @@ mod tests {
     fn test_version_conversion() {
         HiveVersion::from_str("2.3.9").unwrap();
         HiveVersion::from_str("1.2.3").unwrap_err();
-    }
-
-    #[test]
-    fn test_package_name() {
-        assert_eq!(
-            HiveVersion::v2_3_9.package_name(),
-            format!(
-                "apache-hive-{}-bin/apache-hive-{}-bin",
-                HiveVersion::v2_3_9.to_string(),
-                HiveVersion::v2_3_9.to_string()
-            )
-        );
     }
 }

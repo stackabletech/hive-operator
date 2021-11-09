@@ -8,15 +8,11 @@ spec:
     roleGroups:
       default:
         selector:
-          matchExpressions:
-            - operator: In
-              key: kubernetes.io/arch
-              values:
-                - stackable-linux
+          matchLabels:
+            kubernetes.io/os: linux
         replicas: 1
         config:
-          javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
-          warehouseDir: /tmp/hive_warehouse
+          warehouseDir: /stackable/metastore
           database:
             connString: jdbc:postgresql://localhost:5432/metastoredb
             user: hiveuser

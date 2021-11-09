@@ -54,8 +54,6 @@ spec:
                             - password
                             - user
                           type: object
-                        javaHome:
-                          type: string
                         metastorePort:
                           format: uint16
                           minimum: 0.0
@@ -92,7 +90,6 @@ spec:
                           type: string
                       required:
                         - database
-                        - javaHome
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -139,8 +136,6 @@ spec:
                                   - password
                                   - user
                                 type: object
-                              javaHome:
-                                type: string
                               metastorePort:
                                 format: uint16
                                 minimum: 0.0
@@ -177,7 +172,6 @@ spec:
                                 type: string
                             required:
                               - database
-                              - javaHome
                             type: object
                           configOverrides:
                             additionalProperties:
