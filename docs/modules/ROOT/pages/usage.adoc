@@ -17,14 +17,10 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with Prometheus m
         roleGroups:
           default:
             selector:
-              matchExpressions:
-                - operator: In
-                  key: kubernetes.io/arch
-                  values:
-                    - stackable-linux
+              matchLabels:
+                kubernetes.io/os: linux
             replicas: 1
             config:
-              javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
               metricsPort: 11111
               database:
                 connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true

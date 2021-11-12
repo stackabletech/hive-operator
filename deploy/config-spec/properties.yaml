@@ -118,20 +118,3 @@ properties:
           required: false
       description: "URI of the default location for native tables."
       asOfVersion: "0.0.0"
-
-  ###################################################################################################
-  # env vars
-  ###################################################################################################
-  - property: &javaHome
-      propertyNames:
-        - name: "JAVA_HOME"
-          kind:
-            type: "env"
-      datatype:
-        type: "string"
-        unit: *unitDirectory
-      roles:
-        - name: "metastore"
-          required: true
-      asOfVersion: "0.0.0"
-      description: "Points to the Java installation folder."
