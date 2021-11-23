@@ -274,6 +274,12 @@ impl HiveState {
                         data.insert(property_name.to_string(), Some(property_value.to_string()));
                     }
 
+                    // TODO: make configurable
+                    data.insert(
+                        "hive.metastore.warehouse.dir".to_string(),
+                        Some("/stackable/warehouse".to_string()),
+                    );
+
                     config_maps_data.insert(
                         file_name.clone(),
                         stackable_operator::product_config::writer::to_hadoop_xml(data.iter()),
