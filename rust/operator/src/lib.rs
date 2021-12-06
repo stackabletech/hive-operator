@@ -1,6 +1,5 @@
 mod error;
 use crate::error::Error;
-use stackable_hive_crd::commands::{Restart, Start, Stop};
 
 use async_trait::async_trait;
 use stackable_hive_crd::{
