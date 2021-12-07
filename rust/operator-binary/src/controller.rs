@@ -17,8 +17,7 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EnvVar, EnvVarSource, ExecAction,
-                ObjectFieldSelector, PersistentVolumeClaim, PersistentVolumeClaimSpec, Probe,
+                ConfigMap, ConfigMapVolumeSource, PersistentVolumeClaim, PersistentVolumeClaimSpec,
                 ResourceRequirements, Service, ServicePort, ServiceSpec, Volume,
             },
         },
@@ -33,9 +32,7 @@ use stackable_operator::{
         },
     },
     labels::{role_group_selector_labels, role_selector_labels},
-    product_config::{
-        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
-    },
+    product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
 };
 use std::str::FromStr;
@@ -123,6 +120,7 @@ pub enum Error {
         hive: ObjectRef<HiveCluster>,
     },
 }
+
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
@@ -400,18 +398,18 @@ fn build_server_rolegroup_statefulset(
     hive: &HiveCluster,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<StatefulSet> {
-    let mut metastore_port: Option<&String> = None;
     let mut db_type: Option<DbType> = None;
-
-    let spec: &HiveClusterSpec = &hive.spec;
-    let version = spec.version.as_ref().unwrap_or(&"3.5.8".to_string());
-
     let mut container_builder = ContainerBuilder::new(APP_NAME);
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
-                metastore_port = config.get(MetaStoreConfig::METASTORE_PORT_PROPERTY);
+                let metastore_port = config
+                    .get(MetaStoreConfig::METASTORE_PORT_PROPERTY)
+                    .and_then(|p| i32::from_str(p).ok())
+                    .unwrap_or_else(|| APP_PORT.into());
+
+                container_builder.add_container_port("hive", metastore_port);
             }
             PropertyNameKind::Env => {
                 for (property_name, property_value) in config {
@@ -422,8 +420,10 @@ fn build_server_rolegroup_statefulset(
                     // if a metrics port is provided (for now by user, it is not required in
                     // product config to be able to not configure any monitoring / metrics)
                     if property_name == MetaStoreConfig::METRICS_PORT_PROPERTY {
-                        container_builder
-                            .add_container_port("metrics", property_value.parse().unwrap_or(9083));
+                        container_builder.add_container_port(
+                            "metrics",
+                            property_value.parse().unwrap_or_else(|_| APP_PORT.into()),
+                        );
                         container_builder.add_env_var(
                             "HADOOP_OPTS".to_string(),
                             format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", property_value)
@@ -465,26 +465,6 @@ fn build_server_rolegroup_statefulset(
     let container_hive = container_builder
         .image(image)
         .command(HiveRole::MetaStore.get_command(true, &db_type.unwrap_or_default().to_string()))
-        // Only allow the global load balancing service to send traffic to pods that are members of the quorum
-        // This also acts as a hint to the StatefulSet controller to wait for each pod to enter quorum before taking down the next
-        // .readiness_probe(Probe {
-        //     exec: Some(ExecAction {
-        //         command: Some(vec![
-        //             "bash".to_string(),
-        //             "-c".to_string(),
-        //             // We don't have telnet or netcat in the container images, but
-        //             // we can use Bash's virtual /dev/tcp filesystem to accomplish the same thing
-        //             format!(
-        //                 "exec 3<>/dev/tcp/localhost/{} && echo srvr >&3 && grep '^Mode: ' <&3",
-        //                 APP_PORT
-        //             ),
-        //         ]),
-        //     }),
-        //     period_seconds: Some(1),
-        //     ..Probe::default()
-        // })
-        .add_container_port("hive", APP_PORT.into())
-        //.add_volume_mount("data", "/stackable/data")
         .add_volume_mount("conf", CONFIG_DIR_NAME)
         .build();
 

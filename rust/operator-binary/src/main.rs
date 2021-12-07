@@ -4,13 +4,12 @@ mod utils;
 
 use std::str::FromStr;
 
-use crate::utils::Tokio01ExecutorExt;
 use futures::{compat::Future01CompatExt, StreamExt};
 use stackable_hive_crd::HiveCluster;
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Endpoints, Service},
+        core::v1::{ConfigMap, Service},
     },
     kube::{
         self,
