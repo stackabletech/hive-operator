@@ -392,7 +392,8 @@ fn build_server_rolegroup_service(rolegroup: &RoleGroupRef, hive: &HiveCluster) 
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
-/// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the corresponding [`Service`] (from [`build_rolegroup_service`]).
+/// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
+/// corresponding [`Service`] (from [`build_rolegroup_service`]).
 fn build_server_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef,
     hive: &HiveCluster,
@@ -420,10 +421,8 @@ fn build_server_rolegroup_statefulset(
                     // if a metrics port is provided (for now by user, it is not required in
                     // product config to be able to not configure any monitoring / metrics)
                     if property_name == MetaStoreConfig::METRICS_PORT_PROPERTY {
-                        container_builder.add_container_port(
-                            "metrics",
-                            property_value.parse().unwrap_or_else(|_| APP_PORT.into()),
-                        );
+                        container_builder
+                            .add_container_port("metrics", property_value.parse().unwrap_or(9505));
                         container_builder.add_env_var(
                             "HADOOP_OPTS".to_string(),
                             format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", property_value)
