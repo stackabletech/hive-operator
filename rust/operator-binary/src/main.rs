@@ -2,8 +2,6 @@ mod controller;
 mod discovery;
 mod utils;
 
-use std::str::FromStr;
-
 use futures::{compat::Future01CompatExt, StreamExt};
 use stackable_hive_crd::HiveCluster;
 use stackable_operator::{
@@ -23,6 +21,7 @@ use stackable_operator::{
     },
     product_config::ProductConfigManager,
 };
+use std::str::FromStr;
 use structopt::StructOpt;
 
 mod built_info {
@@ -31,6 +30,7 @@ mod built_info {
 
 pub const APP_NAME: &str = "hive";
 pub const APP_PORT: u16 = 9083;
+pub const METRICS_PORT: u16 = 9084;
 
 #[derive(StructOpt)]
 #[structopt(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]

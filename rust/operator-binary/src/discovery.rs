@@ -54,6 +54,7 @@ pub async fn build_discovery_configmaps(
     let name = owner.name();
     Ok(vec![
         build_discovery_configmap(&name, owner, hive, chroot, pod_hosts(hive)?)?,
+        // TODO: do we need that - i think there is only internal access required?
         build_discovery_configmap(
             &format!("{}-nodeport", name),
             owner,

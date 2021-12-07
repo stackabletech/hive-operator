@@ -9,16 +9,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 
-pub const APP_NAME: &str = "hive";
-pub const MANAGED_BY: &str = "hive-operator";
-
 pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
-
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
-
-pub const JAVA_HOME: &str = "JAVA_HOME";
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -78,11 +72,11 @@ impl HiveRole {
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
-    metastore_port: Option<u16>,
-    metrics_port: Option<u16>,
-    warehouse_dir: Option<String>,
-    database: DatabaseConnectionSpec,
-    s3_connection: Option<S3Connection>,
+    pub metastore_port: Option<u16>,
+    pub metrics_port: Option<u16>,
+    pub warehouse_dir: Option<String>,
+    pub database: DatabaseConnectionSpec,
+    pub s3_connection: Option<S3Connection>,
 }
 
 // TODO: This should probably be moved (it is here for now to be shared with Hive and Trino).
@@ -106,14 +100,12 @@ impl MetaStoreConfig {
     pub const METASTORE_METRICS_ENABLED: &'static str = "hive.metastore.metrics.enabled";
     pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
     pub const DB_TYPE_CLI: &'static str = "dbType";
-
     // S3
     pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
     pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
-
     // ports
     pub const METASTORE_PORT_PROPERTY: &'static str = "hive.metastore.port";
     pub const METASTORE_PORT: &'static str = "metastore";
@@ -316,21 +308,21 @@ pub struct NoNamespaceError;
 
 impl HiveCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn server_role_service_name(&self) -> Option<String> {
+    pub fn metastore_role_service_name(&self) -> Option<String> {
         self.metadata.name.clone()
     }
 
     /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn server_role_service_fqdn(&self) -> Option<String> {
+    pub fn metastore_role_service_fqdn(&self) -> Option<String> {
         Some(format!(
             "{}.{}.svc.cluster.local",
-            self.server_role_service_name()?,
+            self.metastore_role_service_name()?,
             self.metadata.namespace.as_ref()?
         ))
     }
 
-    /// Metadata about a server rolegroup
-    pub fn server_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef {
+    /// Metadata about a metastore rolegroup
+    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(self),
             role: HiveRole::MetaStore.to_string(),
@@ -359,7 +351,7 @@ impl HiveCluster {
             .collect::<BTreeMap<_, _>>()
             .into_iter()
             .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.server_rolegroup_ref(rolegroup_name);
+                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
                 let ns = ns.clone();
                 (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
                     namespace: ns.clone(),

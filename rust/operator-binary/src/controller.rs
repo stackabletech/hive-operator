@@ -3,7 +3,7 @@
 use crate::{
     discovery::{self, build_discovery_configmaps},
     utils::{apply_owned, apply_status},
-    APP_NAME, APP_PORT,
+    APP_NAME, APP_PORT, METRICS_PORT,
 };
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -127,14 +127,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     tracing::info!("Starting reconcile");
     let hive_ref = ObjectRef::from_obj(&hive);
     let kube = ctx.get_ref().kube.clone();
-
-    let hive_version = hive
-        .spec
-        .version
-        .as_deref()
-        .with_context(|| ObjectHasNoVersion {
-            obj_ref: hive_ref.clone(),
-        })?;
+    let hive_version = hive_version(&hive)?;
 
     let validated_config = validate_all_roles_and_groups_config(
         hive_version,
@@ -165,23 +158,25 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     .with_context(|| InvalidProductConfig {
         hive: hive_ref.clone(),
     })?;
-    let role_server_config = validated_config
+
+    let metastore_config = validated_config
         .get(&HiveRole::MetaStore.to_string())
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
-    let server_role_service = apply_owned(&kube, FIELD_MANAGER, &build_server_role_service(&hive)?)
-        .await
-        .with_context(|| ApplyRoleService {
-            hive: hive_ref.clone(),
-        })?;
-    for (rolegroup_name, rolegroup_config) in role_server_config.iter() {
-        let rolegroup = hive.server_rolegroup_ref(rolegroup_name);
+    let metastore_role_service =
+        apply_owned(&kube, FIELD_MANAGER, &build_metastore_role_service(&hive)?)
+            .await
+            .with_context(|| ApplyRoleService {
+                hive: hive_ref.clone(),
+            })?;
+    for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
+        let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         apply_owned(
             &kube,
             FIELD_MANAGER,
-            &build_server_rolegroup_service(&rolegroup, &hive)?,
+            &build_metastore_rolegroup_service(&rolegroup, &hive, &metastore_config)?,
         )
         .await
         .with_context(|| ApplyRoleGroupService {
@@ -190,7 +185,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
         apply_owned(
             &kube,
             FIELD_MANAGER,
-            &build_server_rolegroup_config_map(&rolegroup, &hive, rolegroup_config)?,
+            &build_metastore_rolegroup_config_map(&rolegroup, &hive, rolegroup_config)?,
         )
         .await
         .with_context(|| ApplyRoleGroupConfig {
@@ -199,7 +194,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
         apply_owned(
             &kube,
             FIELD_MANAGER,
-            &build_server_rolegroup_statefulset(&rolegroup, &hive, rolegroup_config)?,
+            &build_metastore_rolegroup_statefulset(&rolegroup, &hive, rolegroup_config)?,
         )
         .await
         .with_context(|| ApplyRoleGroupStatefulSet {
@@ -210,11 +205,12 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in build_discovery_configmaps(&kube, &hive, &hive, &server_role_service, None)
-        .await
-        .with_context(|| BuildDiscoveryConfig {
-            hive: hive_ref.clone(),
-        })?
+    for discovery_cm in
+        build_discovery_configmaps(&kube, &hive, &hive, &metastore_role_service, None)
+            .await
+            .with_context(|| BuildDiscoveryConfig {
+                hive: hive_ref.clone(),
+            })?
     {
         let discovery_cm = apply_owned(&kube, FIELD_MANAGER, &discovery_cm)
             .await
@@ -252,10 +248,11 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
 ///
 /// Note that you should generally *not* hard-code clients to use these services; instead, create a [`HiveZnode`](`stackable_zookeeper_crd::HiveZnode`)
 /// and use the connection string that it gives you.
-pub fn build_server_role_service(hive: &HiveCluster) -> Result<Service> {
+pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
     let role_name = HiveRole::MetaStore.to_string();
+
     let role_svc_name =
-        hive.server_role_service_name()
+        hive.metastore_role_service_name()
             .with_context(|| GlobalServiceNameNotFound {
                 obj_ref: ObjectRef::from_obj(hive),
             })?;
@@ -285,7 +282,7 @@ pub fn build_server_role_service(hive: &HiveCluster) -> Result<Service> {
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
-fn build_server_rolegroup_config_map(
+fn build_metastore_rolegroup_config_map(
     rolegroup: &RoleGroupRef,
     hive: &HiveCluster,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -344,7 +341,25 @@ fn build_server_rolegroup_config_map(
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
-fn build_server_rolegroup_service(rolegroup: &RoleGroupRef, hive: &HiveCluster) -> Result<Service> {
+fn build_metastore_rolegroup_service(
+    rolegroup: &RoleGroupRef,
+    hive: &HiveCluster,
+    config: &HashMap<String, HashMap<PropertyNameKind, BTreeMap<String, String>>>,
+) -> Result<Service> {
+    let metastore_port = config.get(&rolegroup.role_group).and_then(|group| {
+        group
+            .get(&PropertyNameKind::File(HIVE_SITE_XML.to_string()))
+            .and_then(|config| config.get(MetaStoreConfig::METASTORE_PORT_PROPERTY))
+            .map(|p| p.parse::<i32>().unwrap_or(APP_PORT.into()))
+    });
+
+    let metrics_port = config.get(&rolegroup.role_group).and_then(|group| {
+        group
+            .get(&PropertyNameKind::Env)
+            .and_then(|config| config.get(MetaStoreConfig::METRICS_PORT_PROPERTY))
+            .map(|p| p.parse::<i32>().unwrap_or(METRICS_PORT.into()))
+    });
+
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
@@ -366,13 +381,13 @@ fn build_server_rolegroup_service(rolegroup: &RoleGroupRef, hive: &HiveCluster) 
             ports: Some(vec![
                 ServicePort {
                     name: Some("hive".to_string()),
-                    port: APP_PORT.into(),
+                    port: metastore_port.unwrap_or(APP_PORT.into()),
                     protocol: Some("TCP".to_string()),
                     ..ServicePort::default()
                 },
                 ServicePort {
                     name: Some("metrics".to_string()),
-                    port: 9505,
+                    port: metrics_port.unwrap_or(METRICS_PORT.into()),
                     protocol: Some("TCP".to_string()),
                     ..ServicePort::default()
                 },
@@ -394,7 +409,7 @@ fn build_server_rolegroup_service(rolegroup: &RoleGroupRef, hive: &HiveCluster) 
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
-fn build_server_rolegroup_statefulset(
+fn build_metastore_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef,
     hive: &HiveCluster,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -421,8 +436,10 @@ fn build_server_rolegroup_statefulset(
                     // if a metrics port is provided (for now by user, it is not required in
                     // product config to be able to not configure any monitoring / metrics)
                     if property_name == MetaStoreConfig::METRICS_PORT_PROPERTY {
-                        container_builder
-                            .add_container_port("metrics", property_value.parse().unwrap_or(9505));
+                        container_builder.add_container_port(
+                            "metrics",
+                            property_value.parse().unwrap_or(METRICS_PORT.into()),
+                        );
                         container_builder.add_env_var(
                             "HADOOP_OPTS".to_string(),
                             format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", property_value)
