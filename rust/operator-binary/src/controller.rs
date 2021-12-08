@@ -9,8 +9,9 @@ use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterSpec, HiveClusterStatus, HiveRole, MetaStoreConfig,
-    RoleGroupRef, CONFIG_DIR_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES,
+    CONFIG_DIR_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES,
 };
+use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     k8s_openapi::{
@@ -63,7 +64,9 @@ pub enum Error {
     #[snafu(display("failed to calculate global service name for {}", obj_ref))]
     GlobalServiceNameNotFound { obj_ref: ObjectRef<HiveCluster> },
     #[snafu(display("failed to calculate service name for role {}", rolegroup))]
-    RoleGroupServiceNameNotFound { rolegroup: RoleGroupRef },
+    RoleGroupServiceNameNotFound {
+        rolegroup: RoleGroupRef<HiveCluster>,
+    },
     #[snafu(display("failed to apply global Service for {}", hive))]
     ApplyRoleService {
         source: kube::Error,
@@ -72,22 +75,22 @@ pub enum Error {
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
         source: kube::Error,
-        rolegroup: RoleGroupRef,
+        rolegroup: RoleGroupRef<HiveCluster>,
     },
     #[snafu(display("failed to build ConfigMap for {}", rolegroup))]
     BuildRoleGroupConfig {
         source: stackable_operator::error::Error,
-        rolegroup: RoleGroupRef,
+        rolegroup: RoleGroupRef<HiveCluster>,
     },
     #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
     ApplyRoleGroupConfig {
         source: kube::Error,
-        rolegroup: RoleGroupRef,
+        rolegroup: RoleGroupRef<HiveCluster>,
     },
     #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
     ApplyRoleGroupStatefulSet {
         source: kube::Error,
-        rolegroup: RoleGroupRef,
+        rolegroup: RoleGroupRef<HiveCluster>,
     },
     #[snafu(display("invalid product config for {}", hive))]
     InvalidProductConfig {
@@ -97,7 +100,7 @@ pub enum Error {
     #[snafu(display("failed to serialize zoo.cfg for {}", rolegroup))]
     SerializeZooCfg {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
-        rolegroup: RoleGroupRef,
+        rolegroup: RoleGroupRef<HiveCluster>,
     },
     #[snafu(display("object {} is missing metadata to build owner reference", hive))]
     ObjectMissingMetadataForOwnerRef {
@@ -283,7 +286,7 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
 fn build_metastore_rolegroup_config_map(
-    rolegroup: &RoleGroupRef,
+    rolegroup: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<ConfigMap> {
@@ -342,7 +345,7 @@ fn build_metastore_rolegroup_config_map(
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 fn build_metastore_rolegroup_service(
-    rolegroup: &RoleGroupRef,
+    rolegroup: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
     config: &HashMap<String, HashMap<PropertyNameKind, BTreeMap<String, String>>>,
 ) -> Result<Service> {
@@ -410,7 +413,7 @@ fn build_metastore_rolegroup_service(
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
 fn build_metastore_rolegroup_statefulset(
-    rolegroup_ref: &RoleGroupRef,
+    rolegroup_ref: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<StatefulSet> {

@@ -1,13 +1,13 @@
-use std::{collections::BTreeMap, fmt::Display};
-
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
+use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
     role_utils::Role,
     schemars::{self, JsonSchema},
 };
+use std::collections::BTreeMap;
 
 pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 // config file names
@@ -322,7 +322,10 @@ impl HiveCluster {
     }
 
     /// Metadata about a metastore rolegroup
-    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef {
+    pub fn metastore_rolegroup_ref(
+        &self,
+        group_name: impl Into<String>,
+    ) -> RoleGroupRef<HiveCluster> {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(self),
             role: HiveRole::MetaStore.to_string(),
@@ -359,28 +362,6 @@ impl HiveCluster {
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                 })
             }))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RoleGroupRef {
-    pub cluster: ObjectRef<HiveCluster>,
-    pub role: String,
-    pub role_group: String,
-}
-
-impl RoleGroupRef {
-    pub fn object_name(&self) -> String {
-        format!("{}-{}-{}", self.cluster.name, self.role, self.role_group)
-    }
-}
-
-impl Display for RoleGroupRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "rolegroup {}.{} of {}",
-            self.role, self.role_group, self.cluster
-        ))
     }
 }
 
