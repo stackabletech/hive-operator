@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `operator-rs` `0.5.0` → `0.6.0`.
+- Migrated to StatefulSet rather than direct Pod management.
+
 ## [0.3.0] - 2021-12-06
 
 

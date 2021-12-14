@@ -5,7 +5,7 @@ use stackable_hive_crd::{HiveCluster, HiveRole};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service},
-    kube::{self, runtime::reflector::ObjectRef, Resource, ResourceExt},
+    kube::{runtime::reflector::ObjectRef, Resource, ResourceExt},
 };
 
 use crate::{controller::hive_version, APP_NAME, APP_PORT};
@@ -18,9 +18,7 @@ pub enum Error {
         hive: ObjectRef<HiveCluster>,
     },
     #[snafu(display("chroot path {} was relative (must be absolute)", chroot))]
-    RelativeChroot {
-        chroot: String,
-    },
+    RelativeChroot { chroot: String },
     #[snafu(display("object has no name associated"))]
     NoName,
     #[snafu(display("object has no namespace associated"))]
@@ -29,23 +27,26 @@ pub enum Error {
     ExpectedPods {
         source: stackable_hive_crd::NoNamespaceError,
     },
-    NoServicePort {
-        port_name: String,
-    },
-    NoNodePort {
-        port_name: String,
-    },
+    #[snafu(display("could not find service port with name {}", port_name))]
+    NoServicePort { port_name: String },
+    #[snafu(display("service port with name {} does not have a nodePort", port_name))]
+    NoNodePort { port_name: String },
+    #[snafu(display("could not find Endpoints for {}", svc))]
     FindEndpoints {
-        source: kube::Error,
+        source: stackable_operator::error::Error,
+        svc: ObjectRef<Service>,
     },
-    InvalidNodePort {
-        source: TryFromIntError,
+    #[snafu(display("nodePort was out of range"))]
+    InvalidNodePort { source: TryFromIntError },
+    #[snafu(display("failed to build ConfigMap"))]
+    BuildConfigMap {
+        source: stackable_operator::error::Error,
     },
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`HiveCluster`] for all expected scenarios
 pub async fn build_discovery_configmaps(
-    kube: &kube::Client,
+    client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
     svc: &Service,
@@ -60,7 +61,7 @@ pub async fn build_discovery_configmaps(
             owner,
             hive,
             chroot,
-            nodeport_hosts(kube, svc, "hive").await?,
+            nodeport_hosts(client, svc, "hive").await?,
         )?,
     ])
 }
@@ -123,12 +124,10 @@ fn pod_hosts(hive: &HiveCluster) -> Result<impl IntoIterator<Item = (String, u16
 
 /// Lists all nodes currently hosting Pods participating in the [`Service`]
 async fn nodeport_hosts(
-    kube: &kube::Client,
+    client: &stackable_operator::client::Client,
     svc: &Service,
     port_name: &str,
 ) -> Result<impl IntoIterator<Item = (String, u16)>, Error> {
-    let ns = svc.metadata.namespace.as_deref().context(NoNamespace)?;
-    let endpointses = kube::Api::<Endpoints>::namespaced(kube.clone(), ns);
     let svc_port = svc
         .spec
         .as_ref()
@@ -141,10 +140,15 @@ async fn nodeport_hosts(
         })
         .context(NoServicePort { port_name })?;
     let node_port = svc_port.node_port.context(NoNodePort { port_name })?;
-    let endpoints = endpointses
-        .get(svc.metadata.name.as_deref().context(NoName)?)
+    let endpoints = client
+        .get::<Endpoints>(
+            svc.metadata.name.as_deref().context(NoName)?,
+            svc.metadata.namespace.as_deref(),
+        )
         .await
-        .context(FindEndpoints)?;
+        .with_context(|| FindEndpoints {
+            svc: ObjectRef::from_obj(svc),
+        })?;
     let nodes = endpoints
         .subsets
         .into_iter()

@@ -4,13 +4,13 @@ mod utils;
 
 use futures::{compat::Future01CompatExt, StreamExt};
 use stackable_hive_crd::HiveCluster;
+use stackable_operator::cli::Command;
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
     kube::{
-        self,
         api::{DynamicObject, ListParams},
         runtime::{
             controller::{Context, ReconcilerAction},
@@ -19,9 +19,7 @@ use stackable_operator::{
         },
         CustomResourceExt, Resource,
     },
-    product_config::ProductConfigManager,
 };
-use std::str::FromStr;
 use structopt::StructOpt;
 
 mod built_info {
@@ -36,19 +34,7 @@ pub const METRICS_PORT: u16 = 9084;
 #[structopt(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]
 struct Opts {
     #[structopt(subcommand)]
-    cmd: Cmd,
-}
-
-#[derive(StructOpt)]
-enum Cmd {
-    /// Print CRD objects
-    Crd,
-    /// Run operator
-    Run {
-        /// Provides the path to a product-config file
-        #[structopt(long, short = "p", value_name = "FILE")]
-        product_config: Option<String>,
-    },
+    cmd: Command,
 }
 
 /// Erases the concrete types of the controller result, so that we can merge the streams of multiple controllers for different resources.
@@ -69,8 +55,8 @@ async fn main() -> anyhow::Result<()> {
 
     let opts = Opts::from_args();
     match opts.cmd {
-        Cmd::Crd => println!("{}", serde_yaml::to_string(&HiveCluster::crd())?,),
-        Cmd::Run { product_config } => {
+        Command::Crd => println!("{}", serde_yaml::to_string(&HiveCluster::crd())?,),
+        Command::Run { product_config } => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
@@ -80,34 +66,27 @@ async fn main() -> anyhow::Result<()> {
                 built_info::RUSTC_VERSION,
             );
 
-            let product_config = if let Some(product_config_path) = product_config {
-                ProductConfigManager::from_yaml_file(&product_config_path)?
-            } else {
-                ProductConfigManager::from_str(include_str!(
-                    "../../../deploy/config-spec/properties.yaml"
-                ))?
-            };
+            let product_config = product_config.load(&[
+                "deploy/config-spec/properties.yaml",
+                "/etc/stackable/hive-operator/config-spec/properties.yaml",
+            ])?;
 
-            let kube = kube::Client::try_default().await?;
-            let hive_api = kube::Api::<HiveCluster>::all(kube.clone());
-            let hive_controller = Controller::new(hive_api.clone(), ListParams::default())
-                .owns(
-                    kube::Api::<Service>::all(kube.clone()),
-                    ListParams::default(),
-                )
-                .owns(
-                    kube::Api::<StatefulSet>::all(kube.clone()),
-                    ListParams::default(),
-                )
-                .owns(
-                    kube::Api::<ConfigMap>::all(kube.clone()),
-                    ListParams::default(),
-                )
+            let client =
+                stackable_operator::client::create_client(Some("hive.stackable.tech".to_string()))
+                    .await?;
+
+            let hive_controller_builder =
+                Controller::new(client.get_all_api::<HiveCluster>(), ListParams::default());
+
+            let hive_controller = hive_controller_builder
+                .owns(client.get_all_api::<Service>(), ListParams::default())
+                .owns(client.get_all_api::<StatefulSet>(), ListParams::default())
+                .owns(client.get_all_api::<ConfigMap>(), ListParams::default())
                 .run(
                     controller::reconcile_hive,
                     controller::error_policy,
                     Context::new(controller::Ctx {
-                        kube: kube.clone(),
+                        client: client.clone(),
                         product_config,
                     }),
                 );
