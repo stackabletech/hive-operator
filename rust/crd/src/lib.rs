@@ -23,9 +23,11 @@ pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
     shortname = "hive",
     status = "HiveClusterStatus",
     namespaced,
-    kube_core = "stackable_operator::kube::core",
-    k8s_openapi = "stackable_operator::k8s_openapi",
-    schemars = "stackable_operator::schemars"
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars"
+    )
 )]
 pub struct HiveClusterSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
@@ -174,9 +176,11 @@ impl DbType {
     plural = "databaseconnections",
     shortname = "dbconn",
     namespaced,
-    kube_core = "stackable_operator::kube::core",
-    k8s_openapi = "stackable_operator::k8s_openapi",
-    schemars = "stackable_operator::schemars"
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars"
+    )
 )]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseConnectionSpec {
