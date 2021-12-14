@@ -76,14 +76,11 @@ fn build_discovery_configmap(
     chroot: Option<&str>,
     hosts: impl IntoIterator<Item = (impl Into<String>, u16)>,
 ) -> Result<ConfigMap, Error> {
-    // Write a connection string of the format that Java ZooKeeper client expects:
-    // "{host1}:{port1},{host2:port2},.../{chroot}"
-    // See https://zookeeper.apache.org/doc/current/apidocs/zookeeper-server/org/apache/zookeeper/ZooKeeper.html#ZooKeeper-java.lang.String-int-org.apache.zookeeper.Watcher-
     let mut conn_str = hosts
         .into_iter()
-        .map(|(host, port)| format!("{}:{}", host.into(), port))
+        .map(|(host, port)| format!("thrift://{}:{}", host.into(), port))
         .collect::<Vec<_>>()
-        .join(",");
+        .join("\n");
     if let Some(chroot) = chroot {
         if !chroot.starts_with('/') {
             return RelativeChroot { chroot }.fail();
