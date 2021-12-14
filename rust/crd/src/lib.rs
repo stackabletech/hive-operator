@@ -340,9 +340,8 @@ impl HiveCluster {
     /// List all pods expected to form the cluster
     ///
     /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn. For example, regenerating zoo.cfg based on the cluster state would lead to
-    /// a lot of spurious restarts, as well as opening us up to dangerous split-brain conditions because
-    /// the pods have inconsistent snapshots of which servers they should expect to be in quorum.
+    /// avoid instance churn.
+    // TODO: should use client and list pods (artefact from zookeeper)
     pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
         let ns = self
             .metadata
