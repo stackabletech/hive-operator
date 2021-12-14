@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - Command handling and respective CRDs ([#52]).
+- Hive port and metrics port not configurable anymore and removed from CRD ([#52]).
 
 [#52]: https://github.com/stackabletech/hive-operator/pull/52
 

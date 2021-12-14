@@ -13,6 +13,9 @@ pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
+// default ports
+pub const APP_PORT: u16 = 9083;
+pub const METRICS_PORT: u16 = 9084;
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -74,8 +77,6 @@ impl HiveRole {
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
-    pub metastore_port: Option<u16>,
-    pub metrics_port: Option<u16>,
     pub warehouse_dir: Option<String>,
     pub database: DatabaseConnectionSpec,
     pub s3_connection: Option<S3Connection>,
@@ -108,11 +109,6 @@ impl MetaStoreConfig {
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
-    // ports
-    pub const METASTORE_PORT_PROPERTY: &'static str = "hive.metastore.port";
-    pub const METASTORE_PORT: &'static str = "metastore";
-    pub const METRICS_PORT_PROPERTY: &'static str = "metricsPort";
-    pub const METRICS_PORT: &'static str = "metrics";
 }
 
 #[derive(
@@ -200,12 +196,10 @@ impl Configuration for MetaStoreConfig {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        if let Some(metrics_port) = self.metrics_port {
-            result.insert(
-                Self::METRICS_PORT_PROPERTY.to_string(),
-                Some(metrics_port.to_string()),
-            );
-        }
+        result.insert(
+            "HADOOP_OPTS".to_string(),
+            Some(format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", METRICS_PORT))
+        );
 
         Ok(result)
     }
@@ -231,12 +225,6 @@ impl Configuration for MetaStoreConfig {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        if let Some(metastore_port) = &self.metastore_port {
-            result.insert(
-                Self::METASTORE_PORT_PROPERTY.to_string(),
-                Some(metastore_port.to_string()),
-            );
-        }
         if let Some(warehouse_dir) = &self.warehouse_dir {
             result.insert(
                 Self::METASTORE_WAREHOUSE_DIR.to_string(),
@@ -260,12 +248,10 @@ impl Configuration for MetaStoreConfig {
             Some(self.database.db_type.get_jdbc_driver_class().to_string()),
         );
 
-        if self.metrics_port.is_some() {
-            result.insert(
-                Self::METASTORE_METRICS_ENABLED.to_string(),
-                Some("true".to_string()),
-            );
-        }
+        result.insert(
+            Self::METASTORE_METRICS_ENABLED.to_string(),
+            Some("true".to_string()),
+        );
 
         if let Some(s3_connection) = &self.s3_connection {
             result.insert(

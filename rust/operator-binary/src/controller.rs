@@ -2,13 +2,13 @@
 
 use crate::{
     discovery::{self, build_discovery_configmaps},
-    APP_NAME, APP_PORT, METRICS_PORT,
+    APP_NAME,
 };
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, CONFIG_DIR_NAME,
-    HIVE_SITE_XML, LOG_4J_PROPERTIES,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_PORT, CONFIG_DIR_NAME,
+    HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT,
 };
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
@@ -157,7 +157,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
-        let rg_service = build_metastore_rolegroup_service(&rolegroup, &hive, rolegroup_config)?;
+        let rg_service = build_metastore_rolegroup_service(&rolegroup, &hive)?;
         let rg_configmap =
             build_metastore_rolegroup_config_map(&rolegroup, &hive, rolegroup_config)?;
         let rg_statefulset =
@@ -312,18 +312,7 @@ fn build_metastore_rolegroup_config_map(
 fn build_metastore_rolegroup_service(
     rolegroup: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
-    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<Service> {
-    let metastore_port = config
-        .get(&PropertyNameKind::File(HIVE_SITE_XML.to_string()))
-        .and_then(|config| config.get(MetaStoreConfig::METASTORE_PORT_PROPERTY))
-        .map(|p| p.parse::<i32>().unwrap_or_else(|_| APP_PORT.into()));
-
-    let metrics_port = config
-        .get(&PropertyNameKind::Env)
-        .and_then(|config| config.get(MetaStoreConfig::METRICS_PORT_PROPERTY))
-        .map(|p| p.parse::<i32>().unwrap_or_else(|_| METRICS_PORT.into()));
-
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
@@ -343,13 +332,13 @@ fn build_metastore_rolegroup_service(
             ports: Some(vec![
                 ServicePort {
                     name: Some("hive".to_string()),
-                    port: metastore_port.unwrap_or_else(|| APP_PORT.into()),
+                    port: APP_PORT.into(),
                     protocol: Some("TCP".to_string()),
                     ..ServicePort::default()
                 },
                 ServicePort {
                     name: Some("metrics".to_string()),
-                    port: metrics_port.unwrap_or_else(|| METRICS_PORT.into()),
+                    port: METRICS_PORT.into(),
                     protocol: Some("TCP".to_string()),
                     ..ServicePort::default()
                 },
@@ -381,36 +370,12 @@ fn build_metastore_rolegroup_statefulset(
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
-            PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
-                let metastore_port = config
-                    .get(MetaStoreConfig::METASTORE_PORT_PROPERTY)
-                    .and_then(|p| i32::from_str(p).ok())
-                    .unwrap_or_else(|| APP_PORT.into());
-
-                container_builder.add_container_port("hive", metastore_port);
-            }
             PropertyNameKind::Env => {
                 for (property_name, property_value) in config {
                     if property_name.is_empty() {
                         warn!("Received empty property_name for ENV... skipping");
                         continue;
                     }
-                    // if a metrics port is provided (for now by user, it is not required in
-                    // product config to be able to not configure any monitoring / metrics)
-                    if property_name == MetaStoreConfig::METRICS_PORT_PROPERTY {
-                        container_builder.add_container_port(
-                            "metrics",
-                            property_value
-                                .parse()
-                                .unwrap_or_else(|_| METRICS_PORT.into()),
-                        );
-                        container_builder.add_env_var(
-                            "HADOOP_OPTS".to_string(),
-                            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", property_value)
-                        );
-                        continue;
-                    }
-
                     container_builder.add_env_var(property_name, property_value);
                 }
             }
@@ -444,6 +409,8 @@ fn build_metastore_rolegroup_statefulset(
         .image(image)
         .command(HiveRole::MetaStore.get_command(true, &db_type.unwrap_or_default().to_string()))
         .add_volume_mount("conf", CONFIG_DIR_NAME)
+        .add_container_port("hive", APP_PORT.into())
+        .add_container_port("metrics", METRICS_PORT.into())
         .build();
 
     Ok(StatefulSet {

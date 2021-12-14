@@ -1,14 +1,14 @@
 use std::{collections::BTreeSet, num::TryFromIntError};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole};
+use stackable_hive_crd::{HiveCluster, HiveRole, APP_PORT};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service},
     kube::{runtime::reflector::ObjectRef, Resource, ResourceExt},
 };
 
-use crate::{controller::hive_version, APP_NAME, APP_PORT};
+use crate::{controller::hive_version, APP_NAME};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

@@ -55,16 +55,6 @@ spec:
                             - password
                             - user
                           type: object
-                        metastorePort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        metricsPort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
                         s3Connection:
                           description: Contains all the required connection information for S3.
                           nullable: true
@@ -137,16 +127,6 @@ spec:
                                   - password
                                   - user
                                 type: object
-                              metastorePort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
-                              metricsPort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
                               s3Connection:
                                 description: Contains all the required connection information for S3.
                                 nullable: true

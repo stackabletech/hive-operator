@@ -27,8 +27,6 @@ mod built_info {
 }
 
 pub const APP_NAME: &str = "hive";
-pub const APP_PORT: u16 = 9083;
-pub const METRICS_PORT: u16 = 9084;
 
 #[derive(StructOpt)]
 #[structopt(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]
