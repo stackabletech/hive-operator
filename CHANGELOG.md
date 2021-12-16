@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.5.0` → `0.6.0` ([#52]).
 - Migrated to StatefulSet rather than direct Pod management ([#52]).
-- Changed version to from enum to String ([#52]).
+- Changed version from enum to String ([#52]).
 
 ### Removed
 

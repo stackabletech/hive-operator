@@ -1,6 +1,6 @@
 = Usage
 
-After installation, the CRD for this operator must be created:
+After installation, ensure CRD for this operator must exists or create yourself:
 
     kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
 
