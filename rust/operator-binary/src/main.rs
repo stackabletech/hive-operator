@@ -26,8 +26,6 @@ mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-pub const APP_NAME: &str = "hive";
-
 #[derive(StructOpt)]
 #[structopt(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]
 struct Opts {

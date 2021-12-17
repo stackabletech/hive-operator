@@ -1,14 +1,11 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
 
-use crate::{
-    discovery::{self, build_discovery_configmaps},
-    APP_NAME,
-};
+use crate::discovery::{self, build_discovery_configmaps};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_PORT, CONFIG_DIR_NAME,
-    HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, APP_PORT,
+    CONFIG_DIR_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT,
 };
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{

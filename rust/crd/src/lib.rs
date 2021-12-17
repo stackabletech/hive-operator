@@ -9,6 +9,7 @@ use stackable_operator::{
 };
 use std::collections::BTreeMap;
 
+pub const APP_NAME: &str = "hive";
 pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
