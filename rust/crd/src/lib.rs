@@ -83,7 +83,6 @@ pub struct MetaStoreConfig {
     pub s3_connection: Option<S3Connection>,
 }
 
-// TODO: This should probably be moved (it is here for now to be shared with Hive and Trino).
 /// Contains all the required connection information for S3.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,6 +116,7 @@ impl MetaStoreConfig {
     Debug,
     Deserialize,
     Eq,
+    Hash,
     JsonSchema,
     PartialEq,
     Serialize,
@@ -163,22 +163,7 @@ impl DbType {
     }
 }
 
-#[derive(
-    Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, Eq, PartialEq, Serialize,
-)]
-#[kube(
-    group = "external.stackable.tech",
-    version = "v1alpha1",
-    kind = "DatabaseConnection",
-    plural = "databaseconnections",
-    shortname = "dbconn",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseConnectionSpec {
     pub conn_string: String,

@@ -22,10 +22,7 @@ use stackable_operator::{
     },
     kube::{
         api::ObjectMeta,
-        runtime::{
-            controller::{Context, ReconcilerAction},
-            reflector::ObjectRef,
-        },
+        runtime::controller::{Context, ReconcilerAction},
     },
     labels::{role_group_selector_labels, role_selector_labels},
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -50,14 +47,12 @@ pub struct Ctx {
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object {} has no namespace", obj_ref))]
-    ObjectHasNoNamespace { obj_ref: ObjectRef<HiveCluster> },
-    #[snafu(display("object {} defines no version", obj_ref))]
-    ObjectHasNoVersion { obj_ref: ObjectRef<HiveCluster> },
+    #[snafu(display("object defines no version"))]
+    ObjectHasNoVersion,
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
-    #[snafu(display("failed to calculate global service name for {}", obj_ref))]
-    GlobalServiceNameNotFound { obj_ref: ObjectRef<HiveCluster> },
+    #[snafu(display("failed to calculate global service name"))]
+    GlobalServiceNameNotFound,
     #[snafu(display("failed to calculate service name for role {}", rolegroup))]
     RoleGroupServiceNameNotFound {
         rolegroup: RoleGroupRef<HiveCluster>,
@@ -220,11 +215,9 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
 pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
     let role_name = HiveRole::MetaStore.to_string();
 
-    let role_svc_name =
-        hive.metastore_role_service_name()
-            .with_context(|| GlobalServiceNameNotFound {
-                obj_ref: ObjectRef::from_obj(hive),
-            })?;
+    let role_svc_name = hive
+        .metastore_role_service_name()
+        .context(GlobalServiceNameNotFound)?;
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
@@ -487,12 +480,7 @@ fn build_metastore_rolegroup_statefulset(
 }
 
 pub fn hive_version(hive: &HiveCluster) -> Result<&str> {
-    hive.spec
-        .version
-        .as_deref()
-        .with_context(|| ObjectHasNoVersion {
-            obj_ref: ObjectRef::from_obj(hive),
-        })
+    hive.spec.version.as_deref().context(ObjectHasNoVersion)
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
