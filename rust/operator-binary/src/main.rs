@@ -1,10 +1,10 @@
 mod controller;
 mod discovery;
-mod utils;
 
-use futures::{compat::Future01CompatExt, StreamExt};
+use futures::stream::StreamExt;
 use stackable_hive_crd::HiveCluster;
 use stackable_operator::cli::Command;
+use stackable_operator::k8s_openapi::api::core::v1::Endpoints;
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -47,7 +47,6 @@ fn erase_controller_result_type<K: Resource, E: std::error::Error + Send + Sync 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     stackable_operator::logging::initialize_logging("HIVE_OPERATOR_LOG");
-    let tokio01_runtime = tokio01::runtime::Runtime::new()?;
 
     let opts = Opts::from_args();
     match opts.cmd {
@@ -73,11 +72,27 @@ async fn main() -> anyhow::Result<()> {
 
             let hive_controller_builder =
                 Controller::new(client.get_all_api::<HiveCluster>(), ListParams::default());
+            let hive_store = hive_controller_builder.store();
 
             let hive_controller = hive_controller_builder
                 .owns(client.get_all_api::<Service>(), ListParams::default())
                 .owns(client.get_all_api::<StatefulSet>(), ListParams::default())
                 .owns(client.get_all_api::<ConfigMap>(), ListParams::default())
+                .watches(
+                    client.get_all_api::<Endpoints>(),
+                    ListParams::default(),
+                    move |endpoints| {
+                        hive_store
+                            .state()
+                            .into_iter()
+                            .filter(move |hc| {
+                                let _ = &endpoints; // capture endpoints to prevent it from being dropped (2021 warning)
+                                hc.metadata.namespace == endpoints.metadata.namespace
+                                    && hc.metastore_role_service_name() == endpoints.metadata.name
+                            })
+                            .map(|hc| ObjectRef::from_obj(&hc))
+                    },
+                )
                 .run(
                     controller::reconcile_hive,
                     controller::error_policy,
@@ -104,6 +119,5 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    tokio01_runtime.shutdown_now().compat().await.unwrap();
     Ok(())
 }

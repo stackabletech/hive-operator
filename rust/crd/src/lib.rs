@@ -313,7 +313,6 @@ impl HiveCluster {
     ///
     /// We try to predict the pods here rather than looking at the current cluster state in order to
     /// avoid instance churn.
-    // TODO: should use client and list pods (artefact from zookeeper)
     pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
         let ns = self
             .metadata
@@ -341,8 +340,8 @@ impl HiveCluster {
 }
 
 /// Reference to a single `Pod` that is a component of a [`HiveCluster`]
-///
 /// Used for service discovery.
+// TODO: this should move to operator-rs
 pub struct PodRef {
     pub namespace: String,
     pub role_group_service_name: String,
@@ -357,6 +356,3 @@ impl PodRef {
         )
     }
 }
-
-#[cfg(test)]
-mod tests {}

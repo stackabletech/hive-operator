@@ -1,6 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-
 use crate::discovery::{self, build_discovery_configmaps};
+
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
@@ -38,6 +38,8 @@ use std::{
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
+
+const META_STORE_WAREHOUSE_DIR: &str = "hive.metastore.warehouse.dir";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -99,6 +101,11 @@ pub enum Error {
     ApplyStatus {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("failed to parse db type {}", db_type))]
+    InvalidDbType {
+        source: strum::ParseError,
+        db_type: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -149,11 +156,11 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
-        let rg_service = build_metastore_rolegroup_service(&rolegroup, &hive)?;
+        let rg_service = build_metastore_rolegroup_service(&hive, &rolegroup)?;
         let rg_configmap =
-            build_metastore_rolegroup_config_map(&rolegroup, &hive, rolegroup_config)?;
+            build_metastore_rolegroup_config_map(&hive, &rolegroup, rolegroup_config)?;
         let rg_statefulset =
-            build_metastore_rolegroup_statefulset(&rolegroup, &hive, rolegroup_config)?;
+            build_metastore_rolegroup_statefulset(&hive, &rolegroup, rolegroup_config)?;
 
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -207,11 +214,8 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     })
 }
 
-/// The server-role service is the primary endpoint that should be used by clients that do not perform internal load balancing,
-/// including targets outside of the cluster.
-///
-/// Note that you should generally *not* hard-code clients to use these services; instead, create a [`HiveZnode`](`stackable_zookeeper_crd::HiveZnode`)
-/// and use the connection string that it gives you.
+/// The server-role service is the primary endpoint that should be used by clients that do not
+/// perform internal load balancing including targets outside of the cluster.
 pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
     let role_name = HiveRole::MetaStore.to_string();
 
@@ -243,8 +247,8 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
 fn build_metastore_rolegroup_config_map(
-    rolegroup: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
+    rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
@@ -259,9 +263,8 @@ fn build_metastore_rolegroup_config_map(
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
                 }
 
-                // TODO: make configurable
                 data.insert(
-                    "hive.metastore.warehouse.dir".to_string(),
+                    META_STORE_WAREHOUSE_DIR.to_string(),
                     Some("/stackable/warehouse".to_string()),
                 );
 
@@ -300,8 +303,8 @@ fn build_metastore_rolegroup_config_map(
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 fn build_metastore_rolegroup_service(
-    rolegroup: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
+    rolegroup: &RoleGroupRef<HiveCluster>,
 ) -> Result<Service> {
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
@@ -351,8 +354,8 @@ fn build_metastore_rolegroup_service(
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
 fn build_metastore_rolegroup_statefulset(
-    rolegroup_ref: &RoleGroupRef<HiveCluster>,
     hive: &HiveCluster,
+    rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
@@ -372,8 +375,11 @@ fn build_metastore_rolegroup_statefulset(
             PropertyNameKind::Cli => {
                 for (property_name, property_value) in config {
                     if property_name == MetaStoreConfig::DB_TYPE_CLI {
-                        // TODO: remove unwrap
-                        db_type = Some(DbType::from_str(property_value).unwrap());
+                        db_type = Some(DbType::from_str(property_value).with_context(|| {
+                            InvalidDbType {
+                                db_type: property_value.to_string(),
+                            }
+                        })?);
                     }
                 }
             }
@@ -385,7 +391,7 @@ fn build_metastore_rolegroup_statefulset(
         .spec
         .metastore
         .as_ref()
-        .with_context(|| NoMetaStoreRole)?
+        .context(NoMetaStoreRole)?
         .role_groups
         .get(&rolegroup_ref.role_group);
 

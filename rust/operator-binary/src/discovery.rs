@@ -105,7 +105,7 @@ fn build_discovery_configmap(
                 )
                 .build(),
         )
-        .add_data("HIVE", conn_str)
+        .add_data("hive", conn_str)
         .build()
         .unwrap())
 }
