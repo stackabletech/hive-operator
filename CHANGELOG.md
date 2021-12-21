@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Discovery via ConfigMaps ([#52]).
+- Services and Nodeports ([#52]).
+
+### Changed
+
+- `operator-rs` `0.5.0` → `0.6.0` ([#52]).
+- Migrated to StatefulSet rather than direct Pod management ([#52]).
+- Changed version from enum to String ([#52]).
+
+### Removed
+
+- Command handling and respective CRDs ([#52]).
+- Hive port and metrics port not configurable anymore and removed from CRD ([#52]).
+
+[#52]: https://github.com/stackabletech/hive-operator/pull/52
+
 ## [0.3.0] - 2021-12-06
 
 
@@ -24,5 +42,5 @@ All notable changes to this project will be documented in this file.
 - operator-rs : 0.3.0 ([#14])
 - Use framework re-exports. ([#14])
 
-[#14] https://github.com/stackabletech/hive-operator/pull/14
+[#14]: https://github.com/stackabletech/hive-operator/pull/14
 
