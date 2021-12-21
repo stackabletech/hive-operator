@@ -39,8 +39,6 @@ use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
 
-const META_STORE_WAREHOUSE_DIR: &str = "hive.metastore.warehouse.dir";
-
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
     pub product_config: ProductConfigManager,
@@ -264,7 +262,7 @@ fn build_metastore_rolegroup_config_map(
                 }
 
                 data.insert(
-                    META_STORE_WAREHOUSE_DIR.to_string(),
+                    MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
                     Some("/stackable/warehouse".to_string()),
                 );
 
