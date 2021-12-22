@@ -1,7 +1,0 @@
-apiVersion: command.hive.stackable.tech/v1alpha1
-kind: Start
-metadata:
-  name: hive-cluster-command-start
-spec:
-  name: "simple"
-  rolling: true

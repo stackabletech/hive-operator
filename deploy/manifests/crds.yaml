@@ -3,62 +3,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: databaseconnections.external.stackable.tech
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  group: external.stackable.tech
-  names:
-    categories: []
-    kind: DatabaseConnection
-    plural: databaseconnections
-    shortNames:
-      - dbconn
-    singular: databaseconnection
-  scope: Namespaced
-  versions:
-    - additionalPrinterColumns: []
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: "Auto-generated derived type for DatabaseConnectionSpec via `CustomResource`"
-          properties:
-            spec:
-              properties:
-                connString:
-                  type: string
-                dbType:
-                  enum:
-                    - derby
-                    - mysql
-                    - postgres
-                    - oracle
-                    - mssql
-                  type: string
-                password:
-                  type: string
-                user:
-                  type: string
-              required:
-                - connString
-                - dbType
-                - password
-                - user
-              type: object
-          required:
-            - spec
-          title: DatabaseConnection
-          type: object
-      served: true
-      storage: true
-      subresources: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
   name: hiveclusters.hive.stackable.tech
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   group: hive.stackable.tech
   names:
@@ -79,6 +24,7 @@ spec:
             spec:
               properties:
                 metastore:
+                  nullable: true
                   properties:
                     cliOverrides:
                       additionalProperties:
@@ -110,16 +56,6 @@ spec:
                             - password
                             - user
                           type: object
-                        metastorePort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        metricsPort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
                         s3Connection:
                           description: Contains all the required connection information for S3.
                           nullable: true
@@ -192,16 +128,6 @@ spec:
                                   - password
                                   - user
                                 type: object
-                              metastorePort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
-                              metricsPort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
                               s3Connection:
                                 description: Contains all the required connection information for S3.
                                 nullable: true
@@ -282,293 +208,25 @@ spec:
                   required:
                     - roleGroups
                   type: object
+                stopped:
+                  description: "Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)"
+                  nullable: true
+                  type: boolean
                 version:
-                  enum:
-                    - 2.3.9
+                  nullable: true
                   type: string
-              required:
-                - metastore
-                - version
               type: object
             status:
               nullable: true
               properties:
-                clusterExecutionStatus:
-                  description: Signals the current status of the cluster
-                  enum:
-                    - Stopped
-                    - Running
+                discoveryHash:
+                  description: An opaque value that changes every time a discovery detail does
                   nullable: true
                   type: string
-                conditions:
-                  items:
-                    description: Condition contains details for one aspect of the current state of this API Resource.
-                    properties:
-                      lastTransitionTime:
-                        description: "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable."
-                        format: date-time
-                        type: string
-                      message:
-                        description: message is a human readable message indicating details about the transition. This may be an empty string.
-                        type: string
-                      observedGeneration:
-                        description: "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance."
-                        format: int64
-                        type: integer
-                      reason:
-                        description: "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty."
-                        type: string
-                      status:
-                        description: "status of the condition, one of True, False, Unknown."
-                        type: string
-                      type:
-                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                        type: string
-                    required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
-                    type: object
-                  type: array
-                currentCommand:
-                  nullable: true
-                  properties:
-                    kind:
-                      type: string
-                    name:
-                      type: string
-                    namespace:
-                      type: string
-                    uid:
-                      type: string
-                  required:
-                    - kind
-                    - name
-                    - namespace
-                    - uid
-                  type: object
-                history:
-                  nullable: true
-                  properties:
-                    mapping:
-                      additionalProperties:
-                        properties:
-                          name:
-                            type: string
-                        required:
-                          - name
-                        type: object
-                      type: object
-                  required:
-                    - mapping
-                  type: object
-                version:
-                  description: The version of the product provided by the operator. Split into current and target version in order track upgrading and downgrading progress.
-                  nullable: true
-                  properties:
-                    current:
-                      enum:
-                        - 2.3.9
-                      nullable: true
-                      type: string
-                    target:
-                      enum:
-                        - 2.3.9
-                      nullable: true
-                      type: string
-                  type: object
               type: object
           required:
             - spec
           title: HiveCluster
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: restarts.command.hive.stackable.tech
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  group: command.hive.stackable.tech
-  names:
-    categories: []
-    kind: Restart
-    plural: restarts
-    shortNames: []
-    singular: restart
-  scope: Namespaced
-  versions:
-    - additionalPrinterColumns: []
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: "Auto-generated derived type for RestartCommandSpec via `CustomResource`"
-          properties:
-            spec:
-              properties:
-                name:
-                  type: string
-                roles:
-                  items:
-                    enum:
-                      - MetaStore
-                    type: string
-                  nullable: true
-                  type: array
-                rolling:
-                  type: boolean
-              required:
-                - name
-                - rolling
-              type: object
-            status:
-              nullable: true
-              properties:
-                finishedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
-                startedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
-              type: object
-          required:
-            - spec
-          title: Restart
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: starts.command.hive.stackable.tech
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  group: command.hive.stackable.tech
-  names:
-    categories: []
-    kind: Start
-    plural: starts
-    shortNames: []
-    singular: start
-  scope: Namespaced
-  versions:
-    - additionalPrinterColumns: []
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: "Auto-generated derived type for StartCommandSpec via `CustomResource`"
-          properties:
-            spec:
-              properties:
-                name:
-                  type: string
-                roles:
-                  items:
-                    enum:
-                      - MetaStore
-                    type: string
-                  nullable: true
-                  type: array
-                rolling:
-                  type: boolean
-              required:
-                - name
-                - rolling
-              type: object
-            status:
-              nullable: true
-              properties:
-                finishedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
-                startedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
-              type: object
-          required:
-            - spec
-          title: Start
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: stops.command.hive.stackable.tech
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  group: command.hive.stackable.tech
-  names:
-    categories: []
-    kind: Stop
-    plural: stops
-    shortNames: []
-    singular: stop
-  scope: Namespaced
-  versions:
-    - additionalPrinterColumns: []
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: "Auto-generated derived type for StopCommandSpec via `CustomResource`"
-          properties:
-            spec:
-              properties:
-                name:
-                  type: string
-                roles:
-                  items:
-                    enum:
-                      - MetaStore
-                    type: string
-                  nullable: true
-                  type: array
-                rolling:
-                  type: boolean
-              required:
-                - name
-                - rolling
-              type: object
-            status:
-              nullable: true
-              properties:
-                finishedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
-                startedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
-              type: object
-          required:
-            - spec
-          title: Stop
           type: object
       served: true
       storage: true

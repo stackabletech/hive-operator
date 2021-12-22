@@ -36,7 +36,6 @@ allow = [
 exceptions = [
     { name = "stackable-hive-crd", allow = ["OSL-3.0"] },
     { name = "stackable-hive-operator", allow = ["OSL-3.0"] },
-    { name = "stackable-hive-operator-binary", allow = ["OSL-3.0"] },
     ]
 
 [[licenses.clarify]]

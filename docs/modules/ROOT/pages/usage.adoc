@@ -1,10 +1,10 @@
 = Usage
 
-After installation, the CRD for this operator must be created:
+After installation, ensure CRD for this operator must exists or create yourself:
 
     kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
 
-To create a single node Apache Hive Metastore (v2.3.9) cluster with Prometheus metrics exposed on port 11111:
+To create a single node Apache Hive Metastore (v2.3.9) cluster with derby:
 
     cat <<EOF | kubectl apply -f -
     apiVersion: hive.stackable.tech/v1alpha1
@@ -21,10 +21,63 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with Prometheus m
                 kubernetes.io/os: linux
             replicas: 1
             config:
-              metricsPort: 11111
               database:
                 connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
                 user: APP
                 password: mine
                 dbType: derby
+    EOF
+
+To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access:
+
+    cat <<EOF | kubectl apply -f -
+    apiVersion: hive.stackable.tech/v1alpha1
+    kind: HiveCluster
+    metadata:
+      name: simple-derby
+    spec:
+      version: 2.3.9
+      metastore:
+        roleGroups:
+          default:
+            selector:
+              matchLabels:
+                kubernetes.io/os: linux
+            replicas: 1
+            config:
+              database:
+                connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
+                user: APP
+                password: mine
+                dbType: derby
+              s3Connection:
+                endPoint: changeme
+                accessKey: changeme
+                secretKey: changeme
+                sslEnabled: false
+                pathStyleAccess: true
+    EOF
+
+To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL:
+
+    apiVersion: hive.stackable.tech/v1alpha1
+    kind: HiveCluster
+    metadata:
+      name: simple-postgres
+    spec:
+      version: 2.3.9
+      metastore:
+        roleGroups:
+          default:
+            selector:
+              matchLabels:
+                kubernetes.io/os: linux
+            replicas: 1
+            config:
+              warehouseDir: /stackable/metastore
+              database:
+                connString: jdbc:postgresql://localhost:5432/metastoredb
+                user: hiveuser
+                password: mypass
+                dbType: postgres
     EOF

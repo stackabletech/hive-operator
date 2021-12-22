@@ -10,9 +10,8 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 1
+        replicas: 3
         config:
-          metricsPort: 11111
           database:
             connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
             user: APP
