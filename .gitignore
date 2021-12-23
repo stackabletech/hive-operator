@@ -1,4 +1,11 @@
+debug/
 target/
-.idea
+**/*.rs.bk
+
+.idea/
+*.iws
 *.iml
 
+*.tgz
+deploy/helm/hive-operator/configs
+deploy/helm/hive-operator/templates/crds.yaml
