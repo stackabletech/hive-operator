@@ -93,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
                             .map(|hc| ObjectRef::from_obj(&hc))
                     },
                 )
+                .shutdown_on_signal()
                 .run(
                     controller::reconcile_hive,
                     controller::error_policy,
