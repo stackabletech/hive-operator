@@ -81,6 +81,10 @@ pub enum Error {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+    #[snafu(display("failed to generate product config"))]
+    GenerateProductConfig {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
@@ -129,7 +133,8 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
                 ),
             )]
             .into(),
-        ),
+        )
+        .context(GenerateProductConfig)?,
         &ctx.get_ref().product_config,
         false,
         false,
