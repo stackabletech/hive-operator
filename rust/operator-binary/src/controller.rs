@@ -81,6 +81,10 @@ pub enum Error {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+    #[snafu(display("failed to generate product config"))]
+    GenerateProductConfig {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
@@ -125,16 +129,17 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
                         PropertyNameKind::Cli,
                         PropertyNameKind::File(HIVE_SITE_XML.to_string()),
                     ],
-                    hive.spec.metastore.clone().context(NoMetaStoreRole)?,
+                    hive.spec.metastore.clone().context(NoMetaStoreRoleSnafu)?,
                 ),
             )]
             .into(),
-        ),
+        )
+        .context(GenerateProductConfigSnafu)?,
         &ctx.get_ref().product_config,
         false,
         false,
     )
-    .context(InvalidProductConfig)?;
+    .context(InvalidProductConfigSnafu)?;
 
     let metastore_config = validated_config
         .get(&HiveRole::MetaStore.to_string())
@@ -149,7 +154,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
             &metastore_role_service,
         )
         .await
-        .context(ApplyRoleService)?;
+        .context(ApplyRoleServiceSnafu)?;
 
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
@@ -163,19 +168,19 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
             .await
-            .with_context(|| ApplyRoleGroupService {
+            .with_context(|_| ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
             .await
-            .with_context(|| ApplyRoleGroupConfig {
+            .with_context(|_| ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
             .await
-            .with_context(|| ApplyRoleGroupStatefulSet {
+            .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
     }
@@ -186,12 +191,12 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     for discovery_cm in
         build_discovery_configmaps(client, &hive, &hive, &metastore_role_service, None)
             .await
-            .context(BuildDiscoveryConfig)?
+            .context(BuildDiscoveryConfigSnafu)?
     {
         let discovery_cm = client
             .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
             .await
-            .context(ApplyDiscoveryConfig)?;
+            .context(ApplyDiscoveryConfigSnafu)?;
         if let Some(generation) = discovery_cm.metadata.resource_version {
             discovery_hash.write(generation.as_bytes())
         }
@@ -205,7 +210,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     client
         .apply_patch_status(FIELD_MANAGER_SCOPE, &hive, &status)
         .await
-        .context(ApplyStatus)?;
+        .context(ApplyStatusSnafu)?;
 
     Ok(ReconcilerAction {
         requeue_after: None,
@@ -219,13 +224,13 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
 
     let role_svc_name = hive
         .metastore_role_service_name()
-        .context(GlobalServiceNameNotFound)?;
+        .context(GlobalServiceNameNotFoundSnafu)?;
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
             .name(&role_svc_name)
             .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRef)?
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(hive, APP_NAME, hive_version(hive)?, &role_name, "global")
             .build(),
         spec: Some(ServiceSpec {
@@ -279,7 +284,7 @@ fn build_metastore_rolegroup_config_map(
                 .name_and_namespace(hive)
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(hive, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRef)?
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(
                     hive,
                     APP_NAME,
@@ -292,7 +297,7 @@ fn build_metastore_rolegroup_config_map(
         .add_data(HIVE_SITE_XML, hive_site_data)
         .add_data(LOG_4J_PROPERTIES, log4j_data)
         .build()
-        .with_context(|| BuildRoleGroupConfig {
+        .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),
         })
 }
@@ -309,7 +314,7 @@ fn build_metastore_rolegroup_service(
             .name_and_namespace(hive)
             .name(&rolegroup.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRef)?
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 hive,
                 APP_NAME,
@@ -373,8 +378,8 @@ fn build_metastore_rolegroup_statefulset(
             PropertyNameKind::Cli => {
                 for (property_name, property_value) in config {
                     if property_name == MetaStoreConfig::DB_TYPE_CLI {
-                        db_type = Some(DbType::from_str(property_value).with_context(|| {
-                            InvalidDbType {
+                        db_type = Some(DbType::from_str(property_value).with_context(|_| {
+                            InvalidDbTypeSnafu {
                                 db_type: property_value.to_string(),
                             }
                         })?);
@@ -389,7 +394,7 @@ fn build_metastore_rolegroup_statefulset(
         .spec
         .metastore
         .as_ref()
-        .context(NoMetaStoreRole)?
+        .context(NoMetaStoreRoleSnafu)?
         .role_groups
         .get(&rolegroup_ref.role_group);
 
@@ -412,7 +417,7 @@ fn build_metastore_rolegroup_statefulset(
             .name_and_namespace(hive)
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRef)?
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 hive,
                 APP_NAME,
@@ -484,7 +489,10 @@ fn build_metastore_rolegroup_statefulset(
 }
 
 pub fn hive_version(hive: &HiveCluster) -> Result<&str> {
-    hive.spec.version.as_deref().context(ObjectHasNoVersion)
+    hive.spec
+        .version
+        .as_deref()
+        .context(ObjectHasNoVersionSnafu)
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {

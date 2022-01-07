@@ -83,7 +83,7 @@ fn build_discovery_configmap(
         .join("\n");
     if let Some(chroot) = chroot {
         if !chroot.starts_with('/') {
-            return RelativeChroot { chroot }.fail();
+            return RelativeChrootSnafu { chroot }.fail();
         }
         conn_str.push_str(chroot);
     }
@@ -93,7 +93,7 @@ fn build_discovery_configmap(
                 .name_and_namespace(hive)
                 .name(name)
                 .ownerreference_from_resource(owner, None, Some(true))
-                .with_context(|| ObjectMissingMetadataForOwnerRef {
+                .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     hive: ObjectRef::from_obj(hive),
                 })?
                 .with_recommended_labels(
@@ -114,7 +114,7 @@ fn build_discovery_configmap(
 fn pod_hosts(hive: &HiveCluster) -> Result<impl IntoIterator<Item = (String, u16)> + '_, Error> {
     Ok(hive
         .pods()
-        .context(ExpectedPods)?
+        .context(ExpectedPodsSnafu)?
         .into_iter()
         .map(|pod_ref| (pod_ref.fqdn(), APP_PORT)))
 }
@@ -135,15 +135,15 @@ async fn nodeport_hosts(
                 .iter()
                 .find(|port| port.name.as_deref() == Some("hive"))
         })
-        .context(NoServicePort { port_name })?;
-    let node_port = svc_port.node_port.context(NoNodePort { port_name })?;
+        .context(NoServicePortSnafu { port_name })?;
+    let node_port = svc_port.node_port.context(NoNodePortSnafu { port_name })?;
     let endpoints = client
         .get::<Endpoints>(
-            svc.metadata.name.as_deref().context(NoName)?,
+            svc.metadata.name.as_deref().context(NoNameSnafu)?,
             svc.metadata.namespace.as_deref(),
         )
         .await
-        .with_context(|| FindEndpoints {
+        .with_context(|_| FindEndpointsSnafu {
             svc: ObjectRef::from_obj(svc),
         })?;
     let nodes = endpoints
@@ -154,7 +154,7 @@ async fn nodeport_hosts(
         .flatten()
         .flat_map(|addr| addr.node_name);
     let addrs = nodes
-        .map(|node| Ok((node, node_port.try_into().context(InvalidNodePort)?)))
+        .map(|node| Ok((node, node_port.try_into().context(InvalidNodePortSnafu)?)))
         .collect::<Result<BTreeSet<_>, _>>()?;
     Ok(addrs)
 }

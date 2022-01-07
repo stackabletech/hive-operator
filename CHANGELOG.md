@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.5.0` → `0.6.0` ([#52]).
+- `operator-rs` `0.5.0` → `0.7.0` ([#52], [#73]).
 - Migrated to StatefulSet rather than direct Pod management ([#52]).
 - Changed version from enum to String ([#52]).
 - Shut down gracefully ([#72]).
@@ -22,7 +22,8 @@ All notable changes to this project will be documented in this file.
 - Hive port and metrics port not configurable anymore and removed from CRD ([#52]).
 
 [#52]: https://github.com/stackabletech/hive-operator/pull/52
-[#72]: https://github.com/stackabletech/zookeeper-operator/pull/72
+[#72]: https://github.com/stackabletech/hive-operator/pull/72
+[#73]: https://github.com/stackabletech/hive-operator/pull/73
 
 ## [0.3.0] - 2021-12-06
 
