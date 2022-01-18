@@ -1,11 +1,9 @@
 ---
 apiVersion: v2
 name: hive-operator
-version: <version_placeholder>
-appVersion: "<version_placeholder>"
-
+version: 0.6.0-nightly
+appVersion: "0.6.0-nightly"
 home: https://github.com/stackabletech/hive-operator
-
 maintainers:
   - name: Stackable
     url: https://www.stackable.tech
