@@ -7,5 +7,3 @@ target/
 *.iml
 
 *.tgz
-deploy/helm/hive-operator/configs
-deploy/helm/hive-operator/templates/crds.yaml
