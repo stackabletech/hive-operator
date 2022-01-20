@@ -1,5 +1,5 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-use crate::discovery::{self, build_discovery_configmaps};
+use crate::discovery::{self, build_discovery_configmap};
 
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -108,6 +108,8 @@ pub enum Error {
         source: strum::ParseError,
         db_type: String,
     },
+    #[snafu(display("failed to write discovery config map"))]
+    InvalidDiscovery { source: discovery::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -147,7 +149,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
         .unwrap_or_default();
 
     let metastore_role_service = build_metastore_role_service(&hive)?;
-    let metastore_role_service = client
+    client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
             &metastore_role_service,
@@ -188,18 +190,16 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in
-        build_discovery_configmaps(client, &hive, &hive, &metastore_role_service, None)
-            .await
-            .context(BuildDiscoveryConfigSnafu)?
-    {
-        let discovery_cm = client
-            .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
-            .await
-            .context(ApplyDiscoveryConfigSnafu)?;
-        if let Some(generation) = discovery_cm.metadata.resource_version {
-            discovery_hash.write(generation.as_bytes())
-        }
+
+    let discovery_cm =
+        build_discovery_configmap(&hive, &hive, None).context(InvalidDiscoverySnafu)?;
+
+    let discovery_cm = client
+        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        .await
+        .context(ApplyDiscoveryConfigSnafu)?;
+    if let Some(generation) = discovery_cm.metadata.resource_version {
+        discovery_hash.write(generation.as_bytes())
     }
 
     let status = HiveClusterStatus {

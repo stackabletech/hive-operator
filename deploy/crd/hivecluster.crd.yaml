@@ -34,6 +34,11 @@ spec:
                       default: {}
                       properties:
                         database:
+                          default:
+                            connString: ""
+                            user: ""
+                            password: ""
+                            dbType: derby
                           properties:
                             connString:
                               type: string
@@ -79,8 +84,6 @@ spec:
                         warehouseDir:
                           nullable: true
                           type: string
-                      required:
-                        - database
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -106,6 +109,11 @@ spec:
                             default: {}
                             properties:
                               database:
+                                default:
+                                  connString: ""
+                                  user: ""
+                                  password: ""
+                                  dbType: derby
                                 properties:
                                   connString:
                                     type: string
@@ -151,8 +159,6 @@ spec:
                               warehouseDir:
                                 nullable: true
                                 type: string
-                            required:
-                              - database
                             type: object
                           configOverrides:
                             additionalProperties:
