@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.5.0` → `0.7.0` ([#52], [#73]).
+- `operator-rs` `0.5.0` → `0.8.0` ([#52], [#73], [#85]).
 - Migrated to StatefulSet rather than direct Pod management ([#52]).
 - Changed version from enum to String ([#52]).
 - Shut down gracefully ([#72]).
@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 [#52]: https://github.com/stackabletech/hive-operator/pull/52
 [#72]: https://github.com/stackabletech/hive-operator/pull/72
 [#73]: https://github.com/stackabletech/hive-operator/pull/73
+[#85]: https://github.com/stackabletech/hive-operator/pull/85
 
 ## [0.3.0] - 2021-12-06
 
