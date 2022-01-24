@@ -21,9 +21,10 @@ pub enum Error {
     ExpectedPods {
         source: stackable_hive_crd::NoNamespaceError,
     },
-    #[snafu(display("operator framework reported error"))]
-    OperatorFramework {
+    #[snafu(display("could not build discovery config map for {hive}"))]
+    DiscoveryConfigMap {
         source: stackable_operator::error::Error,
+        hive: ObjectRef<HiveCluster>,
     },
 }
 
@@ -68,7 +69,9 @@ pub fn build_discovery_configmap(
         )
         .add_data("hive", conn_str)
         .build()
-        .context(OperatorFrameworkSnafu)
+        .with_context(|_| DiscoveryConfigMapSnafu {
+            hive: ObjectRef::from_obj(hive),
+        })
 }
 
 /// Lists all Pods FQDNs expected to host the [`HiveCluster`]
