@@ -4,7 +4,7 @@ mod discovery;
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_hive_crd::HiveCluster;
-use stackable_operator::cli::Command;
+use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&HiveCluster::crd())?,),
-        Command::Run(product_config) => {
+        Command::Run(ProductOperatorRun { product_config }) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
                 built_info::RUSTC_VERSION,
             );
 
-            let product_config = product_config.product_config.load(&[
+            let product_config = product_config.load(&[
                 "deploy/config-spec/properties.yaml",
                 "/etc/stackable/hive-operator/config-spec/properties.yaml",
             ])?;
