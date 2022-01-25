@@ -4,6 +4,8 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: hiveclusters.hive.stackable.tech
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   group: hive.stackable.tech
   names:
@@ -29,12 +31,17 @@ spec:
                     cliOverrides:
                       additionalProperties:
                         type: string
-                      nullable: true
+                      default: {}
                       type: object
                     config:
-                      nullable: true
+                      default: {}
                       properties:
                         database:
+                          default:
+                            connString: ""
+                            user: ""
+                            password: ""
+                            dbType: derby
                           properties:
                             connString:
                               type: string
@@ -80,20 +87,18 @@ spec:
                         warehouseDir:
                           nullable: true
                           type: string
-                      required:
-                        - database
                       type: object
                     configOverrides:
                       additionalProperties:
                         additionalProperties:
                           type: string
                         type: object
-                      nullable: true
+                      default: {}
                       type: object
                     envOverrides:
                       additionalProperties:
                         type: string
-                      nullable: true
+                      default: {}
                       type: object
                     roleGroups:
                       additionalProperties:
@@ -101,12 +106,17 @@ spec:
                           cliOverrides:
                             additionalProperties:
                               type: string
-                            nullable: true
+                            default: {}
                             type: object
                           config:
-                            nullable: true
+                            default: {}
                             properties:
                               database:
+                                default:
+                                  connString: ""
+                                  user: ""
+                                  password: ""
+                                  dbType: derby
                                 properties:
                                   connString:
                                     type: string
@@ -152,20 +162,18 @@ spec:
                               warehouseDir:
                                 nullable: true
                                 type: string
-                            required:
-                              - database
                             type: object
                           configOverrides:
                             additionalProperties:
                               additionalProperties:
                                 type: string
                               type: object
-                            nullable: true
+                            default: {}
                             type: object
                           envOverrides:
                             additionalProperties:
                               type: string
-                            nullable: true
+                            default: {}
                             type: object
                           replicas:
                             format: uint16
