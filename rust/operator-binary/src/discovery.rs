@@ -147,8 +147,6 @@ async fn nodeport_hosts(
             obj_ref: ObjectRef::from_obj(svc),
         })?;
 
-    println!("{:?}", svc_port);
-
     let node_port = svc_port.node_port.context(NoNodePortSnafu {
         port_name,
         obj_ref: ObjectRef::from_obj(svc),
