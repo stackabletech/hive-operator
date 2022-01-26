@@ -110,7 +110,7 @@ fn build_discovery_configmap(
                 )
                 .build(),
         )
-        .add_data("hive", conn_str)
+        .add_data("HIVE", conn_str)
         .build()
         .with_context(|_| DiscoveryConfigMapSnafu {
             obj_ref: ObjectRef::from_obj(hive),
