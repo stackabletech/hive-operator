@@ -1,5 +1,5 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-use crate::discovery::{self, build_discovery_configmaps};
+use crate::discovery;
 
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -53,7 +53,7 @@ pub enum Error {
     NoMetaStoreRole,
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
-    #[snafu(display("failed to calculate service name for role {}", rolegroup))]
+    #[snafu(display("failed to calculate service name for role {rolegroup}"))]
     RoleGroupServiceNameNotFound {
         rolegroup: RoleGroupRef<HiveCluster>,
     },
@@ -61,22 +61,22 @@ pub enum Error {
     ApplyRoleService {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to apply Service for {}", rolegroup))]
+    #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
-    #[snafu(display("failed to build ConfigMap for {}", rolegroup))]
+    #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
     BuildRoleGroupConfig {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
-    #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
+    #[snafu(display("failed to apply ConfigMap for {rolegroup}"))]
     ApplyRoleGroupConfig {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
-    #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
+    #[snafu(display("failed to apply StatefulSet for {rolegroup}"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
@@ -103,11 +103,13 @@ pub enum Error {
     ApplyStatus {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to parse db type {}", db_type))]
+    #[snafu(display("failed to parse db type {db_type}"))]
     InvalidDbType {
         source: strum::ParseError,
         db_type: String,
     },
+    #[snafu(display("failed to write discovery config map"))]
+    InvalidDiscovery { source: discovery::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -189,7 +191,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
     for discovery_cm in
-        build_discovery_configmaps(client, &hive, &hive, &metastore_role_service, None)
+        discovery::build_discovery_configmaps(client, &hive, &hive, &metastore_role_service, None)
             .await
             .context(BuildDiscoveryConfigSnafu)?
     {
@@ -234,12 +236,7 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
             .with_recommended_labels(hive, APP_NAME, hive_version(hive)?, &role_name, "global")
             .build(),
         spec: Some(ServiceSpec {
-            ports: Some(vec![ServicePort {
-                name: Some("hive".to_string()),
-                port: APP_PORT.into(),
-                protocol: Some("TCP".to_string()),
-                ..ServicePort::default()
-            }]),
+            ports: Some(service_ports()),
             selector: Some(role_selector_labels(hive, APP_NAME, &role_name)),
             type_: Some("NodePort".to_string()),
             ..ServiceSpec::default()
@@ -325,20 +322,7 @@ fn build_metastore_rolegroup_service(
             .build(),
         spec: Some(ServiceSpec {
             cluster_ip: Some("None".to_string()),
-            ports: Some(vec![
-                ServicePort {
-                    name: Some("hive".to_string()),
-                    port: APP_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some("metrics".to_string()),
-                    port: METRICS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-            ]),
+            ports: Some(service_ports()),
             selector: Some(role_group_selector_labels(
                 hive,
                 APP_NAME,
@@ -499,4 +483,21 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
     ReconcilerAction {
         requeue_after: Some(Duration::from_secs(5)),
     }
+}
+
+pub fn service_ports() -> Vec<ServicePort> {
+    vec![
+        ServicePort {
+            name: Some("hive".to_string()),
+            port: APP_PORT.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        },
+        ServicePort {
+            name: Some("metrics".to_string()),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        },
+    ]
 }

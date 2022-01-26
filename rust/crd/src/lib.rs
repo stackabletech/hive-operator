@@ -79,6 +79,7 @@ impl HiveRole {
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
     pub warehouse_dir: Option<String>,
+    #[serde(default)]
     pub database: DatabaseConnectionSpec,
     pub s3_connection: Option<S3Connection>,
 }

@@ -1,7 +1,7 @@
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
-  name: simple-postgres
+  name: simple-hive-postgres
 spec:
   version: 2.3.9
   metastore:
@@ -12,9 +12,14 @@ spec:
             kubernetes.io/os: linux
         replicas: 1
         config:
-          warehouseDir: /stackable/metastore
           database:
             connString: jdbc:postgresql://localhost:5432/metastoredb
             user: hiveuser
             password: mypass
             dbType: postgres
+          s3Connection:
+            endPoint: changeme
+            accessKey: changeme
+            secretKey: changeme
+            sslEnabled: false
+            pathStyleAccess: true

@@ -10,7 +10,7 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with derby:
     apiVersion: hive.stackable.tech/v1alpha1
     kind: HiveCluster
     metadata:
-      name: simple-derby
+      name: simple-hive-derby
     spec:
       version: 2.3.9
       metastore:
@@ -34,7 +34,7 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3
     apiVersion: hive.stackable.tech/v1alpha1
     kind: HiveCluster
     metadata:
-      name: simple-derby
+      name: simple-hive-derby
     spec:
       version: 2.3.9
       metastore:
@@ -63,7 +63,7 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL:
     apiVersion: hive.stackable.tech/v1alpha1
     kind: HiveCluster
     metadata:
-      name: simple-postgres
+      name: simple-hive-postgres
     spec:
       version: 2.3.9
       metastore:

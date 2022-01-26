@@ -1,47 +1,53 @@
-use std::{collections::BTreeSet, num::TryFromIntError};
+use crate::controller::hive_version;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, APP_NAME, APP_PORT};
+use stackable_operator::k8s_openapi::api::core::v1::{Endpoints, Service};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
-    k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service},
+    k8s_openapi::api::core::v1::ConfigMap,
     kube::{runtime::reflector::ObjectRef, Resource, ResourceExt},
 };
-
-use crate::controller::hive_version;
+use std::collections::BTreeSet;
+use std::num::TryFromIntError;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object {} is missing metadata to build owner reference", hive))]
+    #[snafu(display("object has no name associated"))]
+    NoName,
+    #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
         hive: ObjectRef<HiveCluster>,
     },
-    #[snafu(display("chroot path {} was relative (must be absolute)", chroot))]
+    #[snafu(display("chroot path {chroot} was relative (must be absolute)"))]
     RelativeChroot { chroot: String },
-    #[snafu(display("object has no name associated"))]
-    NoName,
-    #[snafu(display("object has no namespace associated"))]
-    NoNamespace,
     #[snafu(display("failed to list expected pods"))]
     ExpectedPods {
         source: stackable_hive_crd::NoNamespaceError,
     },
-    #[snafu(display("could not find service port with name {}", port_name))]
-    NoServicePort { port_name: String },
-    #[snafu(display("service port with name {} does not have a nodePort", port_name))]
-    NoNodePort { port_name: String },
-    #[snafu(display("could not find Endpoints for {}", svc))]
+    #[snafu(display("could not build discovery config map for {obj_ref}"))]
+    DiscoveryConfigMap {
+        source: stackable_operator::error::Error,
+        obj_ref: ObjectRef<HiveCluster>,
+    },
+    #[snafu(display("could not find service [{obj_ref}] port [{port_name}]"))]
+    NoServicePort {
+        port_name: String,
+        obj_ref: ObjectRef<Service>,
+    },
+    #[snafu(display("service [{obj_ref}] port [{port_name}] does not have a nodePort "))]
+    NoNodePort {
+        port_name: String,
+        obj_ref: ObjectRef<Service>,
+    },
+    #[snafu(display("could not find Endpoints for {svc}"))]
     FindEndpoints {
         source: stackable_operator::error::Error,
         svc: ObjectRef<Service>,
     },
     #[snafu(display("nodePort was out of range"))]
     InvalidNodePort { source: TryFromIntError },
-    #[snafu(display("failed to build ConfigMap"))]
-    BuildConfigMap {
-        source: stackable_operator::error::Error,
-    },
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`HiveCluster`] for all expected scenarios
@@ -55,7 +61,6 @@ pub async fn build_discovery_configmaps(
     let name = owner.name();
     Ok(vec![
         build_discovery_configmap(&name, owner, hive, chroot, pod_hosts(hive)?)?,
-        // TODO: do we need that - i think there is only internal access required?
         build_discovery_configmap(
             &format!("{}-nodeport", name),
             owner,
@@ -87,7 +92,7 @@ fn build_discovery_configmap(
         }
         conn_str.push_str(chroot);
     }
-    Ok(ConfigMapBuilder::new()
+    ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(hive)
@@ -105,9 +110,11 @@ fn build_discovery_configmap(
                 )
                 .build(),
         )
-        .add_data("hive", conn_str)
+        .add_data("HIVE", conn_str)
         .build()
-        .unwrap())
+        .with_context(|_| DiscoveryConfigMapSnafu {
+            obj_ref: ObjectRef::from_obj(hive),
+        })
 }
 
 /// Lists all Pods FQDNs expected to host the [`HiveCluster`]
@@ -135,8 +142,15 @@ async fn nodeport_hosts(
                 .iter()
                 .find(|port| port.name.as_deref() == Some("hive"))
         })
-        .context(NoServicePortSnafu { port_name })?;
-    let node_port = svc_port.node_port.context(NoNodePortSnafu { port_name })?;
+        .context(NoServicePortSnafu {
+            port_name,
+            obj_ref: ObjectRef::from_obj(svc),
+        })?;
+
+    let node_port = svc_port.node_port.context(NoNodePortSnafu {
+        port_name,
+        obj_ref: ObjectRef::from_obj(svc),
+    })?;
     let endpoints = client
         .get::<Endpoints>(
             svc.metadata.name.as_deref().context(NoNameSnafu)?,
