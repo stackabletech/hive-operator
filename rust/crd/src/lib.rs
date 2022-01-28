@@ -15,7 +15,9 @@ pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
 // default ports
-pub const APP_PORT: u16 = 9083;
+pub const HIVE_PORT_NAME: &str = "hive";
+pub const HIVE_PORT: u16 = 9083;
+pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
