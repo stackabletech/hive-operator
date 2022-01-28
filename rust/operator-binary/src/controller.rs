@@ -4,9 +4,11 @@ use crate::discovery;
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, APP_PORT,
-    CONFIG_DIR_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CONFIG_DIR_NAME,
+    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
 };
+use stackable_operator::k8s_openapi::api::core::v1::{Probe, TCPSocketAction};
+use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
@@ -392,8 +394,27 @@ fn build_metastore_rolegroup_statefulset(
         .image(image)
         .command(HiveRole::MetaStore.get_command(true, &db_type.unwrap_or_default().to_string()))
         .add_volume_mount("conf", CONFIG_DIR_NAME)
-        .add_container_port("hive", APP_PORT.into())
-        .add_container_port("metrics", METRICS_PORT.into())
+        .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
+        .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
+        .readiness_probe(Probe {
+            initial_delay_seconds: Some(10),
+            period_seconds: Some(10),
+            failure_threshold: Some(5),
+            tcp_socket: Some(TCPSocketAction {
+                port: IntOrString::String(HIVE_PORT_NAME.to_string()),
+                ..TCPSocketAction::default()
+            }),
+            ..Probe::default()
+        })
+        .liveness_probe(Probe {
+            initial_delay_seconds: Some(30),
+            period_seconds: Some(10),
+            tcp_socket: Some(TCPSocketAction {
+                port: IntOrString::String(HIVE_PORT_NAME.to_string()),
+                ..TCPSocketAction::default()
+            }),
+            ..Probe::default()
+        })
         .build();
 
     Ok(StatefulSet {
@@ -488,13 +509,13 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
 pub fn service_ports() -> Vec<ServicePort> {
     vec![
         ServicePort {
-            name: Some("hive".to_string()),
-            port: APP_PORT.into(),
+            name: Some(HIVE_PORT_NAME.to_string()),
+            port: HIVE_PORT.into(),
             protocol: Some("TCP".to_string()),
             ..ServicePort::default()
         },
         ServicePort {
-            name: Some("metrics".to_string()),
+            name: Some(METRICS_PORT_NAME.to_string()),
             port: METRICS_PORT.into(),
             protocol: Some("TCP".to_string()),
             ..ServicePort::default()

@@ -1,7 +1,7 @@
 use crate::controller::hive_version;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, APP_NAME, APP_PORT};
+use stackable_hive_crd::{HiveCluster, HiveRole, APP_NAME, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::k8s_openapi::api::core::v1::{Endpoints, Service};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
@@ -66,7 +66,7 @@ pub async fn build_discovery_configmaps(
             owner,
             hive,
             chroot,
-            nodeport_hosts(client, svc, "hive").await?,
+            nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
         )?,
     ])
 }
@@ -123,7 +123,7 @@ fn pod_hosts(hive: &HiveCluster) -> Result<impl IntoIterator<Item = (String, u16
         .pods()
         .context(ExpectedPodsSnafu)?
         .into_iter()
-        .map(|pod_ref| (pod_ref.fqdn(), APP_PORT)))
+        .map(|pod_ref| (pod_ref.fqdn(), HIVE_PORT)))
 }
 
 /// Lists all nodes currently hosting Pods participating in the [`Service`]
@@ -140,7 +140,7 @@ async fn nodeport_hosts(
                 .ports
                 .as_ref()?
                 .iter()
-                .find(|port| port.name.as_deref() == Some("hive"))
+                .find(|port| port.name.as_deref() == Some(HIVE_PORT_NAME))
         })
         .context(NoServicePortSnafu {
             port_name,
