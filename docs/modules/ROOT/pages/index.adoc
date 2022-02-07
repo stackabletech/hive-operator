@@ -4,6 +4,12 @@ This is an operator for Kubernetes that can manage https://hive.apache.org[Apach
 
 WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive[Stackable] repository
 
+== Supported Versions
+
+The Stackable Operator for Apache Hive currently supports the following versions of Hive:
+
+include::partial$supported-versions.adoc[]
+
 [source]
 ----
 docker pull docker.stackable.tech/stackable/hive:<version>

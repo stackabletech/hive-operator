@@ -1,0 +1,5 @@
+// The version ranges supported by Hive-Operator
+// This is a separate file, since it is used by both the direct Hive-Operator documentation, and the overarching
+// Stackable Platform documentation.
+
+- 2.3.9
