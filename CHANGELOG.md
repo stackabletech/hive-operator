@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- monitoring scraping label `prometheus.io/scrape: true` ([#115]).
+
+### Changed
+
+- `operator-rs` `0.8.0` → `0.10.0` ([#115]).
+
+[#115]: https://github.com/stackabletech/hive-operator/pull/115
+
 ## [0.4.0] - 2022-01-27
 
 
