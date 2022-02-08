@@ -30,11 +30,12 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
 };
-use std::str::FromStr;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
     hash::Hasher,
+    str::FromStr,
+    sync::Arc,
     time::Duration,
 };
 use tracing::warn;
@@ -116,7 +117,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
+pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let hive_version = hive_version(&hive)?;
@@ -124,7 +125,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     let validated_config = validate_all_roles_and_groups_config(
         hive_version,
         &transform_all_roles_to_config(
-            &hive,
+            &*hive,
             [(
                 HiveRole::MetaStore.to_string(),
                 (
@@ -163,7 +164,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
-        let rg_service = build_metastore_rolegroup_service(&hive, &rolegroup)?;
+        let rg_service = build_rolegroup_service(&hive, &rolegroup)?;
         let rg_configmap =
             build_metastore_rolegroup_config_map(&hive, &rolegroup, rolegroup_config)?;
         let rg_statefulset =
@@ -193,7 +194,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
     for discovery_cm in
-        discovery::build_discovery_configmaps(client, &hive, &hive, &metastore_role_service, None)
+        discovery::build_discovery_configmaps(client, &*hive, &*hive, &metastore_role_service, None)
             .await
             .context(BuildDiscoveryConfigSnafu)?
     {
@@ -212,7 +213,7 @@ pub async fn reconcile_hive(hive: HiveCluster, ctx: Context<Ctx>) -> Result<Reco
         discovery_hash: Some(discovery_hash.finish().to_string()),
     };
     client
-        .apply_patch_status(FIELD_MANAGER_SCOPE, &hive, &status)
+        .apply_patch_status(FIELD_MANAGER_SCOPE, &*hive, &status)
         .await
         .context(ApplyStatusSnafu)?;
 
@@ -304,7 +305,7 @@ fn build_metastore_rolegroup_config_map(
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
-fn build_metastore_rolegroup_service(
+fn build_rolegroup_service(
     hive: &HiveCluster,
     rolegroup: &RoleGroupRef<HiveCluster>,
 ) -> Result<Service> {
@@ -321,6 +322,7 @@ fn build_metastore_rolegroup_service(
                 &rolegroup.role,
                 &rolegroup.role_group,
             )
+            .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
             cluster_ip: Some("None".to_string()),
