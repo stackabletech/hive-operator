@@ -5,10 +5,10 @@ kind: Deployment
 metadata:
   name: hive-operator-deployment
   labels:
-    helm.sh/chart: hive-operator-0.5.0-nightly
+    helm.sh/chart: hive-operator-0.5.0
     app.kubernetes.io/name: hive-operator
     app.kubernetes.io/instance: hive-operator
-    app.kubernetes.io/version: "0.5.0-nightly"
+    app.kubernetes.io/version: "0.5.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -31,7 +31,7 @@ spec:
         - name: hive-operator
           securityContext:
             {}
-          image: "docker.stackable.tech/stackable/hive-operator:0.5.0-nightly"
+          image: "docker.stackable.tech/stackable/hive-operator:0.5.0"
           imagePullPolicy: IfNotPresent
           resources:
             {}
