@@ -9,6 +9,7 @@ use stackable_hive_crd::{
 };
 use stackable_operator::k8s_openapi::api::core::v1::{Probe, TCPSocketAction};
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
@@ -38,6 +39,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use strum::EnumDiscriminants;
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
@@ -47,7 +49,8 @@ pub struct Ctx {
     pub product_config: ProductConfigManager,
 }
 
-#[derive(Snafu, Debug)]
+#[derive(Snafu, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(strum::IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("object defines no version"))]
@@ -114,8 +117,13 @@ pub enum Error {
     #[snafu(display("failed to write discovery config map"))]
     InvalidDiscovery { source: discovery::Error },
 }
-
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl ReconcilerError for Error {
+    fn category(&self) -> &'static str {
+        ErrorDiscriminants::from(self).into()
+    }
+}
 
 pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
     tracing::info!("Starting reconcile");

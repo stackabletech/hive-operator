@@ -5,6 +5,7 @@ use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_hive_crd::HiveCluster;
 use stackable_operator::cli::{Command, ProductOperatorRun};
+use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -67,17 +68,10 @@ async fn main() -> anyhow::Result<()> {
                         product_config,
                     }),
                 )
-                .for_each(|res| async {
-                    match res {
-                        Ok((obj, _)) => tracing::info!(object = %obj, "Reconciled object"),
-                        Err(err) => {
-                            tracing::error!(
-                                error = &err as &dyn std::error::Error,
-                                "Failed to reconcile object",
-                            )
-                        }
-                    }
+                .map(|res| {
+                    report_controller_reconciled(&client, "hiveclusters.hive.stackable.tech", &res);
                 })
+                .collect::<()>()
                 .await;
         }
     }
