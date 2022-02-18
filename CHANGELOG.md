@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Reconciliation errors are now reported as Kubernetes events ([#137]).
+
+### Changed
+
+- `operator-rs` `0.10.0` -> `0.12.0` ([#137]).
+
+[#137]: https://github.com/stackabletech/hive-operator/pull/137
+
 ## [0.5.0] - 2022-02-14
 
 ### Added
