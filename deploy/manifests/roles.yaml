@@ -70,23 +70,11 @@ rules:
     verbs:
       - get
   - apiGroups:
-      - command.hive.stackable.tech
+      - events.k8s.io
     resources:
-      - inits
-      - restarts
-      - starts
-      - stops
+      - events
     verbs:
-      - get
-      - list
-      - patch
-      - watch
-  - apiGroups:
-      - command.hive.stackable.tech
-    resources:
-      - inits/status
-    verbs:
-      - patch
+      - create
   - apiGroups:
       - hive.stackable.tech
     resources:
