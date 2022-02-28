@@ -7,12 +7,15 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Reconciliation errors are now reported as Kubernetes events ([#137]).
+- Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
+  a single namespace to watch ([#142]).
 
 ### Changed
 
-- `operator-rs` `0.10.0` -> `0.12.0` ([#137]).
+- `operator-rs` `0.10.0` -> `0.13.0` ([#137],[#142]).
 
 [#137]: https://github.com/stackabletech/hive-operator/pull/137
+[#142]: https://github.com/stackabletech/hive-operator/pull/142
 
 ## [0.5.0] - 2022-02-14
 
@@ -27,7 +30,6 @@ All notable changes to this project will be documented in this file.
 [#115]: https://github.com/stackabletech/hive-operator/pull/115
 
 ## [0.4.0] - 2022-01-27
-
 
 ### Added
 
@@ -53,9 +55,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.0] - 2021-12-06
 
-
 ## [0.2.0] - 2021-11-12
-
 
 ### Changed
 
@@ -72,4 +72,3 @@ All notable changes to this project will be documented in this file.
 - Use framework re-exports. ([#14])
 
 [#14]: https://github.com/stackabletech/hive-operator/pull/14
-

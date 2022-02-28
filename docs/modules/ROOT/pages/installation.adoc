@@ -61,6 +61,6 @@ This operator is written in Rust and is developed against the latest stable Rust
 
 [source]
 ----
-cargo run -- crd | kubectl apply -f -
-cargo run -- run
+stackable-hive-operator crd | kubectl apply -f -
+stackable-hive-operator run
 ----

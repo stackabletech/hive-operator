@@ -8,6 +8,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 use std::collections::BTreeMap;
+use strum::{Display, EnumString};
 
 pub const APP_NAME: &str = "hive";
 pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
@@ -115,16 +116,7 @@ impl MetaStoreConfig {
 }
 
 #[derive(
-    Clone,
-    Debug,
-    Deserialize,
-    Eq,
-    Hash,
-    JsonSchema,
-    PartialEq,
-    Serialize,
-    strum_macros::Display,
-    strum_macros::EnumString,
+    Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize, Display, EnumString,
 )]
 pub enum DbType {
     #[serde(rename = "derby")]
