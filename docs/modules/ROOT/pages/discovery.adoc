@@ -1,6 +1,7 @@
 :clusterName: simple-hive-derby
 :namespace: stackable
 :metastorePort: 9083
+:roleGroup: default
 
 = Discovery Profiles
 
@@ -19,6 +20,9 @@ metadata:
   name: {clusterName} # <1>
   namespace: {namespace} # <2>
 spec:
+  metastore:
+    roleGroups:
+      {roleGroup}:
   [...]
 ----
 <1> Name of the Hive cluster which is the name of the `ConfigMap` created for this discovery profile.
@@ -32,19 +36,19 @@ This profile allows access to the Hive cluster from inside the Kubernetes cluste
 
 == Contents
 
-The discovery profile contains the following fields where `{clusterName}` represents the name and `{namespace}` the namespace of the cluster:
+The discovery profile contains the following fields where `{clusterName}` represents the name, `{namespace}` the namespace of the cluster and `{roleGroup}` the role group of the `metastore` role:
 
 `HIVE`::
 ====
 Contains the thrift protocol connection string for the Hive cluster to connect to the metastore:
 [subs="attributes"]
-  thrift://{clusterName}-metastore-default-0.{clusterName}-metastore-default.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}-metastore-{roleGroup}-0.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
 
 or
 
 [subs="attributes"]
-  thrift://{clusterName}-metastore-default-0.{clusterName}-metastore-default.{namespace}.svc.cluster.local:{metastorePort}
-  thrift://{clusterName}-metastore-default-1.{clusterName}-metastore-default.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}-metastore-{roleGroup}-0.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}-metastore-{roleGroup}-1.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
 
-for rolegroup `replicas` greater than one (two in this case), which should be avoided since the metastore instances do not sync between each other.
+for the role group `replicas` greater than one (two in this case), which should be avoided since the metastore instances do not sync between each other.
 ====
