@@ -36,7 +36,7 @@ chart-clean:
 	rm -rf deploy/helm/hive-operator/crds
 
 version:
-	yq eval -i '.version = ${VERSION} | .appVersion = ${VERSION}' deploy/helm/hive-operator/Chart.yaml
+	yq eval -i '.version = ${VERSION} | .appVersion = ${VERSION}' /dev/stdin < deploy/helm/hive-operator/Chart.yaml
 
 config:
 	if [ -d "deploy/config-spec/" ]; then\
