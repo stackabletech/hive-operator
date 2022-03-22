@@ -7,7 +7,7 @@
 
 The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#configmap-v1-core[`ConfigMap`], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
 
-The bundle includes a thrift connection string to access the Hive metastore service. This string may be used by other operators or tools to configure their products with access to Hive. This is limited to internal cluster access.
+The bundle includes an Apache Thrift connection string to access the Hive Metastore service. This string may be used by other operators or tools to configure their products with access to Hive. Access is limited to services within the same Kubernetes cluster.
 
 == Example
 
