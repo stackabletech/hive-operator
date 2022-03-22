@@ -1,7 +1,7 @@
-:clusterName: simple-hive-derby
-:namespace: stackable
+:clusterName: \{clusterName\}
+:namespace: \{namespace\}
 :metastorePort: 9083
-:roleGroup: default
+:roleGroup: \{roleGroup\}
 
 = Discovery
 
