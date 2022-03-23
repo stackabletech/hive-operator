@@ -1,0 +1,53 @@
+:clusterName: \{clusterName\}
+:namespace: \{namespace\}
+:metastorePort: 9083
+:roleGroup: \{roleGroup\}
+
+= Discovery
+
+The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#configmap-v1-core[`ConfigMap`], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
+
+The bundle includes an Apache Thrift connection string to access the Hive Metastore service. This string may be used by other operators or tools to configure their products with access to Hive. Access is limited to services within the same Kubernetes cluster.
+
+== Example
+
+Given the following Hive cluster:
+
+[source,yaml,subs="normal,callouts"]
+----
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: {clusterName} # <1>
+  namespace: {namespace} # <2>
+spec:
+  metastore:
+    roleGroups:
+      default: # <3>
+  [...]
+----
+<1> The name of the Hive cluster, which is also the name of the created discovery `ConfigMap`.
+<2> The namespace of the discovery `ConfigMap`.
+<3> A role group name of the metastore role.
+
+The resulting discovery `ConfigMap` is `{namespace}/{clusterName}`.
+
+== Contents
+
+The `{namespace}/{clusterName}` discovery `ConfigMap` contains the following fields where `{clusterName}` represents the name, `{namespace}` the namespace of the cluster and `{roleGroup}` a role group of the `metastore` role:
+
+`HIVE`::
+====
+Contains the thrift protocol connection string for the Hive metastore:
+
+[subs="attributes"]
+  thrift://{clusterName}-metastore-{roleGroup}-0.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
+
+or
+
+[subs="attributes"]
+  thrift://{clusterName}-metastore-{roleGroup}-0.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}-metastore-{roleGroup}-1.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
+
+for the role group `replicas` greater than one (two in this case), which should be avoided since the metastore instances do not sync between each other.
+====

@@ -1,4 +1,5 @@
 * xref:installation.adoc[]
 * xref:configuration.adoc[]
 * xref:usage.adoc[]
-
+* Concepts
+** xref:discovery.adoc[]
