@@ -1,5 +1,4 @@
 ---
-# Source: hive-operator/templates/configmap.yaml
 apiVersion: v1
 data:
   properties.yaml: |
@@ -22,7 +21,7 @@ data:
             regex: "([a-zA-Z_$][a-zA-Z\\d_$]*\\.)*[a-zA-Z_$][a-zA-Z\\d_$]*"
             examples:
               - "org.apache.derby.jdbc.EmbeddedDriver"
-  
+
     properties:
       - property:
           propertyNames:
@@ -127,8 +126,6 @@ kind: ConfigMap
 metadata:
   name: hive-operator-configmap
   labels:
-    helm.sh/chart: hive-operator-0.6.0-nightly
     app.kubernetes.io/name: hive-operator
     app.kubernetes.io/instance: hive-operator
     app.kubernetes.io/version: "0.6.0-nightly"
-    app.kubernetes.io/managed-by: Helm
