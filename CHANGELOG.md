@@ -9,13 +9,15 @@ All notable changes to this project will be documented in this file.
 - Reconciliation errors are now reported as Kubernetes events ([#137]).
 - Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
   a single namespace to watch ([#142]).
+- Warning in docs to use only PostgreSQL <= 10 ([#168]).
 
 ### Changed
 
-- `operator-rs` `0.10.0` -> `0.13.0` ([#137],[#142]).
+- `operator-rs` `0.10.0` -> `0.17.0` ([#137], [#142], [#168]).
 
 [#137]: https://github.com/stackabletech/hive-operator/pull/137
 [#142]: https://github.com/stackabletech/hive-operator/pull/142
+[#168]: https://github.com/stackabletech/hive-operator/pull/168
 
 ## [0.5.0] - 2022-02-14
 

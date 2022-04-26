@@ -25,7 +25,7 @@ use stackable_operator::{
     },
     kube::{
         api::ObjectMeta,
-        runtime::controller::{Context, ReconcilerAction},
+        runtime::controller::{Action, Context},
     },
     labels::{role_group_selector_labels, role_selector_labels},
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -125,7 +125,7 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
+pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let hive_version = hive_version(&hive)?;
@@ -225,9 +225,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result
         .await
         .context(ApplyStatusSnafu)?;
 
-    Ok(ReconcilerAction {
-        requeue_after: None,
-    })
+    Ok(Action::await_change())
 }
 
 /// The server-role service is the primary endpoint that should be used by clients that do not
@@ -510,10 +508,8 @@ pub fn hive_version(hive: &HiveCluster) -> Result<&str> {
         .context(ObjectHasNoVersionSnafu)
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
-    ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(5)),
-    }
+pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(5))
 }
 
 pub fn service_ports() -> Vec<ServicePort> {
