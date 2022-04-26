@@ -1,36 +1,39 @@
 = Usage
 
 After installation, ensure that the CRD for this operator exists or create yourself:
-
-    kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
-
+[source]
+----
+kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
+----
 To create a single node Apache Hive Metastore (v2.3.9) cluster with derby:
 
-    cat <<EOF | kubectl apply -f -
-    apiVersion: hive.stackable.tech/v1alpha1
-    kind: HiveCluster
-    metadata:
-      name: simple-hive-derby
-    spec:
-      version: 2.3.9
-      metastore:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              database:
-                connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
-                user: APP
-                password: mine
-                dbType: derby
-    EOF
+[source,yaml]
+----
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: simple-hive-derby
+spec:
+  version: 2.3.9
+  metastore:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
+            user: APP
+            password: mine
+            dbType: derby
+----
 
 To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access:
 
-    cat <<EOF | kubectl apply -f -
+[source,yaml]
+----
     apiVersion: hive.stackable.tech/v1alpha1
     kind: HiveCluster
     metadata:
@@ -56,31 +59,44 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3
                 secretKey: changeme
                 sslEnabled: false
                 pathStyleAccess: true
-    EOF
+----
 
-To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL:
+To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL, deploy a PostgreSQL instance via helm.
 
-    apiVersion: hive.stackable.tech/v1alpha1
-    kind: HiveCluster
-    metadata:
-      name: simple-hive-postgres
-    spec:
-      version: 2.3.9
-      metastore:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              warehouseDir: /stackable/metastore
-              database:
-                connString: jdbc:postgresql://localhost:5432/metastoredb
-                user: hiveuser
-                password: mypass
-                dbType: postgres
-    EOF
+WARNING: PostgreSQL versions 11 or higher are currently not supported:
+
+[source]
+----
+helm install hive bitnami/postgresql --version=10 \
+--set postgresqlUsername=hive \
+--set postgresqlPassword=hive \
+--set postgresqlDatabase=hive
+----
+
+Then deploy the example:
+
+[source,yaml]
+----
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: simple-hive-postgres
+spec:
+  version: 2.3.9
+  metastore:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
+            user: hive
+            password: hive
+            dbType: postgres
+----
 
 == Monitoring
 
@@ -154,6 +170,5 @@ routers:
       config: {}
       replicas: 1
 ----
-
 
 // cliOverrides don't make sense for this operator, so the feature is omitted for now

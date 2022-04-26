@@ -13,9 +13,9 @@ spec:
         replicas: 1
         config:
           database:
-            connString: jdbc:postgresql://localhost:5432/metastoredb
-            user: hiveuser
-            password: mypass
+            connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
+            user: hive
+            password: hive
             dbType: postgres
           s3Connection:
             endPoint: changeme
