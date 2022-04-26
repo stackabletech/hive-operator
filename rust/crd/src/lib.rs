@@ -283,15 +283,6 @@ impl HiveCluster {
         self.metadata.name.clone()
     }
 
-    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_fqdn(&self) -> Option<String> {
-        Some(format!(
-            "{}.{}.svc.cluster.local",
-            self.metastore_role_service_name()?,
-            self.metadata.namespace.as_ref()?
-        ))
-    }
-
     /// Metadata about a metastore rolegroup
     pub fn metastore_rolegroup_ref(
         &self,
@@ -332,7 +323,6 @@ impl HiveCluster {
 
 /// Reference to a single `Pod` that is a component of a [`HiveCluster`]
 /// Used for service discovery.
-// TODO: this should move to operator-rs
 pub struct PodRef {
     pub namespace: String,
     pub role_group_service_name: String,
