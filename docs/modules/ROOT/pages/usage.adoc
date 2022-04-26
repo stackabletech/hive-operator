@@ -63,7 +63,7 @@ To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3
 
 To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL, deploy a PostgreSQL instance via helm.
 
-WARNING: PostgreSQL versions 11 or higher are currently not supported:
+WARNING: PostgreSQL versions 11 or higher are currently not supported (see https://github.com/stackabletech/hive-operator/issues/167):
 
 [source]
 ----
