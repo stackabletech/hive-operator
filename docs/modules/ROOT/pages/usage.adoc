@@ -1,102 +1,15 @@
 = Usage
 
-After installation, ensure that the CRD for this operator exists or create yourself:
-[source]
-----
-kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
-----
-To create a single node Apache Hive Metastore (v2.3.9) cluster with derby:
+== Requirements
+Apache Hive Metastores need a relational database to store their state.
+We currently support https://www.postgresql.org/[PostgreSQL] and https://db.apache.org/derby/[Apache Derby] (embedded database, not recommended for production).
+Other databases might work if JDBC drivers are available.
+Please open an https://github.com/stackabletech/hive-operator/issues[issue] if you require support for another database.
 
-[source,yaml]
-----
-apiVersion: hive.stackable.tech/v1alpha1
-kind: HiveCluster
-metadata:
-  name: simple-hive-derby
-spec:
-  version: 2.3.9
-  metastore:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-        config:
-          database:
-            connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
-            user: APP
-            password: mine
-            dbType: derby
-----
+== S3 Support
 
-To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access:
-
-[source,yaml]
-----
-    apiVersion: hive.stackable.tech/v1alpha1
-    kind: HiveCluster
-    metadata:
-      name: simple-hive-derby
-    spec:
-      version: 2.3.9
-      metastore:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              database:
-                connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
-                user: APP
-                password: mine
-                dbType: derby
-              s3Connection:
-                endPoint: changeme
-                accessKey: changeme
-                secretKey: changeme
-                sslEnabled: false
-                pathStyleAccess: true
-----
-
-To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL, deploy a PostgreSQL instance via helm.
-
-WARNING: PostgreSQL versions 11 or higher are currently not supported (see https://github.com/stackabletech/hive-operator/issues/167):
-
-[source]
-----
-helm install hive bitnami/postgresql --version=10 \
---set postgresqlUsername=hive \
---set postgresqlPassword=hive \
---set postgresqlDatabase=hive
-----
-
-Then deploy the example:
-
-[source,yaml]
-----
-apiVersion: hive.stackable.tech/v1alpha1
-kind: HiveCluster
-metadata:
-  name: simple-hive-postgres
-spec:
-  version: 2.3.9
-  metastore:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-        config:
-          database:
-            connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
-            user: hive
-            password: hive
-            dbType: postgres
-----
+Hive supports creating tables in S3 compatible object stores.
+To use this feature you need to provide connection details for the object store.
 
 == Monitoring
 
@@ -107,7 +20,7 @@ xref:home:operators:monitoring.adoc[] for more details.
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
-IMPORTANT: Overriding certain properties which are set by operator (such as the HTTP port) can interfere with the operator and can lead to problems.
+IMPORTANT: Overriding certain properties, which are set by the operator (such as the HTTP port) can interfere with the operator and can lead to problems.
 
 === Configuration Properties
 
@@ -149,7 +62,7 @@ In a similar fashion, environment variables can be (over)written. For example pe
 
 [source,yaml]
 ----
-routers:
+metastore:
   roleGroups:
     default:
       config: {}
@@ -162,7 +75,7 @@ or per role:
 
 [source,yaml]
 ----
-routers:
+metastore:
   envOverrides:
     MY_ENV_VAR: "MY_VALUE"
   roleGroups:
@@ -172,3 +85,104 @@ routers:
 ----
 
 // cliOverrides don't make sense for this operator, so the feature is omitted for now
+
+== Examples
+
+.Create a single node Apache Hive Metastore cluster using Derby:
+[source,yaml]
+----
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: simple-hive-derby
+spec:
+  version: 2.3.9
+  metastore:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
+            user: APP
+            password: mine
+            dbType: derby
+----
+
+.Create a single node Apache Hive Metastore with Derby and S3 access:
+[source,yaml]
+----
+    apiVersion: hive.stackable.tech/v1alpha1
+    kind: HiveCluster
+    metadata:
+      name: simple-hive-derby
+    spec:
+      version: 2.3.9
+      metastore:
+        roleGroups:
+          default:
+            selector:
+              matchLabels:
+                kubernetes.io/os: linux
+            replicas: 1
+            config:
+              database:
+                connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
+                user: APP
+                password: mine
+                dbType: derby
+              s3Connection:
+                endPoint: changeme
+                accessKey: changeme
+                secretKey: changeme
+                sslEnabled: false
+                pathStyleAccess: true
+----
+
+
+To create a single node Apache Hive Metastore using PostgreSQL, deploy a PostgreSQL instance via helm.
+
+[sidebar]
+PostgreSQL introduced a new way to encrypt its passwords in version 10.
+This is called `scram-sha-256` and has been the default as of PostgreSQL 14.
+Unfortunately, Hive up until the latest 3.3.x version ships with JDBC drivers that do _not_ support this method.
+You might see an error message like this:
+`The authentication type 10 is not supported.`
+If this is the case please either use an older PostgreSQL version or change its https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-PASSWORD-ENCRYPTION[`password_encryption`] setting to `md5`.
+
+This installes PostgreSQL in version 10 to work around the issue mentioned above:
+[source,bash]
+----
+helm install hive bitnami/postgresql --version=10 \
+--set postgresqlUsername=hive \
+--set postgresqlPassword=hive \
+--set postgresqlDatabase=hive
+----
+
+.Create Hive Metastore using a PostgreSQL database
+[source,yaml]
+----
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: simple-hive-postgres
+spec:
+  version: 2.3.9
+  metastore:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
+            user: hive
+            password: hive
+            dbType: postgres
+----

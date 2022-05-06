@@ -1,6 +1,7 @@
 = Stackable Operator for Apache Hive
 
-This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] clusters.
+This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive].
+Currently, it only supports the Hive Metastore!
 
 WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive[Stackable] repository
 
