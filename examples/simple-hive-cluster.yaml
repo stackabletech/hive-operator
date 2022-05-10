@@ -4,6 +4,10 @@ metadata:
   name: simple-hive-derby
 spec:
   version: 2.3.9
+  s3:
+    inline:
+      host: CHANGE_ME
+      secretClass: simple-hive-s3-secret
   metastore:
     roleGroups:
       default:
@@ -17,9 +21,12 @@ spec:
             user: APP
             password: mine
             dbType: derby
-          s3Connection:
-            endPoint: changeme
-            accessKey: changeme
-            secretKey: changeme
-            sslEnabled: false
-            pathStyleAccess: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: simple-hive-s3-secret
+type: kubernetes.io/opaque
+stringData:
+  accessKeyId: YOUR_ACCESS_KEY
+  secretKeyId: YOUR_SECRET_KEY

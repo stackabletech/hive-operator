@@ -7,12 +7,16 @@ use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CONFIG_DIR_NAME,
     HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
 };
-use stackable_operator::k8s_openapi::api::core::v1::{Probe, TCPSocketAction};
+use stackable_operator::commons::s3::S3ConnectionSpec;
+use stackable_operator::k8s_openapi::api::core::v1::{
+    EnvVarSource, Probe, SecretKeySelector, TCPSocketAction,
+};
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
+    commons::s3::S3ConnectionDef,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -26,6 +30,7 @@ use stackable_operator::{
     kube::{
         api::ObjectMeta,
         runtime::controller::{Action, Context},
+        ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels},
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -43,6 +48,8 @@ use strum::EnumDiscriminants;
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
+const ENV_S3_ACCESS_KEY: &str = "S3_ACCESS_KEY";
+const ENV_S3_SECRET_KEY: &str = "S3_SECRET_KEY";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -116,6 +123,12 @@ pub enum Error {
     },
     #[snafu(display("failed to write discovery config map"))]
     InvalidDiscovery { source: discovery::Error },
+    #[snafu(display("failed to resolve S3 connection"))]
+    ResolveS3Connection {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("invalid S3 connection: {reason}"))]
+    InvalidS3Connection { reason: String },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -129,6 +142,17 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let hive_version = hive_version(&hive)?;
+
+    let s3_connection_def: &Option<S3ConnectionDef> = &hive.spec.s3;
+    let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = s3_connection_def {
+        Some(
+            s3.resolve(client, hive.namespace().as_deref())
+                .await
+                .context(ResolveS3ConnectionSnafu)?,
+        )
+    } else {
+        None
+    };
 
     let validated_config = validate_all_roles_and_groups_config(
         hive_version,
@@ -173,10 +197,18 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         let rg_service = build_rolegroup_service(&hive, &rolegroup)?;
-        let rg_configmap =
-            build_metastore_rolegroup_config_map(&hive, &rolegroup, rolegroup_config)?;
-        let rg_statefulset =
-            build_metastore_rolegroup_statefulset(&hive, &rolegroup, rolegroup_config)?;
+        let rg_configmap = build_metastore_rolegroup_config_map(
+            &hive,
+            &rolegroup,
+            rolegroup_config,
+            s3_connection_spec.as_ref(),
+        )?;
+        let rg_statefulset = build_metastore_rolegroup_statefulset(
+            &hive,
+            &rolegroup,
+            rolegroup_config,
+            s3_connection_spec.as_ref(),
+        )?;
 
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -259,6 +291,7 @@ fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
     rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    s3_connection_spec: Option<&S3ConnectionSpec>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let log4j_data = include_str!("../../../deploy/external/log4j.properties");
@@ -268,14 +301,38 @@ fn build_metastore_rolegroup_config_map(
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
 
-                for (property_name, property_value) in config {
-                    data.insert(property_name.to_string(), Some(property_value.to_string()));
-                }
-
                 data.insert(
                     MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
                     Some("/stackable/warehouse".to_string()),
                 );
+
+                if let Some(s3) = s3_connection_spec {
+                    data.insert(MetaStoreConfig::S3_ENDPOINT.to_string(), s3.endpoint());
+                    if s3.secret_class.is_some() {
+                        data.insert(
+                            MetaStoreConfig::S3_ACCESS_KEY.to_string(),
+                            Some(format!("${{ENV:{ENV_S3_ACCESS_KEY}}}")),
+                        );
+                        data.insert(
+                            MetaStoreConfig::S3_SECRET_KEY.to_string(),
+                            Some(format!("${{ENV:{ENV_S3_SECRET_KEY}}}")),
+                        );
+                    }
+                    data.insert(
+                        MetaStoreConfig::S3_SSL_ENABLED.to_string(),
+                        Some(s3.tls.is_some().to_string()),
+                    );
+                    // TODO Set path style access
+                    data.insert(
+                        MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
+                        Some(true.to_string()),
+                    );
+                }
+
+                // overrides
+                for (property_name, property_value) in config {
+                    data.insert(property_name.to_string(), Some(property_value.to_string()));
+                }
 
                 hive_site_data =
                     stackable_operator::product_config::writer::to_hadoop_xml(data.iter());
@@ -354,6 +411,7 @@ fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    s3_connection: Option<&S3ConnectionSpec>,
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
     let mut container_builder = ContainerBuilder::new(APP_NAME);
@@ -361,6 +419,37 @@ fn build_metastore_rolegroup_statefulset(
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
             PropertyNameKind::Env => {
+                if let Some(S3ConnectionSpec {
+                    secret_class: Some(secret_name),
+                    ..
+                }) = s3_connection
+                {
+                    container_builder.add_env_var_from_source(
+                        ENV_S3_ACCESS_KEY,
+                        EnvVarSource {
+                            secret_key_ref: Some(SecretKeySelector {
+                                name: Some(secret_name.clone()),
+                                key: "accessKeyId".to_string(),
+                                ..Default::default()
+                            }),
+                            ..EnvVarSource::default()
+                        },
+                    );
+
+                    container_builder.add_env_var_from_source(
+                        ENV_S3_SECRET_KEY,
+                        EnvVarSource {
+                            secret_key_ref: Some(SecretKeySelector {
+                                name: Some(secret_name.clone()),
+                                key: "secretKeyId".to_string(),
+                                ..Default::default()
+                            }),
+                            ..EnvVarSource::default()
+                        },
+                    );
+                }
+
+                // overrides
                 for (property_name, property_value) in config {
                     if property_name.is_empty() {
                         warn!("Received empty property_name for ENV... skipping");

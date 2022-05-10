@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
+    commons::s3::S3ConnectionDef,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
     role_utils::Role,
@@ -44,6 +45,8 @@ pub struct HiveClusterSpec {
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metastore: Option<Role<MetaStoreConfig>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub s3: Option<S3ConnectionDef>,
 }
 
 #[derive(strum::Display)]
@@ -84,18 +87,6 @@ pub struct MetaStoreConfig {
     pub warehouse_dir: Option<String>,
     #[serde(default)]
     pub database: DatabaseConnectionSpec,
-    pub s3_connection: Option<S3Connection>,
-}
-
-/// Contains all the required connection information for S3.
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct S3Connection {
-    pub end_point: String,
-    pub access_key: String,
-    pub secret_key: String,
-    pub ssl_enabled: bool,
-    pub path_style_access: bool,
 }
 
 impl MetaStoreConfig {
@@ -233,33 +224,6 @@ impl Configuration for MetaStoreConfig {
             Self::METASTORE_METRICS_ENABLED.to_string(),
             Some("true".to_string()),
         );
-
-        if let Some(s3_connection) = &self.s3_connection {
-            result.insert(
-                Self::S3_ENDPOINT.to_string(),
-                Some(s3_connection.end_point.clone()),
-            );
-
-            result.insert(
-                Self::S3_ACCESS_KEY.to_string(),
-                Some(s3_connection.access_key.clone()),
-            );
-
-            result.insert(
-                Self::S3_SECRET_KEY.to_string(),
-                Some(s3_connection.secret_key.clone()),
-            );
-
-            result.insert(
-                Self::S3_SSL_ENABLED.to_string(),
-                Some(s3_connection.ssl_enabled.to_string()),
-            );
-
-            result.insert(
-                Self::S3_PATH_STYLE_ACCESS.to_string(),
-                Some(s3_connection.path_style_access.to_string()),
-            );
-        }
 
         Ok(result)
     }
