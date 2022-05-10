@@ -169,7 +169,7 @@ impl Configuration for MetaStoreConfig {
         let mut result = BTreeMap::new();
 
         result.insert(
-            "HADOOP_OPTS".to_string(),
+            "HIVE_METASTORE_HADOOP_OPTS".to_string(),
             Some(format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", METRICS_PORT))
         );
 
