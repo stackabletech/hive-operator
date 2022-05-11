@@ -14,7 +14,7 @@ spec:
         replicas: 1
         config:
           database:
-            connString: jdbc:derby:;databaseName=/stackable/hive;create=true
+            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
             user: APP
             password: mine
             dbType: derby
