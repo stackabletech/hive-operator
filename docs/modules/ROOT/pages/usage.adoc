@@ -30,35 +30,60 @@ spec:
             dbType: derby
 ----
 
-To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access:
+To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access, deploy a minio (or use any available S3 bucket):
+[source,bash]
+----
+helm install minio \
+    minio \
+    --repo https://charts.bitnami.com/bitnami \
+    --set auth.rootUser=minio-access-key \
+    --set auth.rootPassword=minio-secret-key
+----
+
+In order to upload data to minio we need a port-forward to access the web ui.
+[source,bash]
+----
+kubectl port-forward service/minio 9001
+----
+Then connect to localhost:9001 and login with the user `minio-access-key` and password `minio-secret-key`. Create a bucket and upload data.
+
+Deploy the cluster:
 
 [source,yaml]
 ----
-    apiVersion: hive.stackable.tech/v1alpha1
-    kind: HiveCluster
-    metadata:
-      name: simple-hive-derby
-    spec:
-      version: 2.3.9
-      metastore:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              database:
-                connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
-                user: APP
-                password: mine
-                dbType: derby
-              s3Connection:
-                endPoint: changeme
-                accessKey: changeme
-                secretKey: changeme
-                sslEnabled: false
-                pathStyleAccess: true
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: simple-hive-derby
+spec:
+  version: 2.3.9
+  s3:
+    inline:
+      host: minio
+      port: 9000
+      secretClass: simple-hive-s3-secret
+  metastore:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
+            user: APP
+            password: mine
+            dbType: derby
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: simple-hive-s3-secret
+type: kubernetes.io/opaque
+stringData:
+  accessKey: minio-access-key
+  secretKey: minio-secret-key
 ----
 
 To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL, deploy a PostgreSQL instance via helm.
