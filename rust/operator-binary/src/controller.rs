@@ -7,25 +7,24 @@ use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CONFIG_DIR_NAME,
     HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
 };
-use stackable_operator::commons::s3::S3ConnectionSpec;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVarSource, Probe, SecretKeySelector, TCPSocketAction,
-};
-use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use stackable_operator::logging::controller::ReconcilerError;
-use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
-    commons::s3::S3ConnectionDef,
+    commons::{
+        s3::{S3ConnectionDef, S3ConnectionSpec},
+        tls::CaCert,
+    },
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapVolumeSource, PersistentVolumeClaim, PersistentVolumeClaimSpec,
-                ResourceRequirements, Service, ServicePort, ServiceSpec, Volume,
+                Probe, ResourceRequirements, Service, ServicePort, ServiceSpec, TCPSocketAction,
+                Volume,
             },
         },
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        apimachinery::pkg::{
+            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+        },
     },
     kube::{
         api::ObjectMeta,
@@ -33,8 +32,10 @@ use stackable_operator::{
         ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels},
+    logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
+    role_utils::RoleGroupRef,
 };
 use std::{
     borrow::Cow,
@@ -129,6 +130,10 @@ pub enum Error {
     },
     #[snafu(display("invalid S3 connection: {reason}"))]
     InvalidS3Connection { reason: String },
+    #[snafu(display("no s3 verification supported"))]
+    S3VerificationNotSupported,
+    #[snafu(display("no S3 server verification supported"))]
+    S3ServerVerificationNotSupported,
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -318,20 +323,26 @@ fn build_metastore_rolegroup_config_map(
                             Some(format!("${{ENV:{ENV_S3_SECRET_KEY}}}")),
                         );
                     }
-                    // TODO: Currently no certificates etc. are provided for Hive, so
-                    //   tls can not be enabled currently. See:
-                    let use_tls = if s3.tls.is_some() {
-                        warn!("SSL is currently not supported by this operator, but credentials were provided! Setting {ssl_enabled}=true",
-                            ssl_enabled = MetaStoreConfig::S3_SSL_ENABLED);
-                        true
-                    } else {
-                        false
-                    };
 
-                    data.insert(
-                        MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-                        Some(use_tls.to_string()),
-                    );
+                    if let Some(tls) = &s3.tls {
+                        data.insert(
+                            MetaStoreConfig::S3_SSL_ENABLED.to_string(),
+                            Some(true.to_string()),
+                        );
+                        match &tls.verification {
+                            stackable_operator::commons::tls::TlsVerification::None {} => {
+                                S3VerificationNotSupportedSnafu.fail()?;
+                            }
+                            stackable_operator::commons::tls::TlsVerification::Server(
+                                server_verification,
+                            ) => match &server_verification.ca_cert {
+                                CaCert::WebPki {} => (),
+                                CaCert::SecretClass(_secret_class) => {
+                                    S3ServerVerificationNotSupportedSnafu.fail()?;
+                                }
+                            },
+                        }
+                    }
                     // TODO Set path style access
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
@@ -434,28 +445,16 @@ fn build_metastore_rolegroup_statefulset(
                     ..
                 }) = s3_connection
                 {
-                    container_builder.add_env_var_from_source(
+                    container_builder.add_env_var_from_secret(
                         ENV_S3_ACCESS_KEY,
-                        EnvVarSource {
-                            secret_key_ref: Some(SecretKeySelector {
-                                name: Some(secret_name.clone()),
-                                key: "accessKey".to_string(),
-                                ..Default::default()
-                            }),
-                            ..EnvVarSource::default()
-                        },
+                        secret_name,
+                        "accessKey",
                     );
 
-                    container_builder.add_env_var_from_source(
+                    container_builder.add_env_var_from_secret(
                         ENV_S3_SECRET_KEY,
-                        EnvVarSource {
-                            secret_key_ref: Some(SecretKeySelector {
-                                name: Some(secret_name.clone()),
-                                key: "secretKey".to_string(),
-                                ..Default::default()
-                            }),
-                            ..EnvVarSource::default()
-                        },
+                        secret_name,
+                        "secretKey",
                     );
                 }
 
