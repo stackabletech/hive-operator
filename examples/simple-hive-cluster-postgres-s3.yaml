@@ -1,16 +1,15 @@
-# Install minio:
+# helm install secret-operator \
+#     secret-operator \
+#     --repo https://repo.stackable.tech/repository/helm-stable
 # helm install minio \
 #     minio \
 #     --repo https://charts.bitnami.com/bitnami \
 #     --set auth.rootUser=minio-access-key \
 #     --set auth.rootPassword=minio-secret-key
-#
-# Install postgres:
 # helm install hive bitnami/postgresql --version=10 \
 # --set postgresqlUsername=hive \
 # --set postgresqlPassword=hive \
 # --set postgresqlDatabase=hive
-#
 ---
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
