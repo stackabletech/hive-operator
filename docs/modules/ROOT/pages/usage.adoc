@@ -149,12 +149,12 @@ To create a single node Apache Hive Metastore using PostgreSQL, deploy a Postgre
 [sidebar]
 PostgreSQL introduced a new way to encrypt its passwords in version 10.
 This is called `scram-sha-256` and has been the default as of PostgreSQL 14.
-Unfortunately, Hive up until the latest 3.3.x version ships with JDBC drivers that do _not_ support this method.
+Unfortunately, Hive up until the latest 3.3.x version ships with JDBC drivers that do https://wiki.postgresql.org/wiki/List_of_drivers[_not_ support] this method.
 You might see an error message like this:
 `The authentication type 10 is not supported.`
 If this is the case please either use an older PostgreSQL version or change its https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-PASSWORD-ENCRYPTION[`password_encryption`] setting to `md5`.
 
-This installes PostgreSQL in version 10 to work around the issue mentioned above:
+This installs PostgreSQL in version 10 to work around the issue mentioned above:
 [source,bash]
 ----
 helm install hive bitnami/postgresql --version=10 \
