@@ -346,14 +346,7 @@ fn build_metastore_rolegroup_config_map(
                     }
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-                        Some(
-                            if s3.access_style == Some(S3AccessStyle::Path) {
-                                true
-                            } else {
-                                false
-                            }
-                            .to_string(),
-                        ),
+                        Some((s3.access_style == Some(S3AccessStyle::Path)).to_string()),
                     );
                 }
 
