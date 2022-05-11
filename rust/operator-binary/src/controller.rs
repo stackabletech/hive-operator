@@ -7,6 +7,7 @@ use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CONFIG_DIR_NAME,
     HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
 };
+use stackable_operator::commons::s3::S3AccessStyle;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     commons::{
@@ -343,10 +344,16 @@ fn build_metastore_rolegroup_config_map(
                             },
                         }
                     }
-                    // TODO Set path style access
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-                        Some(true.to_string()),
+                        Some(
+                            if s3.access_style == Some(S3AccessStyle::Path) {
+                                true
+                            } else {
+                                false
+                            }
+                            .to_string(),
+                        ),
                     );
                 }
 

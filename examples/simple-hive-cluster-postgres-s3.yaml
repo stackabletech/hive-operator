@@ -21,6 +21,7 @@ spec:
     inline:
       host: minio
       port: 9000
+      accessStyle: Path
       secretClass: simple-hive-s3-secret
   metastore:
     roleGroups:
