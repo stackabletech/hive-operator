@@ -28,5 +28,5 @@ metadata:
   name: simple-hive-s3-secret
 type: kubernetes.io/opaque
 stringData:
-  accessKeyId: YOUR_ACCESS_KEY
-  secretKeyId: YOUR_SECRET_KEY
+  accessKey: YOUR_ACCESS_KEY
+  secretKey: YOUR_SECRET_KEY

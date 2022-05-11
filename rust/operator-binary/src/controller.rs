@@ -318,9 +318,19 @@ fn build_metastore_rolegroup_config_map(
                             Some(format!("${{ENV:{ENV_S3_SECRET_KEY}}}")),
                         );
                     }
+                    // TODO: Currently no certificates etc. are provided for Hive, so
+                    //   tls can not be enabled currently. See:
+                    let use_tls = if s3.tls.is_some() {
+                        warn!("SSL is currently not supported by this operator, but credentials were provided! Setting {ssl_enabled}=true",
+                            ssl_enabled = MetaStoreConfig::S3_SSL_ENABLED);
+                        true
+                    } else {
+                        false
+                    };
+
                     data.insert(
                         MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-                        Some(s3.tls.is_some().to_string()),
+                        Some(use_tls.to_string()),
                     );
                     // TODO Set path style access
                     data.insert(
@@ -429,7 +439,7 @@ fn build_metastore_rolegroup_statefulset(
                         EnvVarSource {
                             secret_key_ref: Some(SecretKeySelector {
                                 name: Some(secret_name.clone()),
-                                key: "accessKeyId".to_string(),
+                                key: "accessKey".to_string(),
                                 ..Default::default()
                             }),
                             ..EnvVarSource::default()
@@ -441,7 +451,7 @@ fn build_metastore_rolegroup_statefulset(
                         EnvVarSource {
                             secret_key_ref: Some(SecretKeySelector {
                                 name: Some(secret_name.clone()),
-                                key: "secretKeyId".to_string(),
+                                key: "secretKey".to_string(),
                                 ..Default::default()
                             }),
                             ..EnvVarSource::default()
