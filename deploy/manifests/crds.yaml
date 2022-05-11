@@ -186,6 +186,12 @@ spec:
                     inline:
                       description: S3 connection definition as CRD.
                       properties:
+                        accessStyle:
+                          enum:
+                            - Path
+                            - VirtualHosted
+                          nullable: true
+                          type: string
                         host:
                           nullable: true
                           type: string
