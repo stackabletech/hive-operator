@@ -135,8 +135,8 @@ pub enum Error {
     },
     #[snafu(display("invalid S3 connection: {reason}"))]
     InvalidS3Connection { reason: String },
-    #[snafu(display("no s3 verification supported"))]
-    S3VerificationNotSupported,
+    #[snafu(display("no s3 verification not supported"))]
+    S3NoVerificationNotSupported,
     #[snafu(display("no S3 server verification supported"))]
     S3ServerVerificationNotSupported,
 }
@@ -349,7 +349,7 @@ fn build_metastore_rolegroup_config_map(
                         );
                         match &tls.verification {
                             stackable_operator::commons::tls::TlsVerification::None {} => {
-                                S3VerificationNotSupportedSnafu.fail()?;
+                                S3NoVerificationNotSupportedSnafu.fail()?;
                             }
                             stackable_operator::commons::tls::TlsVerification::Server(
                                 server_verification,
