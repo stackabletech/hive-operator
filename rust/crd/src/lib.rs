@@ -12,7 +12,8 @@ use std::collections::BTreeMap;
 use strum::{Display, EnumString};
 
 pub const APP_NAME: &str = "hive";
-pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
+pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
+pub const STACKABLE_RW_CONFIG_DIR: &str = "/stackable/rwconfig";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
@@ -63,7 +64,7 @@ impl HiveRole {
             vec![
                 "bin/start-metastore".to_string(),
                 "--config".to_string(),
-                CONFIG_DIR_NAME.to_string(),
+                STACKABLE_RW_CONFIG_DIR.to_string(),
                 "--db-type".to_string(),
                 db_type.to_string(),
                 "--hive-bin-dir".to_string(),
@@ -73,7 +74,7 @@ impl HiveRole {
             vec![
                 "/bin/hive".to_string(),
                 "--config".to_string(),
-                CONFIG_DIR_NAME.to_string(),
+                STACKABLE_RW_CONFIG_DIR.to_string(),
                 "--service".to_string(),
                 "metastore".to_string(),
             ]

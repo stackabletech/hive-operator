@@ -1,13 +1,17 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
+use crate::command;
 use crate::discovery;
 
+use crate::command::{build_container_command_args, SECRET_S3_ACCESS_KEY, SECRET_S3_SECRET_KEY};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CONFIG_DIR_NAME,
-    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, HIVE_PORT,
+    HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
+    STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
 use stackable_operator::commons::s3::S3AccessStyle;
+use stackable_operator::k8s_openapi::api::core::v1::EmptyDirVolumeSource;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     commons::{
@@ -314,16 +318,29 @@ fn build_metastore_rolegroup_config_map(
 
                 if let Some(s3) = s3_connection_spec {
                     data.insert(MetaStoreConfig::S3_ENDPOINT.to_string(), s3.endpoint());
+                    // The variable substitution is only available from version 3.
+                    // if s3.secret_class.is_some() {
+                    //     data.insert(
+                    //         MetaStoreConfig::S3_ACCESS_KEY.to_string(),
+                    //         Some(format!("${{env.{ENV_S3_ACCESS_KEY}}}")),
+                    //     );
+                    //     data.insert(
+                    //         MetaStoreConfig::S3_SECRET_KEY.to_string(),
+                    //         Some(format!("${{env.{ENV_S3_SECRET_KEY}}}")),
+                    //     );
+                    // }
+                    // Thats why we need to replace this via script in the container command.
                     if s3.secret_class.is_some() {
                         data.insert(
                             MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                            Some(format!("${{ENV:{ENV_S3_ACCESS_KEY}}}")),
+                            Some(command::ACCESS_KEY_PLACEHOLDER.to_string()),
                         );
                         data.insert(
                             MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                            Some(format!("${{ENV:{ENV_S3_SECRET_KEY}}}")),
+                            Some(command::SECRET_KEY_PLACEHOLDER.to_string()),
                         );
                     }
+                    // END
 
                     if let Some(tls) = &s3.tls {
                         data.insert(
@@ -448,13 +465,12 @@ fn build_metastore_rolegroup_statefulset(
                     container_builder.add_env_var_from_secret(
                         ENV_S3_ACCESS_KEY,
                         secret_name,
-                        "accessKey",
+                        SECRET_S3_ACCESS_KEY,
                     );
-
                     container_builder.add_env_var_from_secret(
                         ENV_S3_SECRET_KEY,
                         secret_name,
-                        "secretKey",
+                        SECRET_S3_SECRET_KEY,
                     );
                 }
 
@@ -498,8 +514,20 @@ fn build_metastore_rolegroup_statefulset(
 
     let container_hive = container_builder
         .image(image)
-        .command(HiveRole::MetaStore.get_command(true, &db_type.unwrap_or_default().to_string()))
-        .add_volume_mount("conf", CONFIG_DIR_NAME)
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-c".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+        ])
+        .args(build_container_command_args(
+            HiveRole::MetaStore
+                .get_command(true, &db_type.unwrap_or_default().to_string())
+                .join(" "),
+            s3_connection,
+        ))
+        .add_volume_mount("config", STACKABLE_CONFIG_DIR)
+        .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .readiness_probe(Probe {
@@ -566,11 +594,19 @@ fn build_metastore_rolegroup_statefulset(
                 })
                 .add_container(container_hive)
                 .add_volume(Volume {
-                    name: "conf".to_string(),
+                    name: "config".to_string(),
                     config_map: Some(ConfigMapVolumeSource {
                         name: Some(rolegroup_ref.object_name()),
                         ..ConfigMapVolumeSource::default()
                     }),
+                    ..Volume::default()
+                })
+                .add_volume(Volume {
+                    empty_dir: Some(EmptyDirVolumeSource {
+                        medium: None,
+                        size_limit: None,
+                    }),
+                    name: "rwconfig".to_string(),
                     ..Volume::default()
                 })
                 .build_template(),

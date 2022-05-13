@@ -1,3 +1,4 @@
+mod command;
 mod controller;
 mod discovery;
 
