@@ -24,7 +24,7 @@ pub fn build_container_command_args(
     if let Some(s3) = s3_connection_spec {
         if s3.secret_class.is_some() {
             args.extend([
-                format!("echo replacing {ACCESS_KEY_PLACEHOLDER} -> {ENV_S3_ACCESS_KEY} and {SECRET_KEY_PLACEHOLDER} -> {ENV_S3_SECRET_KEY} placeholders with env vars"),
+                format!("echo replacing {ACCESS_KEY_PLACEHOLDER} -> {ENV_S3_ACCESS_KEY} and {SECRET_KEY_PLACEHOLDER} -> {ENV_S3_SECRET_KEY} with env vars"),
                 format!("sed -i \"s|{ACCESS_KEY_PLACEHOLDER}|${{{ENV_S3_ACCESS_KEY}}}|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
                 format!("sed -i \"s|{SECRET_KEY_PLACEHOLDER}|${{{ENV_S3_SECRET_KEY}}}|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
             ]);
