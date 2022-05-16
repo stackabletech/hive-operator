@@ -10,12 +10,10 @@ use stackable_hive_crd::{
     HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
-use stackable_operator::commons::s3::S3AccessStyle;
-use stackable_operator::k8s_openapi::api::core::v1::EmptyDirVolumeSource;
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
+    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
-        s3::{S3ConnectionDef, S3ConnectionSpec},
+        s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
         tls::CaCert,
     },
     k8s_openapi::{
@@ -601,14 +599,11 @@ fn build_metastore_rolegroup_statefulset(
                     }),
                     ..Volume::default()
                 })
-                .add_volume(Volume {
-                    empty_dir: Some(EmptyDirVolumeSource {
-                        medium: None,
-                        size_limit: None,
-                    }),
-                    name: "rwconfig".to_string(),
-                    ..Volume::default()
-                })
+                .add_volume(
+                    VolumeBuilder::new("rwconfig")
+                        .with_empty_dir(Some(""), None)
+                        .build(),
+                )
                 .build_template(),
             volume_claim_templates: Some(vec![PersistentVolumeClaim {
                 metadata: ObjectMeta {
