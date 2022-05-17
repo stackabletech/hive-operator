@@ -14,13 +14,13 @@ Helm allows you to download and deploy Stackable operators on Kubernetes and is 
 installation method. First ensure that you have installed the Stackable Operators Helm repository:
 [source,bash]
 ----
-$ helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
+helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
 ----
 
 Then install the Stackable Operator for Apache Hive
 [source,bash]
 ----
-$ helm install hive-operator stackable/hive-operator
+helm install hive-operator stackable/hive-operator
 ----
 
 Helm will deploy the operator in a Kubernetes container and apply the CRDs for the Apache Hive
@@ -57,10 +57,10 @@ docker run \
 
 == Building the operator from source
 
-This operator is written in Rust and is developed against the latest stable Rust release (1.57 at the time of writing).
+This operator is written in Rust and is developed against the latest stable Rust release (1.60 at the time of writing).
 
-[source]
+[source,bash]
 ----
-stackable-hive-operator crd | kubectl apply -f -
-stackable-hive-operator run
+cargo run crd | kubectl apply -f -
+cargo run run
 ----

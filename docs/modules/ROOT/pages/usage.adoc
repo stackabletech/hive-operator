@@ -1,14 +1,97 @@
 = Usage
 
-After installation, ensure that the CRD for this operator exists or create yourself:
-[source]
-----
-kubectl apply -f /etc/stackable/hive-operator/crd/hivecluster.crd.yaml
-----
-To create a single node Apache Hive Metastore (v2.3.9) cluster with derby:
+== Requirements
+Apache Hive Metastores need a relational database to store their state.
+We currently support https://www.postgresql.org/[PostgreSQL] and https://db.apache.org/derby/[Apache Derby] (embedded database, not recommended for production).
+Other databases might work if JDBC drivers are available.
+Please open an https://github.com/stackabletech/hive-operator/issues[issue] if you require support for another database.
+
+== S3 Support
+
+Hive supports creating tables in S3 compatible object stores.
+To use this feature you need to provide connection details for the object store.
+
+== Monitoring
+
+The managed Hive instances are automatically configured to export Prometheus metrics. See
+xref:home:operators:monitoring.adoc[] for more details.
+
+== Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Overriding certain properties, which are set by the operator (such as the HTTP port) can interfere with the operator and can lead to problems.
+
+=== Configuration Properties
+
+For a role or role group, at the same level of `config`, you can specify: `configOverrides` for the `hive-site.xml`. For example, if you want to set the `datanucleus.connectionPool.maxPoolSize` for the metastore to 20 adapt the `metastore` section of the cluster resource like so:
 
 [source,yaml]
 ----
+metastore:
+  roleGroups:
+    default:
+      config: [...]
+      configOverrides:
+        hive-site.xml:
+          datanucleus.connectionPool.maxPoolSize: "20"
+      replicas: 1
+----
+
+Just as for the `config`, it is possible to specify this at role level as well:
+
+[source,yaml]
+----
+metastore:
+  configOverrides:
+    hive-site.xml:
+      datanucleus.connectionPool.maxPoolSize: "20"
+  roleGroups:
+    default:
+      config: [...]
+      replicas: 1
+----
+
+All override property values must be strings. The properties will be formatted and escaped correctly into the XML file.
+
+For a full list of configuration options we refer to the Hive https://cwiki.apache.org/confluence/display/hive/configuration+properties[Configuration Reference].
+
+=== Environment Variables
+
+In a similar fashion, environment variables can be (over)written. For example per role group:
+
+[source,yaml]
+----
+metastore:
+  roleGroups:
+    default:
+      config: {}
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+      replicas: 1
+----
+
+or per role:
+
+[source,yaml]
+----
+metastore:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+----
+
+// cliOverrides don't make sense for this operator, so the feature is omitted for now
+
+== Examples
+
+.Create a single node Apache Hive Metastore cluster using Derby:
+[source,yaml]
+----
+---
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
@@ -47,8 +130,7 @@ kubectl port-forward service/minio 9001
 ----
 Then, connect to localhost:9001 and login with the user `minio-access-key` and password `minio-secret-key`. Create a bucket and upload data.
 
-Deploy the cluster:
-
+Deploy the hive cluster:
 [source,yaml]
 ----
 apiVersion: hive.stackable.tech/v1alpha1
@@ -99,11 +181,19 @@ stringData:
   secretKey: minio-secret-key
 ----
 
-To create a single node Apache Hive Metastore (v2.3.9) cluster with PostgreSQL, deploy a PostgreSQL instance via helm.
 
-WARNING: PostgreSQL versions 11 or higher are currently not supported (see https://github.com/stackabletech/hive-operator/issues/167):
+To create a single node Apache Hive Metastore using PostgreSQL, deploy a PostgreSQL instance via helm.
 
-[source]
+[sidebar]
+PostgreSQL introduced a new way to encrypt its passwords in version 10.
+This is called `scram-sha-256` and has been the default as of PostgreSQL 14.
+Unfortunately, Hive up until the latest 3.3.x version ships with JDBC drivers that do https://wiki.postgresql.org/wiki/List_of_drivers[_not_ support] this method.
+You might see an error message like this:
+`The authentication type 10 is not supported.`
+If this is the case please either use an older PostgreSQL version or change its https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-PASSWORD-ENCRYPTION[`password_encryption`] setting to `md5`.
+
+This installs PostgreSQL in version 10 to work around the issue mentioned above:
+[source,bash]
 ----
 helm install hive bitnami/postgresql --version=10 \
 --set postgresqlUsername=hive \
@@ -111,8 +201,7 @@ helm install hive bitnami/postgresql --version=10 \
 --set postgresqlDatabase=hive
 ----
 
-Then deploy the example:
-
+.Create Hive Metastore using a PostgreSQL database
 [source,yaml]
 ----
 apiVersion: hive.stackable.tech/v1alpha1
@@ -135,78 +224,3 @@ spec:
             password: hive
             dbType: postgres
 ----
-
-== Monitoring
-
-The managed Hive instances are automatically configured to export Prometheus metrics. See
-xref:home:operators:monitoring.adoc[] for more details.
-
-== Configuration & Environment Overrides
-
-The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
-
-IMPORTANT: Overriding certain properties which are set by operator (such as the HTTP port) can interfere with the operator and can lead to problems.
-
-=== Configuration Properties
-
-For a role or role group, at the same level of `config`, you can specify: `configOverrides` for the `hive-site.xml`. For example, if you want to set the `datanucleus.connectionPool.maxPoolSize` for the metastore to 20 adapt the `metastore` section of the cluster resource like so:
-
-[source,yaml]
-----
-metastore:
-  roleGroups:
-    default:
-      config: [...]
-      configOverrides:
-        hive-site.xml:
-          datanucleus.connectionPool.maxPoolSize: "20"
-      replicas: 1
-----
-
-Just as for the `config`, it is possible to specify this at role level as well:
-
-[source,yaml]
-----
-metastore:
-  configOverrides:
-    hive-site.xml:
-      datanucleus.connectionPool.maxPoolSize: "20"
-  roleGroups:
-    default:
-      config: [...]
-      replicas: 1
-----
-
-All override property values must be strings. The properties will be formatted and escaped correctly into the XML file.
-
-For a full list of configuration options we refer to the Hive https://cwiki.apache.org/confluence/display/hive/configuration+properties[Configuration Reference].
-
-=== Environment Variables
-
-In a similar fashion, environment variables can be (over)written. For example per role group:
-
-[source,yaml]
-----
-routers:
-  roleGroups:
-    default:
-      config: {}
-      envOverrides:
-        MY_ENV_VAR: "MY_VALUE"
-      replicas: 1
-----
-
-or per role:
-
-[source,yaml]
-----
-routers:
-  envOverrides:
-    MY_ENV_VAR: "MY_VALUE"
-  roleGroups:
-    default:
-      config: {}
-      replicas: 1
-----
-
-// cliOverrides don't make sense for this operator, so the feature is omitted for now
