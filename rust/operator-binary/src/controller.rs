@@ -1,35 +1,45 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
+use crate::command;
 use crate::discovery;
 
+use crate::command::{build_container_command_args, S3_SECRET_DIR};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CONFIG_DIR_NAME,
-    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, HIVE_PORT,
+    HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
+    STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
-use stackable_operator::k8s_openapi::api::core::v1::{Probe, TCPSocketAction};
-use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use stackable_operator::logging::controller::ReconcilerError;
-use stackable_operator::role_utils::RoleGroupRef;
+use stackable_operator::builder::PodSecurityContextBuilder;
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
+    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
+    commons::{
+        s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
+        tls::CaCert,
+    },
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapVolumeSource, PersistentVolumeClaim, PersistentVolumeClaimSpec,
-                ResourceRequirements, Service, ServicePort, ServiceSpec, Volume,
+                Probe, ResourceRequirements, Service, ServicePort, ServiceSpec, TCPSocketAction,
+                Volume,
             },
         },
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        apimachinery::pkg::{
+            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+        },
     },
     kube::{
         api::ObjectMeta,
         runtime::controller::{Action, Context},
+        ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels},
+    logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
+    role_utils::RoleGroupRef,
 };
 use std::{
     borrow::Cow,
@@ -116,6 +126,16 @@ pub enum Error {
     },
     #[snafu(display("failed to write discovery config map"))]
     InvalidDiscovery { source: discovery::Error },
+    #[snafu(display("failed to resolve S3 connection"))]
+    ResolveS3Connection {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("invalid S3 connection: {reason}"))]
+    InvalidS3Connection { reason: String },
+    #[snafu(display("no s3 verification not supported"))]
+    S3NoVerificationNotSupported,
+    #[snafu(display("no S3 server verification supported"))]
+    S3ServerVerificationNotSupported,
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -129,6 +149,17 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let hive_version = hive_version(&hive)?;
+
+    let s3_connection_def: &Option<S3ConnectionDef> = &hive.spec.s3;
+    let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = s3_connection_def {
+        Some(
+            s3.resolve(client, hive.namespace().as_deref())
+                .await
+                .context(ResolveS3ConnectionSnafu)?,
+        )
+    } else {
+        None
+    };
 
     let validated_config = validate_all_roles_and_groups_config(
         hive_version,
@@ -173,10 +204,18 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         let rg_service = build_rolegroup_service(&hive, &rolegroup)?;
-        let rg_configmap =
-            build_metastore_rolegroup_config_map(&hive, &rolegroup, rolegroup_config)?;
-        let rg_statefulset =
-            build_metastore_rolegroup_statefulset(&hive, &rolegroup, rolegroup_config)?;
+        let rg_configmap = build_metastore_rolegroup_config_map(
+            &hive,
+            &rolegroup,
+            rolegroup_config,
+            s3_connection_spec.as_ref(),
+        )?;
+        let rg_statefulset = build_metastore_rolegroup_statefulset(
+            &hive,
+            &rolegroup,
+            rolegroup_config,
+            s3_connection_spec.as_ref(),
+        )?;
 
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -259,6 +298,7 @@ fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
     rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    s3_connection_spec: Option<&S3ConnectionSpec>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let log4j_data = include_str!("../../../deploy/external/log4j.properties");
@@ -268,14 +308,66 @@ fn build_metastore_rolegroup_config_map(
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
 
-                for (property_name, property_value) in config {
-                    data.insert(property_name.to_string(), Some(property_value.to_string()));
-                }
-
                 data.insert(
                     MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
                     Some("/stackable/warehouse".to_string()),
                 );
+
+                if let Some(s3) = s3_connection_spec {
+                    data.insert(MetaStoreConfig::S3_ENDPOINT.to_string(), s3.endpoint());
+                    // The variable substitution is only available from version 3.
+                    // if s3.secret_class.is_some() {
+                    //     data.insert(
+                    //         MetaStoreConfig::S3_ACCESS_KEY.to_string(),
+                    //         Some(format!("${{env.{ENV_S3_ACCESS_KEY}}}")),
+                    //     );
+                    //     data.insert(
+                    //         MetaStoreConfig::S3_SECRET_KEY.to_string(),
+                    //         Some(format!("${{env.{ENV_S3_SECRET_KEY}}}")),
+                    //     );
+                    // }
+                    // Thats why we need to replace this via script in the container command.
+                    if s3.credentials.is_some() {
+                        data.insert(
+                            MetaStoreConfig::S3_ACCESS_KEY.to_string(),
+                            Some(command::ACCESS_KEY_PLACEHOLDER.to_string()),
+                        );
+                        data.insert(
+                            MetaStoreConfig::S3_SECRET_KEY.to_string(),
+                            Some(command::SECRET_KEY_PLACEHOLDER.to_string()),
+                        );
+                    }
+                    // END
+
+                    if let Some(tls) = &s3.tls {
+                        data.insert(
+                            MetaStoreConfig::S3_SSL_ENABLED.to_string(),
+                            Some(true.to_string()),
+                        );
+                        match &tls.verification {
+                            stackable_operator::commons::tls::TlsVerification::None {} => {
+                                S3NoVerificationNotSupportedSnafu.fail()?;
+                            }
+                            stackable_operator::commons::tls::TlsVerification::Server(
+                                server_verification,
+                            ) => match &server_verification.ca_cert {
+                                CaCert::WebPki {} => (),
+                                CaCert::SecretClass(_secret_class) => {
+                                    S3ServerVerificationNotSupportedSnafu.fail()?;
+                                }
+                            },
+                        }
+                    }
+                    data.insert(
+                        MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
+                        Some((s3.access_style == Some(S3AccessStyle::Path)).to_string()),
+                    );
+                }
+
+                // overrides
+                for (property_name, property_value) in config {
+                    data.insert(property_name.to_string(), Some(property_value.to_string()));
+                }
 
                 hive_site_data =
                     stackable_operator::product_config::writer::to_hadoop_xml(data.iter());
@@ -354,13 +446,16 @@ fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    s3_connection: Option<&S3ConnectionSpec>,
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
     let mut container_builder = ContainerBuilder::new(APP_NAME);
+    let mut pod_builder = PodBuilder::new();
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
             PropertyNameKind::Env => {
+                // overrides
                 for (property_name, property_value) in config {
                     if property_name.is_empty() {
                         warn!("Received empty property_name for ENV... skipping");
@@ -384,6 +479,16 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    // Add volume and volume mounts for s3 credentials
+    if let Some(S3ConnectionSpec {
+        credentials: Some(credentials),
+        ..
+    }) = s3_connection
+    {
+        pod_builder.add_volume(credentials.to_volume("s3-credentials"));
+        container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
+    }
+
     let rolegroup = hive
         .spec
         .metastore
@@ -400,8 +505,20 @@ fn build_metastore_rolegroup_statefulset(
 
     let container_hive = container_builder
         .image(image)
-        .command(HiveRole::MetaStore.get_command(true, &db_type.unwrap_or_default().to_string()))
-        .add_volume_mount("conf", CONFIG_DIR_NAME)
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-c".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+        ])
+        .args(build_container_command_args(
+            HiveRole::MetaStore
+                .get_command(true, &db_type.unwrap_or_default().to_string())
+                .join(" "),
+            s3_connection,
+        ))
+        .add_volume_mount("config", STACKABLE_CONFIG_DIR)
+        .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .readiness_probe(Probe {
@@ -456,7 +573,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: PodBuilder::new()
+            template: pod_builder
                 .metadata_builder(|m| {
                     m.with_recommended_labels(
                         hive,
@@ -468,13 +585,19 @@ fn build_metastore_rolegroup_statefulset(
                 })
                 .add_container(container_hive)
                 .add_volume(Volume {
-                    name: "conf".to_string(),
+                    name: "config".to_string(),
                     config_map: Some(ConfigMapVolumeSource {
                         name: Some(rolegroup_ref.object_name()),
                         ..ConfigMapVolumeSource::default()
                     }),
                     ..Volume::default()
                 })
+                .add_volume(
+                    VolumeBuilder::new("rwconfig")
+                        .with_empty_dir(Some(""), None)
+                        .build(),
+                )
+                .security_context(PodSecurityContextBuilder::new().fs_group(1000).build())
                 .build_template(),
             volume_claim_templates: Some(vec![PersistentVolumeClaim {
                 metadata: ObjectMeta {

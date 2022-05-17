@@ -1,3 +1,4 @@
+---
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
@@ -13,13 +14,7 @@ spec:
         replicas: 1
         config:
           database:
-            connString: jdbc:derby:;databaseName=/stackable/hive;create=true
+            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
             user: APP
             password: mine
             dbType: derby
-          s3Connection:
-            endPoint: changeme
-            accessKey: changeme
-            secretKey: changeme
-            sslEnabled: false
-            pathStyleAccess: true
