@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.10.0` -> `0.20.0` ([#137], [#142], [#168], [#179]).
+- `operator-rs` `0.10.0` -> `0.21.0` ([#137], [#142], [#168], [#179]).
 - Adapted S3 connection to operator-rs provided structs ([#179]).
 
 [#137]: https://github.com/stackabletech/hive-operator/pull/137

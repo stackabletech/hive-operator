@@ -2,7 +2,7 @@
 use crate::command;
 use crate::discovery;
 
-use crate::command::{build_container_command_args, SECRET_S3_ACCESS_KEY, SECRET_S3_SECRET_KEY};
+use crate::command::{build_container_command_args, S3_SECRET_DIR};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
@@ -10,6 +10,7 @@ use stackable_hive_crd::{
     HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
+use stackable_operator::builder::PodSecurityContextBuilder;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
@@ -52,8 +53,6 @@ use strum::EnumDiscriminants;
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
-const ENV_S3_ACCESS_KEY: &str = "S3_ACCESS_KEY";
-const ENV_S3_SECRET_KEY: &str = "S3_SECRET_KEY";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -328,7 +327,7 @@ fn build_metastore_rolegroup_config_map(
                     //     );
                     // }
                     // Thats why we need to replace this via script in the container command.
-                    if s3.secret_class.is_some() {
+                    if s3.credentials.is_some() {
                         data.insert(
                             MetaStoreConfig::S3_ACCESS_KEY.to_string(),
                             Some(command::ACCESS_KEY_PLACEHOLDER.to_string()),
@@ -451,27 +450,11 @@ fn build_metastore_rolegroup_statefulset(
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
     let mut container_builder = ContainerBuilder::new(APP_NAME);
+    let mut pod_builder = PodBuilder::new();
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
             PropertyNameKind::Env => {
-                if let Some(S3ConnectionSpec {
-                    secret_class: Some(secret_name),
-                    ..
-                }) = s3_connection
-                {
-                    container_builder.add_env_var_from_secret(
-                        ENV_S3_ACCESS_KEY,
-                        secret_name,
-                        SECRET_S3_ACCESS_KEY,
-                    );
-                    container_builder.add_env_var_from_secret(
-                        ENV_S3_SECRET_KEY,
-                        secret_name,
-                        SECRET_S3_SECRET_KEY,
-                    );
-                }
-
                 // overrides
                 for (property_name, property_value) in config {
                     if property_name.is_empty() {
@@ -494,6 +477,16 @@ fn build_metastore_rolegroup_statefulset(
             }
             _ => {}
         }
+    }
+
+    // Add volume and volume mounts for s3 credentials
+    if let Some(S3ConnectionSpec {
+        credentials: Some(credentials),
+        ..
+    }) = s3_connection
+    {
+        pod_builder.add_volume(credentials.to_volume("s3-credentials"));
+        container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
     }
 
     let rolegroup = hive
@@ -580,7 +573,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: PodBuilder::new()
+            template: pod_builder
                 .metadata_builder(|m| {
                     m.with_recommended_labels(
                         hive,
@@ -604,6 +597,7 @@ fn build_metastore_rolegroup_statefulset(
                         .with_empty_dir(Some(""), None)
                         .build(),
                 )
+                .security_context(PodSecurityContextBuilder::new().fs_group(1000).build())
                 .build_template(),
             volume_claim_templates: Some(vec![PersistentVolumeClaim {
                 metadata: ObjectMeta {

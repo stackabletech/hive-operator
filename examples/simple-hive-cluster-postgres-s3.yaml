@@ -19,10 +19,11 @@ spec:
   version: 2.3.9
   s3:
     inline:
-      host: minio
+      host: test-minio
       port: 9000
       accessStyle: Path
-      secretClass: simple-hive-s3-secret
+      credentials:
+        secretClass: simple-hive-s3-secret-class
   metastore:
     roleGroups:
       default:
@@ -37,11 +38,22 @@ spec:
             password: hive
             dbType: postgres
 ---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: simple-hive-s3-secret-class
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
 apiVersion: v1
 kind: Secret
 metadata:
   name: simple-hive-s3-secret
-type: kubernetes.io/opaque
+  labels:
+    secrets.stackable.tech/class: simple-hive-s3-secret-class
 stringData:
   accessKey: minio-access-key
   secretKey: minio-secret-key

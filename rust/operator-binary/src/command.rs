@@ -1,10 +1,9 @@
 use stackable_hive_crd::{HIVE_SITE_XML, STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR};
 use stackable_operator::commons::s3::S3ConnectionSpec;
 
-pub const ENV_S3_ACCESS_KEY: &str = "S3_ACCESS_KEY";
-pub const ENV_S3_SECRET_KEY: &str = "S3_SECRET_KEY";
-pub const SECRET_S3_ACCESS_KEY: &str = "accessKey";
-pub const SECRET_S3_SECRET_KEY: &str = "secretKey";
+pub const S3_SECRET_DIR: &str = "/stackable/secrets";
+pub const S3_ACCESS_KEY: &str = "accessKey";
+pub const S3_SECRET_KEY: &str = "secretKey";
 pub const ACCESS_KEY_PLACEHOLDER: &str = "xxx_access_key_xxx";
 pub const SECRET_KEY_PLACEHOLDER: &str = "xxx_secret_key_xxx";
 
@@ -22,11 +21,11 @@ pub fn build_container_command_args(
     ]);
 
     if let Some(s3) = s3_connection_spec {
-        if s3.secret_class.is_some() {
+        if s3.credentials.is_some() {
             args.extend([
-                format!("echo replacing {ACCESS_KEY_PLACEHOLDER} -> {ENV_S3_ACCESS_KEY} and {SECRET_KEY_PLACEHOLDER} -> {ENV_S3_SECRET_KEY} with env vars"),
-                format!("sed -i \"s|{ACCESS_KEY_PLACEHOLDER}|${{{ENV_S3_ACCESS_KEY}}}|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
-                format!("sed -i \"s|{SECRET_KEY_PLACEHOLDER}|${{{ENV_S3_SECRET_KEY}}}|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
+                format!("echo replacing {ACCESS_KEY_PLACEHOLDER} and {SECRET_KEY_PLACEHOLDER} with secret values."),
+                format!("sed -i \"s|{ACCESS_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_ACCESS_KEY})|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
+                format!("sed -i \"s|{SECRET_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_SECRET_KEY})|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
             ]);
         }
     }

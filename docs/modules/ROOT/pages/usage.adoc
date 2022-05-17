@@ -45,7 +45,7 @@ In order to upload data to minio we need a port-forward to access the web ui.
 ----
 kubectl port-forward service/minio 9001
 ----
-Then connect to localhost:9001 and login with the user `minio-access-key` and password `minio-secret-key`. Create a bucket and upload data.
+Then, connect to localhost:9001 and login with the user `minio-access-key` and password `minio-secret-key`. Create a bucket and upload data.
 
 Deploy the cluster:
 
@@ -62,7 +62,8 @@ spec:
       host: minio
       port: 9000
       accessStyle: Path
-      secretClass: simple-hive-s3-secret
+      credentials:
+        secretClass: simple-hive-s3-secret-class
   metastore:
     roleGroups:
       default:
@@ -77,11 +78,22 @@ spec:
             password: mine
             dbType: derby
 ---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: simple-hive-s3-secret-class
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
 apiVersion: v1
 kind: Secret
 metadata:
   name: simple-hive-s3-secret
-type: kubernetes.io/opaque
+  labels:
+    secrets.stackable.tech/class: simple-hive-s3-secret-class
 stringData:
   accessKey: minio-access-key
   secretKey: minio-secret-key
