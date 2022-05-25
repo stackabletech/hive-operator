@@ -15,13 +15,13 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.10.0` -> `0.21.0` ([#137], [#142], [#168], [#179]).
 - Adapted S3 connection to operator-rs provided structs ([#179]).
-- [BREAKING] Specifying the product version has been changed to adhere to [ADR018](https://docs.stackable.tech/home/contributor/adr/ADR018-product_image_versioning.html) instead of just specifying the product version you will now have to add the Stackable image version as well, so `version: 3.5.8` becomes (for example) `version: 3.5.8-stackable0.1.0` ([#xxx])
-- 
+- [BREAKING] Specifying the product version has been changed to adhere to [ADR018](https://docs.stackable.tech/home/contributor/adr/ADR018-product_image_versioning.html) instead of just specifying the product version you will now have to add the Stackable image version as well, so `version: 3.5.8` becomes (for example) `version: 3.5.8-stackable0.1.0` ([#184])
+
 [#137]: https://github.com/stackabletech/hive-operator/pull/137
 [#142]: https://github.com/stackabletech/hive-operator/pull/142
 [#168]: https://github.com/stackabletech/hive-operator/pull/168
 [#179]: https://github.com/stackabletech/hive-operator/pull/179
-[#xxx]: https://github.com/stackabletech/hive-operator/pull/xxx
+[#184]: https://github.com/stackabletech/hive-operator/pull/184
 
 ## [0.5.0] - 2022-02-14
 
