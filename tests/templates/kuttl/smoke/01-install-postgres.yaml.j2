@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install hive
+      --version={{ test_scenario['values']['postgres'] }}
+      --namespace $NAMESPACE
+      --set postgresqlUsername=hive
+      --set postgresqlPassword=hive
+      --set postgresqlDatabase=hive
+      --repo https://charts.bitnami.com/bitnami postgresql

@@ -499,7 +499,7 @@ fn build_metastore_rolegroup_statefulset(
 
     let hive_version = hive_version(hive)?;
     let image = format!(
-        "docker.stackable.tech/stackable/hive:{}-stackable0",
+        "docker.stackable.tech/stackable/hive:{}",
         hive_version
     );
 
