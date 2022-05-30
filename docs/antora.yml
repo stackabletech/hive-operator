@@ -1,5 +1,6 @@
 name: hive
-version: master
+version: nightly
 title: Stackable Operator for Apache Hive
 nav:
   - modules/ROOT/nav.adoc
+prerelease: true
