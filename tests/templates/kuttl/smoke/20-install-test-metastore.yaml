@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-metastore
+  labels:
+    app: test-metastore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-metastore
+  template:
+    metadata:
+      labels:
+        app: test-metastore
+    spec:
+      containers:
+        - name: test-metastore
+          image: python:3.10-bullseye
+          stdin: true
+          tty: true

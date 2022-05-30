@@ -1,0 +1,13 @@
+---
+dimensions:
+  - name: postgres
+    values:
+      - "10"
+  - name: hive
+    values:
+      - 2.3.9-stackable0.4.0
+tests:
+  - name: smoke
+    dimensions:
+      - postgres
+      - hive
