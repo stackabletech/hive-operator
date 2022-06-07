@@ -1,2 +1,2 @@
 hive-metastore-client==1.0.9
-thrift==0.13.0 # Needs to match the version from hive-metastore-client
+thrift==0.16.0 # Needs to match the version from hive-metastore-client
