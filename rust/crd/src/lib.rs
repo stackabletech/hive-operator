@@ -1,3 +1,4 @@
+use indoc::formatdoc;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::role_utils::RoleGroupRef;
@@ -22,6 +23,12 @@ pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
+// Certificates and trust stores
+pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
+pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
+pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
+pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
+pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -171,8 +178,13 @@ impl Configuration for MetaStoreConfig {
 
         result.insert(
             "HIVE_METASTORE_HADOOP_OPTS".to_string(),
-            Some(format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", METRICS_PORT))
-        );
+            Some(formatdoc! {"
+                    -javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
+                    -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
+                    -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
+                    -Djavax.net.ssl.trustStoreType=pkcs12"}
+                )
+            );
 
         Ok(result)
     }
