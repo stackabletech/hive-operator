@@ -1,3 +1,4 @@
+use indoc::formatdoc;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::role_utils::RoleGroupRef;
@@ -177,8 +178,13 @@ impl Configuration for MetaStoreConfig {
 
         result.insert(
             "HIVE_METASTORE_HADOOP_OPTS".to_string(),
-            Some(format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hive_config.yaml", METRICS_PORT))
-        );
+            Some(formatdoc! {"
+                    -javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
+                    -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
+                    -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
+                    -Djavax.net.ssl.trustStoreType=pkcs12"}
+                )
+            );
 
         Ok(result)
     }
