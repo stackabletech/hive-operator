@@ -22,6 +22,12 @@ pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
+// Certificates and trust stores
+pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
+pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
+pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
+pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
+pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
