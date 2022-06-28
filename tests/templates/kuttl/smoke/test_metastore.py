@@ -68,7 +68,7 @@ if __name__ == '__main__':
             exit(-1)
 
         # S3 access
-        hive_client.create_external_table(table(database_name, s3_test_table_name, "s3a://test/"))
+        hive_client.create_external_table(table(database_name, s3_test_table_name, "s3a://hive/"))
         schema = hive_client.get_schema(db_name=database_name, table_name=s3_test_table_name)
         expected = [FieldSchema(name='id', type='string', comment='col comment')]
         if schema != expected:
