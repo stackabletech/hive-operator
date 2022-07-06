@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
   a single namespace to watch ([#142]).
 - Warning in docs to use only PostgreSQL <= 10 ([#168]).
+- Support S3 TLS verification ([#198]).
 
 ### Changed
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#168]: https://github.com/stackabletech/hive-operator/pull/168
 [#179]: https://github.com/stackabletech/hive-operator/pull/179
 [#184]: https://github.com/stackabletech/hive-operator/pull/184
+[#198]: https://github.com/stackabletech/hive-operator/pull/198
 
 ## [0.5.0] - 2022-02-14
 

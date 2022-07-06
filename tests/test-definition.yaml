@@ -6,8 +6,13 @@ dimensions:
   - name: hive
     values:
       - 2.3.9-stackable0.4.0
+  - name: s3-use-tls
+    values:
+      - "true"
+      - "false"
 tests:
   - name: smoke
     dimensions:
       - postgres
       - hive
+      - s3-use-tls

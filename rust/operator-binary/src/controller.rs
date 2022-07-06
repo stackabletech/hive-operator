@@ -6,11 +6,13 @@ use crate::command::{build_container_command_args, S3_SECRET_DIR};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, HIVE_PORT,
-    HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CERTS_DIR,
+    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
 use stackable_operator::builder::PodSecurityContextBuilder;
+use stackable_operator::builder::SecretOperatorVolumeSourceBuilder;
+use stackable_operator::commons::tls::TlsVerification;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
@@ -132,10 +134,10 @@ pub enum Error {
     },
     #[snafu(display("invalid S3 connection: {reason}"))]
     InvalidS3Connection { reason: String },
-    #[snafu(display("no s3 verification not supported"))]
-    S3NoVerificationNotSupported,
-    #[snafu(display("no S3 server verification supported"))]
-    S3ServerVerificationNotSupported,
+    #[snafu(display(
+        "Hive does not support skipping the verification of the tls enabled S3 server"
+    ))]
+    S3TlsNoVerificationNotSupported,
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -339,25 +341,10 @@ fn build_metastore_rolegroup_config_map(
                     }
                     // END
 
-                    if let Some(tls) = &s3.tls {
-                        data.insert(
-                            MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-                            Some(true.to_string()),
-                        );
-                        match &tls.verification {
-                            stackable_operator::commons::tls::TlsVerification::None {} => {
-                                S3NoVerificationNotSupportedSnafu.fail()?;
-                            }
-                            stackable_operator::commons::tls::TlsVerification::Server(
-                                server_verification,
-                            ) => match &server_verification.ca_cert {
-                                CaCert::WebPki {} => (),
-                                CaCert::SecretClass(_secret_class) => {
-                                    S3ServerVerificationNotSupportedSnafu.fail()?;
-                                }
-                            },
-                        }
-                    }
+                    data.insert(
+                        MetaStoreConfig::S3_SSL_ENABLED.to_string(),
+                        Some(s3.tls.is_some().to_string()),
+                    );
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
                         Some((s3.access_style == Some(S3AccessStyle::Path)).to_string()),
@@ -479,14 +466,36 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
-    // Add volume and volume mounts for s3 credentials
-    if let Some(S3ConnectionSpec {
-        credentials: Some(credentials),
-        ..
-    }) = s3_connection
-    {
-        pod_builder.add_volume(credentials.to_volume("s3-credentials"));
-        container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
+    if let Some(s3_conn) = s3_connection {
+        if let Some(credentials) = &s3_conn.credentials {
+            pod_builder.add_volume(credentials.to_volume("s3-credentials"));
+            container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
+        }
+
+        if let Some(tls) = &s3_conn.tls {
+            match &tls.verification {
+                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
+                TlsVerification::Server(server_verification) => {
+                    match &server_verification.ca_cert {
+                        CaCert::WebPki {} => {}
+                        CaCert::SecretClass(secret_class) => {
+                            let volume_name = format!("{secret_class}-tls-certificate");
+
+                            let volume = VolumeBuilder::new(&volume_name)
+                                .ephemeral(
+                                    SecretOperatorVolumeSourceBuilder::new(secret_class).build(),
+                                )
+                                .build();
+                            pod_builder.add_volume(volume);
+                            container_builder.add_volume_mount(
+                                &volume_name,
+                                format!("{CERTS_DIR}{volume_name}"),
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     let rolegroup = hive
