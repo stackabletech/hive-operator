@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Include chart name when installing with a custom release name ([#204], [#205]).
+
+[#204]: https://github.com/stackabletech/trino-operator/pull/204
+[#205]: https://github.com/stackabletech/trino-operator/pull/205
+
+## [0.6.0] - 2022-06-30
+
 ### Added
 
 - Reconciliation errors are now reported as Kubernetes events ([#137]).
@@ -74,6 +83,7 @@ All notable changes to this project will be documented in this file.
 ## [0.1.0] - 2021-10-27
 
 ### Changed
+
 - operator-rs : 0.3.0 ([#14])
 - Use framework re-exports. ([#14])
 
