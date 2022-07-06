@@ -5,19 +5,16 @@ mod discovery;
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_hive_crd::{HiveCluster, APP_NAME};
-use stackable_operator::cli::{Command, ProductOperatorRun};
-use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::{
+    cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::{
-        api::ListParams,
-        runtime::{controller::Context, Controller},
-        CustomResourceExt,
-    },
+    kube::{api::ListParams, runtime::Controller, CustomResourceExt},
+    logging::controller::report_controller_reconciled,
 };
+use std::sync::Arc;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -83,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 controller::reconcile_hive,
                 controller::error_policy,
-                Context::new(controller::Ctx {
+                Arc::new(controller::Ctx {
                     client: client.clone(),
                     product_config,
                 }),

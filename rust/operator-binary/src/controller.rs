@@ -10,14 +10,14 @@ use stackable_hive_crd::{
     HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
-use stackable_operator::builder::PodSecurityContextBuilder;
-use stackable_operator::builder::SecretOperatorVolumeSourceBuilder;
-use stackable_operator::commons::tls::TlsVerification;
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
+    builder::{
+        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
+        PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+    },
     commons::{
         s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
-        tls::CaCert,
+        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
@@ -32,11 +32,7 @@ use stackable_operator::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
     },
-    kube::{
-        api::ObjectMeta,
-        runtime::controller::{Action, Context},
-        ResourceExt,
-    },
+    kube::{api::ObjectMeta, runtime::controller::Action, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -147,9 +143,9 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result<Action> {
+pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
-    let client = &ctx.get_ref().client;
+    let client = &ctx.client;
     let hive_version = hive_version(&hive)?;
 
     let s3_connection_def: &Option<S3ConnectionDef> = &hive.spec.s3;
@@ -181,7 +177,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Context<Ctx>) -> Result
             .into(),
         )
         .context(GenerateProductConfigSnafu)?,
-        &ctx.get_ref().product_config,
+        &ctx.product_config,
         false,
         false,
     )
@@ -637,7 +633,7 @@ pub fn hive_version(hive: &HiveCluster) -> Result<&str> {
         .context(ObjectHasNoVersionSnafu)
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
