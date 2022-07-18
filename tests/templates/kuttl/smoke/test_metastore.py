@@ -75,9 +75,9 @@ if __name__ == '__main__':
             print("[ERROR]: Received s3 schema " + str(schema) + " - expected schema: " + expected)
             exit(-1)
 
-        #Removed test, because it failed. We do not know if ther behaviour of hive metatstore changed or we made a mistake. Improved Trino-Tests to compensate this test
+        # Removed test, because it failed. We do not know if ther behaviour of hive metatstore changed or we made a mistake. Improved Trino-Tests to compensate this test
 
-        # Wrong S3 bucket 
+        # Wrong S3 bucket
         # try:
         #    hive_client.create_external_table(table(database_name, s3_test_table_name_wrong_bucket, "s3a://wrongbucket/"))
         #     should not reach here
