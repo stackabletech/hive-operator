@@ -54,16 +54,18 @@ pub enum Error {
 pub async fn build_discovery_configmaps(
     client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
+    managed_by: &str,
     hive: &HiveCluster,
     svc: &Service,
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
     let name = owner.name();
     Ok(vec![
-        build_discovery_configmap(&name, owner, hive, chroot, pod_hosts(hive)?)?,
+        build_discovery_configmap(&name, owner, managed_by, hive, chroot, pod_hosts(hive)?)?,
         build_discovery_configmap(
             &format!("{}-nodeport", name),
             owner,
+            managed_by,
             hive,
             chroot,
             nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
@@ -77,6 +79,7 @@ pub async fn build_discovery_configmaps(
 fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
+    managed_by: &str,
     hive: &HiveCluster,
     chroot: Option<&str>,
     hosts: impl IntoIterator<Item = (impl Into<String>, u16)>,
@@ -105,6 +108,7 @@ fn build_discovery_configmap(
                     hive,
                     APP_NAME,
                     hive_version(hive).unwrap(),
+                    managed_by,
                     &HiveRole::MetaStore.to_string(),
                     "discovery",
                 )

@@ -10,6 +10,8 @@ use stackable_hive_crd::{
     HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
+use stackable_operator::cluster_resources::ClusterResources;
+use stackable_operator::kube::Resource;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -51,6 +53,7 @@ use strum::EnumDiscriminants;
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
+const CONTROLLER_NAME: &str = "hive-operator";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -70,6 +73,14 @@ pub enum Error {
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
     RoleGroupServiceNameNotFound {
         rolegroup: RoleGroupRef<HiveCluster>,
+    },
+    #[snafu(display("failed to create cluster resources"))]
+    CreateClusterResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to delete orphaned resources"))]
+    FinalizeClusterResources {
+        source: stackable_operator::error::Error,
     },
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
@@ -188,13 +199,13 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
+    let mut cluster_resources =
+        ClusterResources::new(APP_NAME, CONTROLLER_NAME, &hive.object_ref(&()))
+            .context(CreateClusterResourcesSnafu)?;
+
     let metastore_role_service = build_metastore_role_service(&hive)?;
-    let metastore_role_service = client
-        .apply_patch(
-            FIELD_MANAGER_SCOPE,
-            &metastore_role_service,
-            &metastore_role_service,
-        )
+    let metastore_role_service = cluster_resources
+        .add(client, &metastore_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -215,20 +226,20 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             s3_connection_spec.as_ref(),
         )?;
 
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
+        cluster_resources
+            .add(client, &rg_service)
             .await
             .with_context(|_| ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+        cluster_resources
+            .add(client, &rg_configmap)
             .await
             .with_context(|_| ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
+        cluster_resources
+            .add(client, &rg_statefulset)
             .await
             .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
@@ -238,19 +249,30 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in
-        discovery::build_discovery_configmaps(client, &*hive, &*hive, &metastore_role_service, None)
-            .await
-            .context(BuildDiscoveryConfigSnafu)?
+    for discovery_cm in discovery::build_discovery_configmaps(
+        client,
+        &*hive,
+        CONTROLLER_NAME,
+        &*hive,
+        &metastore_role_service,
+        None,
+    )
+    .await
+    .context(BuildDiscoveryConfigSnafu)?
     {
-        let discovery_cm = client
-            .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        let discovery_cm = cluster_resources
+            .add(client, &discovery_cm)
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
         if let Some(generation) = discovery_cm.metadata.resource_version {
             discovery_hash.write(generation.as_bytes())
         }
     }
+
+    cluster_resources
+        .finalize(client)
+        .await
+        .context(FinalizeClusterResourcesSnafu)?;
 
     let status = HiveClusterStatus {
         // Serialize as a string to discourage users from trying to parse the value,
@@ -279,7 +301,14 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
             .name(&role_svc_name)
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(hive, APP_NAME, hive_version(hive)?, &role_name, "global")
+            .with_recommended_labels(
+                hive,
+                APP_NAME,
+                hive_version(hive)?,
+                CONTROLLER_NAME,
+                &role_name,
+                "global",
+            )
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(service_ports()),
@@ -370,6 +399,7 @@ fn build_metastore_rolegroup_config_map(
                     hive,
                     APP_NAME,
                     hive_version(hive)?,
+                    CONTROLLER_NAME,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -400,6 +430,7 @@ fn build_rolegroup_service(
                 hive,
                 APP_NAME,
                 hive_version(hive)?,
+                CONTROLLER_NAME,
                 &rolegroup.role,
                 &rolegroup.role_group,
             )
@@ -554,6 +585,7 @@ fn build_metastore_rolegroup_statefulset(
                 hive,
                 APP_NAME,
                 hive_version,
+                CONTROLLER_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -581,6 +613,7 @@ fn build_metastore_rolegroup_statefulset(
                         hive,
                         APP_NAME,
                         hive_version,
+                        CONTROLLER_NAME,
                         &rolegroup_ref.role,
                         &rolegroup_ref.role_group,
                     )
