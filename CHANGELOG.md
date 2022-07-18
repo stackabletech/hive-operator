@@ -92,3 +92,9 @@ All notable changes to this project will be documented in this file.
 - Use framework re-exports. ([#14])
 
 [#14]: https://github.com/stackabletech/hive-operator/pull/14
+
+### Changed
+
+- Add support for Hive 3.1.3 ([#211])
+
+[#211]: https://github.com/stackabletech/hive-operator/pull/211
