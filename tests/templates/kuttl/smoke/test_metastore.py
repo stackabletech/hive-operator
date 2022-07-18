@@ -82,8 +82,8 @@ if __name__ == '__main__':
         if schema != expected:
             print("[ERROR]: Received s3 schema " + str(schema) + " - expected schema: " + expected)
             exit(-1)
-        
-        # Removed test, because it failed against Hive 3.1.3. We do not know if the behavior of the Hive metastore changed or we made a mistake. We improved the Trino tests to do more stuff with S3 (e.g. writing tables) which passed, 
+
+        # Removed test, because it failed against Hive 3.1.3. We do not know if the behavior of the Hive metastore changed or we made a mistake. We improved the Trino tests to do more stuff with S3 (e.g. writing tables) which passed,
         # so we are confident that the removal of this test is ok
 
         # Wrong S3 bucket
