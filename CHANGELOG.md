@@ -8,10 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Include chart name when installing with a custom release name ([#204], [#205]).
 - `operator-rs` `0.21.1` -> `0.22.0` ([#206]).
+- Add support for Hive 3.1.3 ([#211])
 
 [#204]: https://github.com/stackabletech/trino-operator/pull/204
 [#205]: https://github.com/stackabletech/trino-operator/pull/205
 [#206]: https://github.com/stackabletech/trino-operator/pull/206
+[#211]: https://github.com/stackabletech/trino-operator/pull/211
 
 ## [0.6.0] - 2022-06-30
 
@@ -92,9 +94,3 @@ All notable changes to this project will be documented in this file.
 - Use framework re-exports. ([#14])
 
 [#14]: https://github.com/stackabletech/hive-operator/pull/14
-
-### Changed
-
-- Add support for Hive 3.1.3 ([#211])
-
-[#211]: https://github.com/stackabletech/hive-operator/pull/211
