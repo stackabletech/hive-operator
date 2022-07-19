@@ -3,3 +3,4 @@
 // Stackable Platform documentation.
 
 - 2.3.9
+- 3.1.3
