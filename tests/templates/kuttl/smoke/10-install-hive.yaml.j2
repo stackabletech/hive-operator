@@ -6,19 +6,7 @@ metadata:
 spec:
   version: {{ test_scenario['values']['hive'] }}
   s3:
-    inline:
-      host: minio
-      port: 9000
-      accessStyle: Path
-      credentials:
-        secretClass: test-hive-s3-secret-class
-{% if test_scenario['values']['s3-use-tls'] == 'true' %}
-      tls:
-        verification:
-          server:
-            caCert:
-              secretClass: minio-tls-certificates
-{% endif %}
+    reference: minio
   metastore:
     roleGroups:
       default:
@@ -32,6 +20,24 @@ spec:
             user: hive
             password: hive
             dbType: postgres
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: minio
+spec:
+  host: minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: test-hive-s3-secret-class
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: minio-tls-certificates
+{% endif %}
 ---
 apiVersion: secrets.stackable.tech/v1alpha1
 kind: SecretClass

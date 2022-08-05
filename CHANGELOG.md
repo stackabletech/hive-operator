@@ -8,13 +8,18 @@ All notable changes to this project will be documented in this file.
 
 - Include chart name when installing with a custom release name ([#204], [#205]).
 - `operator-rs` `0.21.1` -> `0.22.0` ([#206]).
-- Add support for Hive 3.1.3 ([#211], [#213])
+- Add support for Hive 3.1.3 ([#211], [#213]).
+
+### Fixed
+
+- Add missing role to read S3Connection objects ([#220]).
 
 [#204]: https://github.com/stackabletech/trino-operator/pull/204
 [#205]: https://github.com/stackabletech/trino-operator/pull/205
 [#206]: https://github.com/stackabletech/trino-operator/pull/206
 [#211]: https://github.com/stackabletech/trino-operator/pull/211
 [#213]: https://github.com/stackabletech/trino-operator/pull/213
+[#220]: https://github.com/stackabletech/trino-operator/pull/220
 
 ## [0.6.0] - 2022-06-30
 
