@@ -16,7 +16,7 @@ use stackable_operator::{
         PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     commons::{
-        s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
+        s3::{S3AccessStyle, S3ConnectionSpec},
         tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
@@ -148,8 +148,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let client = &ctx.client;
     let hive_version = hive_version(&hive)?;
 
-    let s3_connection_def: &Option<S3ConnectionDef> = &hive.spec.s3;
-    let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = s3_connection_def {
+    let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = &hive.spec.s3 {
         Some(
             s3.resolve(client, hive.namespace().as_deref())
                 .await
