@@ -1,0 +1,58 @@
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive-postgres-s3
+spec:
+  version: 3.1.3-stackable0.1.0
+  s3:
+    reference: minio
+  metastore:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:postgresql://hive-postgresql:5432/hive
+            user: hive
+            password: hive
+            dbType: postgres
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: minio
+spec:
+  host: minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: hive-s3-secret-class
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: minio-tls-certificates
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: hive-s3-secret-class
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-s3-secret
+  labels:
+    secrets.stackable.tech/class: hive-s3-secret-class
+stringData:
+  accessKey: hive
+  secretKey: hivehive

@@ -1,0 +1,23 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-test-helper
+  labels:
+    app: hive-test-helper
+spec:
+  serviceName: hive-test-helper
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hive-test-helper
+  template:
+    metadata:
+      labels:
+        app: hive-test-helper
+    spec:
+      containers:
+        - name: hive-test-helper
+          image: python:3.10-bullseye
+          stdin: true
+          tty: true
