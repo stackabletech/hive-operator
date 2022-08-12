@@ -68,9 +68,9 @@ stackablectl operator install commons secret hive
 # end::stackablectl-install-operators[]
 # tag::stackablectl-install-minio-postgres-stack[]
 stackablectl \
---additional-stacks-file stackablectl-hive-postgres-s3-stack.yaml \
+--additional-stacks-file stackablectl-postgres-minio-stack.yaml \
 --additional-releases-file release.yaml \
-stack install hive-minio-postgres
+stack install minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
 *)
@@ -78,6 +78,21 @@ echo "Need to give 'helm' or 'stackablectl' as an argument for which installatio
 exit 1
 ;;
 esac
+
+echo "Install HiveCluster"
+# tag::install-hive[]
+kubectl apply -f hive-minio-credentials.yaml
+kubectl apply -f hive-minio-credentials-secret-class.yaml
+kubectl apply -f hive-minio-s3-connection.yaml
+kubectl apply -f hive-postgres-s3.yaml
+# end::install-hive[]
+
+sleep 5
+
+echo "Awaiting Hive rollout finish"
+# tag::watch-hive-rollout[]
+kubectl rollout status --watch statefulset/hive-postgres-s3-metastore-default
+# end::watch-hive-rollout[]
 
 echo "Install Hive test helper from hive-test-helper.yaml"
 # tag::install-hive-test-helper[]
@@ -90,18 +105,6 @@ echo "Awaiting Hive test helper rollout finish"
 # tag::watch-hive-test-helper-rollout[]
 kubectl rollout status --watch statefulset/hive-test-helper
 # end::watch-hive-test-helper-rollout[]
-
-echo "Install HiveCluster from hive-postgres-s3.yaml"
-# tag::install-hive[]
-kubectl apply -f hive-postgres-s3.yaml
-# end::install-hive[]
-
-sleep 5
-
-echo "Awaiting Hive rollout finish"
-# tag::watch-hive-rollout[]
-kubectl rollout status --watch statefulset/hive-postgres-s3-metastore-default
-# end::watch-hive-rollout[]
 
 # tag::run-tests[]
 kubectl cp -n default ../../../../../tests/templates/kuttl/smoke/test_metastore.py hive-test-helper-0:/tmp

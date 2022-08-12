@@ -1,12 +1,11 @@
 ---
 stacks:
-  hive-minio-postgres:
-    description: Stack containing MinIO, PostgreSQL and Hive
+  minio-postgres:
     stackableRelease: empty
+    description: Stack containing MinIO and PostgreSQL
     labels:
-      - hive
       - minio
-      - s3
+      - postgresql
     manifests:
       - plainYaml: ./minio-certificates.yaml
       - helmChart:

@@ -15,4 +15,4 @@ You will need:
 The Guide is divided into two steps:
 
 * xref:installation.adoc[Installing the Operators].
-* xref:first_steps.adoc[Setting up the Hive metastore instance and loading and querying example data].
+* xref:first_steps.adoc[Setting up the Hive metastore instance with PostgreSQL and Minio].
