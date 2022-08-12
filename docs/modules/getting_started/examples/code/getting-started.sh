@@ -23,16 +23,19 @@ echo "Adding 'stackable-dev' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
+
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
 helm install --wait commons-operator stackable-dev/commons-operator --devel
 helm install --wait secret-operator stackable-dev/secret-operator --devel
 helm install --wait hive-operator stackable-dev/hive-operator --devel
 # end::helm-install-operators[]
+
 echo "Install minio certificates from minio-certificates.yaml"
 # tag::helm-install-minio-certificates[]
 kubectl apply -f minio-certificates.yaml
 # end::helm-install-minio-certificates[]
+
 echo "Install minio for S3"
 # tag::helm-install-minio[]
 helm install minio \
@@ -66,6 +69,8 @@ echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install commons secret hive
 # end::stackablectl-install-operators[]
+
+echo "installing MinIO and PostgreSQL with stackablectl"
 # tag::stackablectl-install-minio-postgres-stack[]
 stackablectl \
 --additional-stacks-file stackablectl-postgres-minio-stack.yaml \
@@ -74,7 +79,7 @@ stack install minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
 *)
-echo "Need to give 'helm' or 'stackablectl' as an argument for which installation method to use!"
+echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
 exit 1
 ;;
 esac
