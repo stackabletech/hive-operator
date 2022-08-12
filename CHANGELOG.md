@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Improved, tested getting started guide via script ([#225]).
+
 ### Changed
 
 - Include chart name when installing with a custom release name ([#204], [#205]).
@@ -14,12 +18,13 @@ All notable changes to this project will be documented in this file.
 
 - Add missing role to read S3Connection objects ([#220]).
 
-[#204]: https://github.com/stackabletech/trino-operator/pull/204
-[#205]: https://github.com/stackabletech/trino-operator/pull/205
-[#206]: https://github.com/stackabletech/trino-operator/pull/206
-[#211]: https://github.com/stackabletech/trino-operator/pull/211
-[#213]: https://github.com/stackabletech/trino-operator/pull/213
-[#220]: https://github.com/stackabletech/trino-operator/pull/220
+[#204]: https://github.com/stackabletech/hive-operator/pull/204
+[#205]: https://github.com/stackabletech/hive-operator/pull/205
+[#206]: https://github.com/stackabletech/hive-operator/pull/206
+[#211]: https://github.com/stackabletech/hive-operator/pull/211
+[#213]: https://github.com/stackabletech/hive-operator/pull/213
+[#220]: https://github.com/stackabletech/hive-operator/pull/220
+[#225]: https://github.com/stackabletech/hive-operator/pull/225
 
 ## [0.6.0] - 2022-06-30
 
