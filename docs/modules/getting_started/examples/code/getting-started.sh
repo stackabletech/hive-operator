@@ -25,36 +25,16 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.3.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait hive-operator stackable-dev/hive-operator --version 0.7.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --devel
+helm install --wait secret-operator stackable-dev/secret-operator --devel
+helm install --wait hive-operator stackable-dev/hive-operator --devel
 # end::helm-install-operators[]
-;;
-"stackablectl")
-echo "installing Operators with stackablectl"
-# tag::stackablectl-install-operators[]
-stackablectl operator install \
-  commons=0.3.0-nightly \
-  secret=0.6.0-nightly \
-  hive=0.7.0-nightly
-# end::stackablectl-install-operators[]
-;;
-*)
-echo "Need to give 'helm' or 'stackablectl' as an argument for which installation method to use!"
-exit 1
-;;
-esac
-
-###########################################################################
-# Currently we cannot install minio / postgres via stackablectl (except for defining stacks).
-# We will install this via helm for now
-
 echo "Install minio certificates from minio-certificates.yaml"
-# tag::install-hive-test-helper[]
+# tag::helm-install-minio-certificates[]
 kubectl apply -f minio-certificates.yaml
-# end::install-hive-test-helper[]
-
+# end::helm-install-minio-certificates[]
 echo "Install minio for S3"
+# tag::helm-install-minio[]
 helm install minio \
 --namespace default \
 --version 4.0.2 \
@@ -68,17 +48,36 @@ helm install minio \
 --set consoleService.type=NodePort,consoleService.nodePort=null \
 --set tls.enabled=true,tls.certSecret=minio-tls-certificates,tls.publicCrt=tls.crt,tls.privateKey=tls.key \
 --repo https://charts.min.io/ minio
+# end::helm-install-minio[]
 
 echo "Install postgres for Hive"
-helm install hive \
+# tag::helm-install-postgres[]
+helm install postgresql \
 --version=10 \
 --namespace default \
 --set postgresqlUsername=hive \
 --set postgresqlPassword=hive \
 --set postgresqlDatabase=hive \
 --repo https://charts.bitnami.com/bitnami postgresql
-
-###########################################################################
+# end::helm-install-postgres[]
+;;
+"stackablectl")
+echo "installing Operators with stackablectl"
+# tag::stackablectl-install-operators[]
+stackablectl operator install commons secret hive
+# end::stackablectl-install-operators[]
+# tag::stackablectl-install-minio-postgres-stack[]
+stackablectl \
+--additional-stacks-file stackablectl-hive-postgres-s3-stack.yaml \
+--additional-releases-file release.yaml \
+stack install hive-minio-postgres
+# end::stackablectl-install-minio-postgres-stack[]
+;;
+*)
+echo "Need to give 'helm' or 'stackablectl' as an argument for which installation method to use!"
+exit 1
+;;
+esac
 
 echo "Install Hive test helper from hive-test-helper.yaml"
 # tag::install-hive-test-helper[]
@@ -104,9 +103,9 @@ echo "Awaiting Hive rollout finish"
 kubectl rollout status --watch statefulset/hive-postgres-s3-metastore-default
 # end::watch-hive-rollout[]
 
-# tag::submit-job[]
-kubectl cp -n default ./test_metastore.py  hive-test-helper-0:/tmp
+# tag::run-tests[]
+kubectl cp -n default ../../../../../tests/templates/kuttl/smoke/test_metastore.py hive-test-helper-0:/tmp
 kubectl cp -n default ./requirements.txt hive-test-helper-0:/tmp
 kubectl exec -n default hive-test-helper-0 -- pip install --user -r /tmp/requirements.txt
-kubectl exec -n default hive-test-helper-0 -- python /tmp/test_metastore.py -n default
-# end::submit-job[]
+kubectl exec -n default hive-test-helper-0 -- python /tmp/test_metastore.py -m hive-postgres-s3-metastore-default-0.hive-postgres-s3-metastore-default.default.svc.cluster.local
+# end::run-tests[]

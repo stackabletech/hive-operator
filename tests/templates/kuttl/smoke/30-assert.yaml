@@ -1,7 +1,5 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: test-regorule
 commands:
-  - script: kubectl exec -n $NAMESPACE test-metastore-0 -- python /tmp/test_metastore.py -n $NAMESPACE
+  - script: kubectl exec -n $NAMESPACE test-metastore-0 -- python /tmp/test_metastore.py -m test-hive-postgres-metastore-default-0.test-hive-postgres-metastore-default.$NAMESPACE.svc.cluster.local
