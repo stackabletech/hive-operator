@@ -68,6 +68,8 @@ NAME                                 READY   AGE
 hive-postgres-s3-metastore-default   1/1     48s
 ----
 
+For further testing we recommend to use e.g. the python https://github.com/quintoandar/hive-metastore-client[hive-metastore-client] in order to e.g. create tables or connect a product like Trino via the xref:trino-operator::index.adoc[Stackable Trino Operator].
+
 == What's next
 
 Have a look at the xref:ROOT:usage.adoc[] page to find out more about the features of the Operator.
