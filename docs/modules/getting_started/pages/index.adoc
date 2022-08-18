@@ -1,0 +1,18 @@
+= Getting started
+
+This guide will get you started with Apache Hive using the Stackable Operator. It will guide you through the installation of the operator, its dependencies and setting up your first Hive metastore instance.
+
+== Prerequisites
+
+You will need:
+
+* a Kubernetes cluster
+* kubectl
+* optional: Helm
+
+== What's next
+
+The Guide is divided into two steps:
+
+* xref:installation.adoc[Installing the operators].
+* xref:first_steps.adoc[Setting up the Hive metastore instance with PostgreSQL and Minio].

@@ -1,0 +1,11 @@
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: minio
+spec:
+  host: minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: hive-s3-secret-class

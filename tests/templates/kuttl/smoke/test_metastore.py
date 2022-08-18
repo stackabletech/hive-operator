@@ -10,7 +10,6 @@ from hive_metastore_client.builders import (
 from thrift_files.libraries.thrift_hive_metastore_client.ttypes import (
     FieldSchema,
     AlreadyExistsException,
-    MetaException,
 )
 import argparse
 
@@ -45,16 +44,15 @@ if __name__ == '__main__':
     all_args = argparse.ArgumentParser(description="Test hive metastore.")
     all_args.add_argument("-p", "--port", help="Metastore server port", default="9083")
     all_args.add_argument("-d", "--database", help="Test DB name", default="test_metastore")
-    all_args.add_argument("-n", "--namespace", help="The namespace to run in", required=True)
+    all_args.add_argument("-m", "--metastore", help="The host or service to connect to", required=True)
     args = vars(all_args.parse_args())
 
-    namespace = args["namespace"]
     database_name = args["database"]
     port = args["port"]
+    host = args["metastore"]
     local_test_table_name = "one_column_table"
     s3_test_table_name = "s3_one_column_table"
     s3_test_table_name_wrong_bucket = "s3_one_column_table_wrong_buckets"
-    host = 'test-hive-postgres-metastore-default-0.test-hive-postgres-metastore-default.' + namespace + '.svc.cluster.local'
     # Creating database object using builder
     database = DatabaseBuilder(database_name).build()
 

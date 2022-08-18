@@ -242,7 +242,7 @@ impl Configuration for MetaStoreConfig {
     }
 }
 
-#[derive(Clone, Default, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterStatus {
     /// An opaque value that changes every time a discovery detail does

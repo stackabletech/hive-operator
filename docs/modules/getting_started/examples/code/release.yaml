@@ -1,0 +1,6 @@
+---
+releases:
+  empty:
+    releaseDate: 2022-08-12
+    description: Empty release for testing / doc purposes
+    products: {}
