@@ -9,8 +9,3 @@ spec:
   accessStyle: Path
   credentials:
     secretClass: hive-s3-secret-class
-  tls:
-    verification:
-      server:
-        caCert:
-          secretClass: minio-tls-certificates

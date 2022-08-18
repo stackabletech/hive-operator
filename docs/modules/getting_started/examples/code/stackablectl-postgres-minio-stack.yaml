@@ -7,7 +7,6 @@ stacks:
       - minio
       - postgresql
     manifests:
-      - plainYaml: ./minio-certificates.yaml
       - helmChart:
           releaseName: minio
           name: minio
@@ -35,11 +34,6 @@ stacks:
             consoleService:
               type: NodePort
               nodePort: null
-            tls:
-              enabled: true
-              certSecret: minio-tls-certificates
-              publicCrt: tls.crt
-              privateKey: tls.key
       - helmChart:
           releaseName: postgresql
           name: postgresql

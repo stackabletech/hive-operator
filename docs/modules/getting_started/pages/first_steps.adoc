@@ -1,6 +1,6 @@
 = First steps
 
-After going through the xref:installation.adoc[] section and having installed all the Operators, you will now deploy a Hive metastore cluster and it's dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by ingesting example data and subsequently query it.
+After going through the xref:installation.adoc[] section and having installed all the operators, you will now deploy a Hive metastore cluster and it's dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>>.
 
 == Setup
 
@@ -9,8 +9,8 @@ Several requirements should have already been installed in the xref:installation
 * xref:commons-operator::index.adoc[Commons Operator]
 * xref:secret-operator::index.adoc[Secret Operator]
 * xref:hive-operator::index.adoc[Hive Operator]
-* A database like PostgreSQL
-* (Optional) Minio for S3
+* PostgreSQL
+* MinIO for S3
 
 === S3Connection
 
@@ -53,7 +53,7 @@ include::example$code/getting-started.sh[tag=install-hive]
 
 == Verify that it works
 
-First, make sure that all the Pods in the StatefulSets are ready:
+Make sure that all the Pods in the StatefulSets are ready:
 
 [source,bash]
 ----

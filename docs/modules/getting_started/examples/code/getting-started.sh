@@ -26,15 +26,10 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --devel
-helm install --wait secret-operator stackable-dev/secret-operator --devel
-helm install --wait hive-operator stackable-dev/hive-operator --devel
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.3.0-nightly
+helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
+helm install --wait hive-operator stackable-dev/hive-operator --version 0.7.0-nightly
 # end::helm-install-operators[]
-
-echo "Install minio certificates from minio-certificates.yaml"
-# tag::helm-install-minio-certificates[]
-kubectl apply -f minio-certificates.yaml
-# end::helm-install-minio-certificates[]
 
 echo "Install minio for S3"
 # tag::helm-install-minio[]
@@ -49,7 +44,6 @@ helm install minio \
 --set resources.requests.memory=1Gi \
 --set service.type=NodePort,service.nodePort=null \
 --set consoleService.type=NodePort,consoleService.nodePort=null \
---set tls.enabled=true,tls.certSecret=minio-tls-certificates,tls.publicCrt=tls.crt,tls.privateKey=tls.key \
 --repo https://charts.min.io/ minio
 # end::helm-install-minio[]
 
@@ -67,7 +61,10 @@ helm install postgresql \
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
-stackablectl operator install commons secret hive
+stackablectl operator install \
+  commons=0.3.0-nightly \
+  secret=0.6.0-nightly \
+  hive=0.7.0-nightly
 # end::stackablectl-install-operators[]
 
 echo "installing MinIO and PostgreSQL with stackablectl"
@@ -100,20 +97,16 @@ kubectl rollout status --watch statefulset/hive-postgres-s3-metastore-default
 # end::watch-hive-rollout[]
 
 echo "Install Hive test helper from hive-test-helper.yaml"
-# tag::install-hive-test-helper[]
 kubectl apply -f hive-test-helper.yaml
-# end::install-hive-test-helper[]
 
 sleep 5
 
 echo "Awaiting Hive test helper rollout finish"
-# tag::watch-hive-test-helper-rollout[]
 kubectl rollout status --watch statefulset/hive-test-helper
-# end::watch-hive-test-helper-rollout[]
 
-# tag::run-tests[]
+# Only for testing the cluster (not required for documentation)
+echo "Running test scripts"
 kubectl cp -n default ../../../../../tests/templates/kuttl/smoke/test_metastore.py hive-test-helper-0:/tmp
-kubectl cp -n default ./requirements.txt hive-test-helper-0:/tmp
+kubectl cp -n default ../../../../../tests/templates/kuttl/smoke/requirements.txt hive-test-helper-0:/tmp
 kubectl exec -n default hive-test-helper-0 -- pip install --user -r /tmp/requirements.txt
 kubectl exec -n default hive-test-helper-0 -- python /tmp/test_metastore.py -m hive-postgres-s3-metastore-default-0.hive-postgres-s3-metastore-default.default.svc.cluster.local
-# end::run-tests[]

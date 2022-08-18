@@ -1,42 +1,28 @@
 = Installation
 
-On this page you will install the Stackable Operator for Apache Hive and all required dependencies.
+On this page you will install the Stackable Operator for Apache Hive and all required dependencies. For the installation of the dependencies and operators you can use Helm or _stackablectl_.
 
-== Stackable Operators
+The _stackablectl_ command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with _stackablectl_.
 
-There are 2 ways to run Stackable Operators:
+== Dependencies
 
-1. Using xref:stackablectl::index.adoc[]
+First you need to install MinIO and PostgreSQL instances for the Hive metastore.
+
+There are 2 ways to install the dependencies:
+
+1. Using xref:stackablectl::index.adoc[_stackablectl_]
 2. Using Helm
 
 === stackablectl
 
-stackablectl is the command line tool to interact with Stackable operators and our recommended way to install Operators.
-Follow the xref:stackablectl::installation.adoc[installation steps] for your platform.
-
-After you have installed stackablectl run the following command to install all Operators necessary for Apache Hive:
-
-[source,bash]
-----
-include::example$code/getting-started.sh[tag=stackablectl-install-operators]
-----
-
-The tool will show
-
-----
-[INFO ] Installing commons operator
-[INFO ] Installing secret operator
-[INFO ] Installing hive operator
-----
-
-Furthermore, we need to install a PostgreSQL and Minio instance. This is provided via the xref:stackablectl::commands/stack.adoc[Stacks] feature of stackablectl.
+In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of _stackablectl_. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, here>>.
 
 [source,bash]
 ----
 include::example$code/getting-started.sh[tag=stackablectl-install-minio-postgres-stack]
 ----
 
-For this to work you need to create two yaml files:
+For this to work you need to create two yaml files.
 
 The _stackablectl-hive-postgres-s3-stack.yaml_:
 
@@ -52,60 +38,70 @@ The _release.yaml_:
 include::example$code/release.yaml[]
 ----
 
-The release is empty (does not offer any operators/products) because this guide should show how to install this manually. We could however remove this:
-
-[source,bash]
-----
-include::example$code/getting-started.sh[tag=stackablectl-install-operators]
-----
-
-by adding the operators to the `products` part of the release.yaml.
-
-TIP: Consult the xref:stackablectl::quickstart.adoc[Quickstart] to learn more about how to use stackablectl.
+TIP: Consult the xref:stackablectl::quickstart.adoc[Quickstart] to learn more about how to use _stackablectl_.
 
 === Helm
 
-You can also use Helm to install the Operators. Add the Stackable Helm repository:
-[source,bash]
-----
-include::example$code/getting-started.sh[tag=helm-add-repo]
-----
+In order to install the MinIO and PostgreSQL dependencies via Helm, you have to deploy two charts.
 
-Then install the Stackable Operators:
-[source,bash]
-----
-include::example$code/getting-started.sh[tag=helm-install-operators]
-----
-
-We want to secure the S3 connection with TLS and have to apply the credentials via secret:
-
-[source,bash]
-----
-include::example$code/getting-started.sh[tag=helm-install-minio-certificates]
-----
-
-where the _minio-certificates.yaml_ contains:
-
-[source,yaml]
-----
-include::example$code/minio-certificates.yaml[]
-----
-
-Now we install Minio via:
+==== Minio ====
 
 [source,bash]
 ----
 include::example$code/getting-started.sh[tag=helm-install-minio]
 ----
 
-Followed by an instance of PostgreSQL:
+==== PostgresSQL ====
 
 [source,bash]
 ----
 include::example$code/getting-started.sh[tag=helm-install-postgres]
 ----
 
-Helm will deploy the Operators in a Kubernetes Deployment and apply the CRDs for the Apache Hive service (as well as the CRDs for the required operators). You are now ready to deploy the Apache Hive metastore in Kubernetes.
+After the dependencies are deployed, you can start to install the operators.
+
+== Stackable Operators
+
+There are 2 ways to run Stackable Operators:
+
+1. Using xref:stackablectl::index.adoc[_stackablectl_]
+2. Using Helm
+
+=== stackablectl
+
+Run the following command to install all operators necessary for Apache Hive:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=stackablectl-install-operators]
+----
+
+The tool will show
+
+[source,bash]
+----
+include::example$code/install-operator-output.txt[tag=stackablectl-install-operators-output]
+----
+
+=== Helm
+
+Run the following commands Helm to install the operators via Helm
+
+Add the Stackable Helm repository:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=helm-add-repo]
+----
+
+Then install the Stackable operators:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=helm-install-operators]
+----
+
+Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the Apache Hive service (as well as the CRDs for the required operators). You are now ready to deploy the Apache Hive metastore in Kubernetes.
 
 == What's next
 
