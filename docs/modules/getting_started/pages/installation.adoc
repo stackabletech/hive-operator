@@ -2,7 +2,7 @@
 
 On this page you will install the Stackable Operator for Apache Hive and all required dependencies. For the installation of the dependencies and operators you can use Helm or stackablectl.
 
-The stackablectl_ command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with stackablectl.
+The stackablectl command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with stackablectl.
 
 == Dependencies
 
@@ -15,7 +15,7 @@ There are 2 ways to install the dependencies:
 
 === stackablectl
 
-In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of stackablectl. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, here>>.
+In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of stackablectl. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, below>>.
 
 [source,bash]
 ----
@@ -78,7 +78,7 @@ include::example$code/getting-started.sh[tag=stackablectl-install-operators]
 
 The tool will show
 
-[source,bash]
+[source]
 ----
 include::example$code/install-operator-output.txt[tag=stackablectl-install-operators-output]
 ----

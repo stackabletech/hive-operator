@@ -16,28 +16,28 @@ Several requirements should have already been installed in the xref:installation
 
 In order to connect Hive to MinIO we need to create several files (or concat in one file).
 
-A S3Connection to connect to MinIO (_hive-minio-s3-connection.yaml_)
+An xref:home:concepts:s3.adoc[S3Connection] to connect to MinIO (`hive-minio-s3-connection.yaml`)
 
 [source,yaml]
 ----
 include::example$code/hive-minio-s3-connection.yaml[]
 ----
 
-Credentials for the S3Connection to log into MinIO (_hive-minio-credentials.yaml_)
+Credentials for the S3Connection to log into MinIO (`hive-minio-credentials.yaml`)
 
 [source,yaml]
 ----
 include::example$code/hive-minio-credentials.yaml[]
 ----
 
-A SecretClass for the credentials (hive-minio-credentials-secret-class.yaml)
+A SecretClass for the credentials to the Minio. The credentials were defined in the installation of Minio (`hive-minio-credentials-secret-class.yaml`)
 
 [source,yaml]
 ----
 include::example$code/hive-minio-credentials-secret-class.yaml[]
 ----
 
-The Apache Hive cluster definition (_hive-postgres-s3.yaml_)
+And lastly the actual Apache Hive cluster definition (`hive-postgres-s3.yaml`). Note how it references the `minio` S3 object
 
 [source,yaml]
 ----
@@ -68,7 +68,7 @@ NAME                                 READY   AGE
 hive-postgres-s3-metastore-default   1/1     48s
 ----
 
-For further testing we recommend to use e.g. the python https://github.com/quintoandar/hive-metastore-client[hive-metastore-client] in order to e.g. create tables or connect a product like Trino via the xref:trino-operator::index.adoc[Stackable Trino Operator].
+For further testing we recommend to use e.g. the python https://github.com/quintoandar/hive-metastore-client[hive-metastore-client] in order to e.g. create tables or connect a product like Trino via the xref:trino::index.adoc[Stackable Trino Operator].
 
 == What's next
 
