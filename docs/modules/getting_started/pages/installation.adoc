@@ -1,8 +1,8 @@
 = Installation
 
-On this page you will install the Stackable Operator for Apache Hive and all required dependencies. For the installation of the dependencies and operators you can use Helm or _stackablectl_.
+On this page you will install the Stackable Operator for Apache Hive and all required dependencies. For the installation of the dependencies and operators you can use Helm or stackablectl.
 
-The _stackablectl_ command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with _stackablectl_.
+The stackablectl command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with stackablectl.
 
 == Dependencies
 
@@ -10,12 +10,12 @@ First you need to install MinIO and PostgreSQL instances for the Hive metastore.
 
 There are 2 ways to install the dependencies:
 
-1. Using xref:stackablectl::index.adoc[_stackablectl_]
+1. Using xref:stackablectl::index.adoc[stackablectl]
 2. Using Helm
 
 === stackablectl
 
-In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of _stackablectl_. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, here>>.
+In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of stackablectl. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, below>>.
 
 [source,bash]
 ----
@@ -38,7 +38,7 @@ The _release.yaml_:
 include::example$code/release.yaml[]
 ----
 
-TIP: Consult the xref:stackablectl::quickstart.adoc[Quickstart] to learn more about how to use _stackablectl_.
+TIP: Consult the xref:stackablectl::quickstart.adoc[Quickstart] to learn more about how to use stackablectl.
 
 === Helm
 
@@ -78,7 +78,7 @@ include::example$code/getting-started.sh[tag=stackablectl-install-operators]
 
 The tool will show
 
-[source,bash]
+[source]
 ----
 include::example$code/install-operator-output.txt[tag=stackablectl-install-operators-output]
 ----
