@@ -8,7 +8,7 @@ Several requirements should have already been installed in the xref:installation
 
 * xref:commons-operator::index.adoc[Commons Operator]
 * xref:secret-operator::index.adoc[Secret Operator]
-* xref:hive-operator::index.adoc[Hive Operator]
+* xref:hive::index.adoc[Hive Operator]
 * PostgreSQL
 * MinIO for S3
 
