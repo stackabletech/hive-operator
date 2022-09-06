@@ -283,7 +283,13 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
         spec: Some(ServiceSpec {
             ports: Some(service_ports()),
             selector: Some(role_selector_labels(hive, APP_NAME, &role_name)),
-            type_: Some("NodePort".to_string()),
+            type_: Some(
+                hive.spec
+                    .service_type
+                    .clone()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
             ..ServiceSpec::default()
         }),
         status: None,

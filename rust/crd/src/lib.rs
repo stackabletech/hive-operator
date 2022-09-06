@@ -31,6 +31,7 @@ pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[kube(
     group = "hive.stackable.tech",
     version = "v1alpha1",
@@ -55,6 +56,11 @@ pub struct HiveClusterSpec {
     pub metastore: Option<Role<MetaStoreConfig>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3ConnectionDef>,
+    /// Specify the type of the created kubernetes service.
+    /// This attribute will be removed in a future release when listener-operator is finished.
+    /// Use with caution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_type: Option<ServiceType>,
 }
 
 #[derive(strum::Display)]
@@ -112,6 +118,20 @@ impl MetaStoreConfig {
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
+}
+
+// TODO: Temporary solution until listener-operator is finished
+#[derive(Clone, Debug, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum ServiceType {
+    NodePort,
+    ClusterIP,
+}
+
+impl Default for ServiceType {
+    fn default() -> Self {
+        Self::NodePort
+    }
 }
 
 #[derive(

@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Improved, tested getting started guide via script ([#225]).
+- Add temporary attribute to support using ClusterIP instead of NodePort service type ([#237]).
 
 ### Changed
 
@@ -25,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#213]: https://github.com/stackabletech/hive-operator/pull/213
 [#220]: https://github.com/stackabletech/hive-operator/pull/220
 [#225]: https://github.com/stackabletech/hive-operator/pull/225
+[#237]: https://github.com/stackabletech/hive-operator/pull/237
 
 ## [0.6.0] - 2022-06-30
 
