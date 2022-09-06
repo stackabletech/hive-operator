@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2022-09-06
+
 ### Added
 
 - Improved, tested getting started guide via script ([#225]).
