@@ -1,8 +1,8 @@
 use crate::controller::hive_version;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, APP_NAME, HIVE_PORT, HIVE_PORT_NAME};
-use stackable_operator::k8s_openapi::api::core::v1::{Endpoints, Service};
+use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, APP_NAME, HIVE_PORT, HIVE_PORT_NAME};
+use stackable_operator::k8s_openapi::api::core::v1::{Endpoints, Service, ServiceSpec};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -59,16 +59,32 @@ pub async fn build_discovery_configmaps(
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
     let name = owner.name();
-    Ok(vec![
-        build_discovery_configmap(&name, owner, hive, chroot, pod_hosts(hive)?)?,
-        build_discovery_configmap(
-            &format!("{}-nodeport", name),
-            owner,
-            hive,
-            chroot,
-            nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
-        )?,
-    ])
+    let mut discovery_configmaps = vec![build_discovery_configmap(
+        &name,
+        owner,
+        hive,
+        chroot,
+        pod_hosts(hive)?,
+    )?];
+
+    // TODO: Temporary solution until listener-operator is finished
+    if let Some(ServiceSpec {
+        type_: Some(service_type),
+        ..
+    }) = svc.spec.as_ref()
+    {
+        if service_type == &ServiceType::NodePort.to_string() {
+            discovery_configmaps.push(build_discovery_configmap(
+                &format!("{}-nodeport", name),
+                owner,
+                hive,
+                chroot,
+                nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
+            )?);
+        }
+    }
+
+    Ok(discovery_configmaps)
 }
 
 /// Build a discovery [`ConfigMap`] containing information about how to connect to a certain [`HiveCluster`]
