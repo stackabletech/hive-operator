@@ -26,9 +26,9 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.3.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.4.0-nightly
 helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait hive-operator stackable-dev/hive-operator --version 0.7.0-nightly
+helm install --wait hive-operator stackable-dev/hive-operator --version 0.8.0-nightly
 # end::helm-install-operators[]
 
 echo "Install minio for S3"
@@ -62,9 +62,9 @@ helm install postgresql \
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.3.0-nightly \
+  commons=0.4.0-nightly \
   secret=0.6.0-nightly \
-  hive=0.7.0-nightly
+  hive=0.8.0-nightly
 # end::stackablectl-install-operators[]
 
 echo "installing MinIO and PostgreSQL with stackablectl"
