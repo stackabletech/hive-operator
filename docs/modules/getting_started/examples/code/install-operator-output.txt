@@ -1,5 +1,5 @@
 # tag::stackablectl-install-operators-output[]
-[INFO ] Installing commons operator in version 0.3.0-nightly
-[INFO ] Installing secret operator in version 0.6.0-nightly
-[INFO ] Installing hive operator in version 0.7.0-nightly
+[INFO ] Installing commons operator in version 0.3.0
+[INFO ] Installing secret operator in version 0.5.0
+[INFO ] Installing hive operator in version 0.7.0
 # end::stackablectl-install-operators-output[]
