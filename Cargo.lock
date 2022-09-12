@@ -1692,6 +1692,7 @@ dependencies = [
  "snafu",
  "stackable-operator",
  "strum",
+ "tracing",
 ]
 
 [[package]]

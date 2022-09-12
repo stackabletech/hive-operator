@@ -1,12 +1,16 @@
 use indoc::formatdoc;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
-use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
-    commons::s3::S3ConnectionDef,
+    commons::{
+        resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources},
+        s3::S3ConnectionDef,
+    },
+    config::merge::Merge,
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
-    role_utils::Role,
+    role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 use std::collections::BTreeMap;
@@ -29,6 +33,9 @@ pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const CERTS_DIR: &str = "/stackable/certificates/";
+// heap
+pub const HIVE_METASTORE_HEAPSIZE: &str = "HIVE_METASTORE_HEAPSIZE";
+pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -95,12 +102,20 @@ impl HiveRole {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HiveStorageConfig {
+    #[serde(default)]
+    pub data: PvcConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
     pub warehouse_dir: Option<String>,
     #[serde(default)]
     pub database: DatabaseConnectionSpec,
+    pub resources: Option<Resources<HiveStorageConfig, NoRuntimeLimits>>,
 }
 
 impl MetaStoreConfig {
@@ -118,6 +133,26 @@ impl MetaStoreConfig {
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
+
+    fn default_resources() -> Resources<HiveStorageConfig, NoRuntimeLimits> {
+        Resources {
+            cpu: CpuLimits {
+                min: Some(Quantity("200m".to_owned())),
+                max: Some(Quantity("4".to_owned())),
+            },
+            memory: MemoryLimits {
+                limit: Some(Quantity("2Gi".to_owned())),
+                runtime_limits: NoRuntimeLimits {},
+            },
+            storage: HiveStorageConfig {
+                data: PvcConfig {
+                    capacity: Some(Quantity("2Gi".to_owned())),
+                    storage_class: None,
+                    selectors: None,
+                },
+            },
+        }
+    }
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -315,6 +350,42 @@ impl HiveCluster {
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                 })
             }))
+    }
+
+    /// Retrieve and merge resource configs for role and role groups
+    pub fn resolve_resource_config_for_role_and_rolegroup(
+        &self,
+        role: &HiveRole,
+        rolegroup_ref: &RoleGroupRef<HiveCluster>,
+    ) -> Option<Resources<HiveStorageConfig, NoRuntimeLimits>> {
+        // Initialize the result with all default values as baseline
+        let conf_defaults = MetaStoreConfig::default_resources();
+
+        let role = match role {
+            HiveRole::MetaStore => self.spec.metastore.as_ref()?,
+        };
+
+        // Retrieve role resource config
+        let mut conf_role: Resources<HiveStorageConfig, NoRuntimeLimits> =
+            role.config.config.resources.clone().unwrap_or_default();
+
+        // Retrieve rolegroup specific resource config
+        let mut conf_rolegroup: Resources<HiveStorageConfig, NoRuntimeLimits> = role
+            .role_groups
+            .get(&rolegroup_ref.role_group)
+            .and_then(|rg| rg.config.config.resources.clone())
+            .unwrap_or_default();
+
+        // Merge more specific configs into default config
+        // Hierarchy is:
+        // 1. RoleGroup
+        // 2. Role
+        // 3. Default
+        conf_role.merge(&conf_defaults);
+        conf_rolegroup.merge(&conf_role);
+
+        tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
+        Some(conf_rolegroup)
     }
 }
 
