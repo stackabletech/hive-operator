@@ -1,0 +1,7 @@
+---
+#apiVersion: kuttl.dev/v1beta1
+#kind: TestAssert
+#timeout: 600
+#commands:
+#  - script: kubectl get cm -n $NAMESPACE hive-metastore-resources-from-role -o yaml | grep -- '-Xmx1638m' | xargs test ! -z
+#  - script: kubectl get cm -n $NAMESPACE hive-metastore-resources-from-role-group -o yaml | grep -- '-Xmx1638m' | xargs test ! -z
