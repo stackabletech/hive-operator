@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-# Added
+### Added
 
 - PVCs for data storage, cpu and memory limits are now configurable ([#241]).
 
