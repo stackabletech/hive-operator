@@ -1,17 +1,14 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-use crate::command;
+use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
 use crate::discovery;
-
-use crate::command::{build_container_command_args, S3_SECRET_DIR};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterStatus, HiveRole, HiveStorageConfig, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, HIVE_METASTORE_HEAPSIZE, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR,
-    LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+    CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
     STACKABLE_RW_CONFIG_DIR,
 };
-use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -35,6 +32,7 @@ use stackable_operator::{
     kube::{runtime::controller::Action, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
+    memory::{to_java_heap_value, BinaryMultiple},
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::RoleGroupRef,
@@ -178,6 +176,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
                         PropertyNameKind::Env,
                         PropertyNameKind::Cli,
                         PropertyNameKind::File(HIVE_SITE_XML.to_string()),
+                        PropertyNameKind::File(HIVE_ENV_SH.to_string()),
                     ],
                     hive.spec.metastore.clone().context(NoMetaStoreRoleSnafu)?,
                 ),
@@ -219,6 +218,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
+            &resources,
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
@@ -316,12 +316,31 @@ fn build_metastore_rolegroup_config_map(
     rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
+    resources: &Resources<HiveStorageConfig, NoRuntimeLimits>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
+    let mut hive_env_data = String::new();
     let log4j_data = include_str!("../../../deploy/external/log4j.properties");
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
+            PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
+                // heap in mebi
+                let heap_in_mebi = to_java_heap_value(
+                    resources
+                        .memory
+                        .limit
+                        .as_ref()
+                        .context(InvalidJavaHeapConfigSnafu)?,
+                    JVM_HEAP_FACTOR,
+                    BinaryMultiple::Mebi,
+                )
+                .context(FailedToConvertJavaHeapSnafu {
+                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+                })?;
+
+                hive_env_data = format!("export {HADOOP_HEAPSIZE}={heap_in_mebi}");
+            }
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
 
@@ -395,6 +414,7 @@ fn build_metastore_rolegroup_config_map(
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
+        .add_data(HIVE_ENV_SH, hive_env_data)
         .add_data(LOG_4J_PROPERTIES, log4j_data)
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
@@ -454,22 +474,6 @@ fn build_metastore_rolegroup_statefulset(
     let mut db_type: Option<DbType> = None;
     let mut container_builder = ContainerBuilder::new(APP_NAME);
     let mut pod_builder = PodBuilder::new();
-
-    // set heap
-    let heap_in_mebi = to_java_heap_value(
-        resources
-            .memory
-            .limit
-            .as_ref()
-            .context(InvalidJavaHeapConfigSnafu)?,
-        JVM_HEAP_FACTOR,
-        BinaryMultiple::Mebi,
-    )
-    .context(FailedToConvertJavaHeapSnafu {
-        unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-    })?;
-
-    container_builder.add_env_var(HIVE_METASTORE_HEAPSIZE, format!("{}", heap_in_mebi));
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {

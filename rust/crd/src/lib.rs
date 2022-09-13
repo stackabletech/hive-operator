@@ -21,6 +21,7 @@ pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
 pub const STACKABLE_RW_CONFIG_DIR: &str = "/stackable/rwconfig";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
+pub const HIVE_ENV_SH: &str = "hive-env.sh";
 pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
 // default ports
 pub const HIVE_PORT_NAME: &str = "hive";
@@ -33,8 +34,10 @@ pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const CERTS_DIR: &str = "/stackable/certificates/";
+// metastore opts
+pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
 // heap
-pub const HIVE_METASTORE_HEAPSIZE: &str = "HIVE_METASTORE_HEAPSIZE";
+pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -232,7 +235,7 @@ impl Configuration for MetaStoreConfig {
         let mut result = BTreeMap::new();
 
         result.insert(
-            "HIVE_METASTORE_HADOOP_OPTS".to_string(),
+            HIVE_METASTORE_HADOOP_OPTS.to_string(),
             Some(formatdoc! {"
                     -javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
                     -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
