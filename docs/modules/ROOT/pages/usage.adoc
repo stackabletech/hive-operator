@@ -138,14 +138,14 @@ Similarly to memory resources, you can also configure CPU limits, as shown below
 
 [source,yaml]
 ----
-workers:
+metastore:
   roleGroups:
     default:
       config:
         resources:
           cpu:
-            max: '500m'
             min: '250m'
+            max: '500m'
 ----
 
 === Defaults
@@ -154,7 +154,7 @@ If nothing is specified, the operator will automatically set the following defau
 
 [source,yaml]
 ----
-workers:
+metastore:
   roleGroups:
     default:
       config:
