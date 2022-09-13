@@ -14,11 +14,11 @@ spec:
         - name: hive
           resources:
             requests:
-              cpu: 100m
-              memory: 1Gi
+              cpu: 400m
+              memory: 4Gi
             limits:
-              cpu: 200m
-              memory: 1Gi
+              cpu: "4"
+              memory: 4Gi
 status:
   readyReplicas: 1
   replicas: 1
@@ -32,12 +32,12 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 4Gi
 status:
   accessModes:
     - ReadWriteOnce
   capacity:
-    storage: 1Gi
+    storage: 4Gi
   phase: Bound
 ---
 apiVersion: apps/v1
@@ -54,7 +54,7 @@ spec:
               cpu: 300m
               memory: 3Gi
             limits:
-              cpu: 600m
+              cpu: "3"
               memory: 3Gi
 status:
   readyReplicas: 1

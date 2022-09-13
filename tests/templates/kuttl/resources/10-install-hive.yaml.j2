@@ -10,12 +10,12 @@ spec:
       resources:
         storage:
           data:
-            capacity: 1Gi
+            capacity: 4Gi
         cpu:
-          min: 100m
-          max: 200m
+          min: 400m
+          max: "4"
         memory:
-          limit: 1Gi
+          limit: 4Gi
     roleGroups:
       resources-from-role:
         replicas: 1
@@ -39,6 +39,6 @@ spec:
                 capacity: 3Gi
             cpu:
               min: 300m
-              max: 600m
+              max: "3"
             memory:
               limit: 3Gi
