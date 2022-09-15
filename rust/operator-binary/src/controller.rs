@@ -1,14 +1,13 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-use crate::command;
+use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
 use crate::discovery;
-
-use crate::command::{build_container_command_args, S3_SECRET_DIR};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CERTS_DIR,
-    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
-    STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, HiveStorageConfig, MetaStoreConfig, APP_NAME,
+    CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+    STACKABLE_RW_CONFIG_DIR,
 };
 use stackable_operator::{
     builder::{
@@ -16,6 +15,7 @@ use stackable_operator::{
         PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     commons::{
+        resources::{NoRuntimeLimits, Resources},
         s3::{S3AccessStyle, S3ConnectionSpec},
         tls::{CaCert, TlsVerification},
     },
@@ -23,18 +23,16 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, PersistentVolumeClaim, PersistentVolumeClaimSpec,
-                Probe, ResourceRequirements, Service, ServicePort, ServiceSpec, TCPSocketAction,
-                Volume,
+                ConfigMap, ConfigMapVolumeSource, Probe, Service, ServicePort, ServiceSpec,
+                TCPSocketAction, Volume,
             },
         },
-        apimachinery::pkg::{
-            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
-        },
+        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{api::ObjectMeta, runtime::controller::Action, ResourceExt},
+    kube::{runtime::controller::Action, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
+    memory::{to_java_heap_value, BinaryMultiple},
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::RoleGroupRef,
@@ -134,6 +132,15 @@ pub enum Error {
         "Hive does not support skipping the verification of the tls enabled S3 server"
     ))]
     S3TlsNoVerificationNotSupported,
+    #[snafu(display("failed to resolve and merge resource config for role and role group"))]
+    FailedToResolveResourceConfig,
+    #[snafu(display("invalid java heap config - missing default or value in crd?"))]
+    InvalidJavaHeapConfig,
+    #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
+    FailedToConvertJavaHeap {
+        source: stackable_operator::error::Error,
+        unit: String,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -169,6 +176,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
                         PropertyNameKind::Env,
                         PropertyNameKind::Cli,
                         PropertyNameKind::File(HIVE_SITE_XML.to_string()),
+                        PropertyNameKind::File(HIVE_ENV_SH.to_string()),
                     ],
                     hive.spec.metastore.clone().context(NoMetaStoreRoleSnafu)?,
                 ),
@@ -200,18 +208,24 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
+        let resources = hive
+            .resolve_resource_config_for_role_and_rolegroup(&HiveRole::MetaStore, &rolegroup)
+            .context(FailedToResolveResourceConfigSnafu)?;
+
         let rg_service = build_rolegroup_service(&hive, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             &hive,
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
+            &resources,
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
+            &resources,
         )?;
 
         client
@@ -302,12 +316,31 @@ fn build_metastore_rolegroup_config_map(
     rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
+    resources: &Resources<HiveStorageConfig, NoRuntimeLimits>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
+    let mut hive_env_data = String::new();
     let log4j_data = include_str!("../../../deploy/external/log4j.properties");
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
+            PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
+                // heap in mebi
+                let heap_in_mebi = to_java_heap_value(
+                    resources
+                        .memory
+                        .limit
+                        .as_ref()
+                        .context(InvalidJavaHeapConfigSnafu)?,
+                    JVM_HEAP_FACTOR,
+                    BinaryMultiple::Mebi,
+                )
+                .context(FailedToConvertJavaHeapSnafu {
+                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+                })?;
+
+                hive_env_data = format!("export {HADOOP_HEAPSIZE}={heap_in_mebi}");
+            }
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
 
@@ -381,6 +414,7 @@ fn build_metastore_rolegroup_config_map(
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
+        .add_data(HIVE_ENV_SH, hive_env_data)
         .add_data(LOG_4J_PROPERTIES, log4j_data)
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
@@ -435,6 +469,7 @@ fn build_metastore_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
+    resources: &Resources<HiveStorageConfig, NoRuntimeLimits>,
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
     let mut container_builder = ContainerBuilder::new(APP_NAME);
@@ -528,6 +563,7 @@ fn build_metastore_rolegroup_statefulset(
         .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
+        .resources(resources.clone().into())
         .readiness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
@@ -606,25 +642,10 @@ fn build_metastore_rolegroup_statefulset(
                 )
                 .security_context(PodSecurityContextBuilder::new().fs_group(1000).build())
                 .build_template(),
-            volume_claim_templates: Some(vec![PersistentVolumeClaim {
-                metadata: ObjectMeta {
-                    name: Some("data".to_string()),
-                    ..ObjectMeta::default()
-                },
-                spec: Some(PersistentVolumeClaimSpec {
-                    access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-                    resources: Some(ResourceRequirements {
-                        requests: Some({
-                            let mut map = BTreeMap::new();
-                            map.insert("storage".to_string(), Quantity("1Gi".to_string()));
-                            map
-                        }),
-                        ..ResourceRequirements::default()
-                    }),
-                    ..PersistentVolumeClaimSpec::default()
-                }),
-                ..PersistentVolumeClaim::default()
-            }]),
+            volume_claim_templates: Some(vec![resources
+                .storage
+                .data
+                .build_pvc("data", Some(vec!["ReadWriteOnce"]))]),
             ..StatefulSetSpec::default()
         }),
         status: None,

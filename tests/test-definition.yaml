@@ -17,3 +17,6 @@ tests:
       - postgres
       - hive
       - s3-use-tls
+  - name: resources
+    dimensions:
+      - hive

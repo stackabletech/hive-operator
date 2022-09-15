@@ -4,13 +4,10 @@ kind: HiveCluster
 metadata:
   name: simple-hive-derby
 spec:
-  version: 3.1.3-stackable0.1.0
+  version: 2.3.9-stackable0.5.0
   metastore:
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
         config:
           database:
@@ -18,3 +15,12 @@ spec:
             user: APP
             password: mine
             dbType: derby
+          resources:
+            storage:
+              data:
+                capacity: 5Gi
+            cpu:
+              min: 300m
+              max: "2"
+            memory:
+              limit: 5Gi

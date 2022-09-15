@@ -1,0 +1,44 @@
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  version: {{ test_scenario['values']['hive'] }}
+  metastore:
+    config:
+      resources:
+        storage:
+          data:
+            capacity: 4Gi
+        cpu:
+          min: 400m
+          max: "4"
+        memory:
+          limit: 4Gi
+    roleGroups:
+      resources-from-role:
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
+            user: APP
+            password: mine
+            dbType: derby
+      resources-from-role-group:
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
+            user: APP
+            password: mine
+            dbType: derby
+          resources:
+            storage:
+              data:
+                capacity: 3Gi
+            cpu:
+              min: 300m
+              max: "3"
+            memory:
+              limit: 3Gi

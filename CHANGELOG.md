@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- PVCs for data storage, cpu and memory limits are now configurable ([#242]).
+
+[#242]: https://github.com/stackabletech/hive-operator/pull/242
+
 ## [0.7.0] - 2022-09-06
 
 ### Added
