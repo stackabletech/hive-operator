@@ -7,5 +7,5 @@ This is a Kubernetes Operator to manage [Apache Hive](https://hive.apache.org/).
 
 It is written by [Stackable](https://www.stackable.tech) in Rust.
 
-The documentation for this operator can be found at https://docs.stackable.tech/hive/index.html.
+The documentation for this operator can be found at https://docs.stackable.tech/hive/stable/index.html.
 The documentation for all Stackable products can be found at https://docs.stackable.tech.
