@@ -1,11 +1,14 @@
 use crate::controller::hive_version;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, APP_NAME, HIVE_PORT, HIVE_PORT_NAME};
-use stackable_operator::k8s_openapi::api::core::v1::{Endpoints, Service, ServiceSpec};
+use stackable_hive_crd::{
+    HiveCluster, HiveRole, ServiceType, APP_NAME, HIVE_PORT, HIVE_PORT_NAME,
+    RESOURCE_MANAGER_HIVE_CONTROLLER,
+};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
+    k8s_openapi::api::core::v1::{Endpoints, Service, ServiceSpec},
     kube::{runtime::reflector::ObjectRef, Resource, ResourceExt},
 };
 use std::collections::BTreeSet;
@@ -58,7 +61,7 @@ pub async fn build_discovery_configmaps(
     svc: &Service,
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
-    let name = owner.name();
+    let name = owner.name_any();
     let mut discovery_configmaps = vec![build_discovery_configmap(
         &name,
         owner,
@@ -121,6 +124,7 @@ fn build_discovery_configmap(
                     hive,
                     APP_NAME,
                     hive_version(hive).unwrap(),
+                    RESOURCE_MANAGER_HIVE_CONTROLLER,
                     &HiveRole::MetaStore.to_string(),
                     "discovery",
                 )

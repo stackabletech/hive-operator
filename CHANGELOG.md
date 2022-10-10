@@ -7,8 +7,14 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - PVCs for data storage, cpu and memory limits are now configurable ([#242]).
+- Orphaned resources are deleted ([#xxx])
+
+### Changed
+
+- `operator-rs` `0.22.0` -> `0.25.2` ([#xxx])
 
 [#242]: https://github.com/stackabletech/hive-operator/pull/242
+[#249]: https://github.com/stackabletech/hive-operator/pull/xxx
 
 ## [0.7.0] - 2022-09-06
 

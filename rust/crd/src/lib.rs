@@ -17,6 +17,8 @@ use std::collections::BTreeMap;
 use strum::{Display, EnumString};
 
 pub const APP_NAME: &str = "hive";
+pub const RESOURCE_MANAGER_HIVE_CONTROLLER: &str = "hive-operator-hive-controller";
+
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
 pub const STACKABLE_RW_CONFIG_DIR: &str = "/stackable/rwconfig";
 // config file names

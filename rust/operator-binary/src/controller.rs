@@ -6,14 +6,16 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterStatus, HiveRole, HiveStorageConfig, MetaStoreConfig, APP_NAME,
     CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
-    STACKABLE_RW_CONFIG_DIR,
+    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
+    RESOURCE_MANAGER_HIVE_CONTROLLER, STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
+use stackable_operator::kube::Resource;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
         PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
+    cluster_resources::ClusterResources,
     commons::{
         resources::{NoRuntimeLimits, Resources},
         s3::{S3AccessStyle, S3ConnectionSpec},
@@ -141,6 +143,19 @@ pub enum Error {
         source: stackable_operator::error::Error,
         unit: String,
     },
+    #[snafu(display("failed to create hive container [{name}]"))]
+    FailedToCreateHiveContainer {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("failed to create cluster resources"))]
+    CreateClusterResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to delete orphaned resources"))]
+    DeleteOrphanedResources {
+        source: stackable_operator::error::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -195,13 +210,18 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
+    let mut cluster_resources = ClusterResources::new(
+        APP_NAME,
+        RESOURCE_MANAGER_HIVE_CONTROLLER,
+        &hive.object_ref(&()),
+    )
+    .context(CreateClusterResourcesSnafu)?;
+
     let metastore_role_service = build_metastore_role_service(&hive)?;
-    let metastore_role_service = client
-        .apply_patch(
-            FIELD_MANAGER_SCOPE,
-            &metastore_role_service,
-            &metastore_role_service,
-        )
+
+    // we have to get the assigned ports
+    let metastore_role_service = cluster_resources
+        .add(client, &metastore_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -228,22 +248,24 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             &resources,
         )?;
 
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
+        cluster_resources
+            .add(client, &rg_service)
             .await
-            .with_context(|_| ApplyRoleGroupServiceSnafu {
+            .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+
+        cluster_resources
+            .add(client, &rg_configmap)
             .await
-            .with_context(|_| ApplyRoleGroupConfigSnafu {
+            .context(ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
+
+        cluster_resources
+            .add(client, &rg_statefulset)
             .await
-            .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+            .context(ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
     }
@@ -256,10 +278,11 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             .await
             .context(BuildDiscoveryConfigSnafu)?
     {
-        let discovery_cm = client
-            .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        let discovery_cm = cluster_resources
+            .add(client, &discovery_cm)
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
+
         if let Some(generation) = discovery_cm.metadata.resource_version {
             discovery_hash.write(generation.as_bytes())
         }
@@ -270,10 +293,16 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         // and to keep things flexible if we end up changing the hasher at some point.
         discovery_hash: Some(discovery_hash.finish().to_string()),
     };
+
     client
         .apply_patch_status(FIELD_MANAGER_SCOPE, &*hive, &status)
         .await
         .context(ApplyStatusSnafu)?;
+
+    cluster_resources
+        .delete_orphaned_resources(client)
+        .await
+        .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
 }
@@ -292,7 +321,14 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
             .name(&role_svc_name)
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(hive, APP_NAME, hive_version(hive)?, &role_name, "global")
+            .with_recommended_labels(
+                hive,
+                APP_NAME,
+                hive_version(hive)?,
+                RESOURCE_MANAGER_HIVE_CONTROLLER,
+                &role_name,
+                "global",
+            )
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(service_ports()),
@@ -408,6 +444,7 @@ fn build_metastore_rolegroup_config_map(
                     hive,
                     APP_NAME,
                     hive_version(hive)?,
+                    RESOURCE_MANAGER_HIVE_CONTROLLER,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -439,6 +476,7 @@ fn build_rolegroup_service(
                 hive,
                 APP_NAME,
                 hive_version(hive)?,
+                RESOURCE_MANAGER_HIVE_CONTROLLER,
                 &rolegroup.role,
                 &rolegroup.role_group,
             )
@@ -472,7 +510,10 @@ fn build_metastore_rolegroup_statefulset(
     resources: &Resources<HiveStorageConfig, NoRuntimeLimits>,
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
-    let mut container_builder = ContainerBuilder::new(APP_NAME);
+    let mut container_builder =
+        ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
+            name: APP_NAME.to_string(),
+        })?;
     let mut pod_builder = PodBuilder::new();
 
     for (property_name_kind, config) in metastore_config {
@@ -595,6 +636,7 @@ fn build_metastore_rolegroup_statefulset(
                 hive,
                 APP_NAME,
                 hive_version,
+                RESOURCE_MANAGER_HIVE_CONTROLLER,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -622,6 +664,7 @@ fn build_metastore_rolegroup_statefulset(
                         hive,
                         APP_NAME,
                         hive_version,
+                        RESOURCE_MANAGER_HIVE_CONTROLLER,
                         &rolegroup_ref.role,
                         &rolegroup_ref.role_group,
                     )
