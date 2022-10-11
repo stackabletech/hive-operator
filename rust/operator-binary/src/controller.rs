@@ -51,6 +51,7 @@ use strum::EnumDiscriminants;
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
+const HIVE_CONTROLLER: &str = "hive-controller";
 const RESOURCE_MANAGER_HIVE_CONTROLLER: &str = "hive-operator-hive-controller";
 
 pub struct Ctx {
@@ -278,7 +279,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         client,
         &*hive,
         &*hive,
-        RESOURCE_MANAGER_HIVE_CONTROLLER,
+        HIVE_CONTROLLER,
         &metastore_role_service,
         None,
     )
