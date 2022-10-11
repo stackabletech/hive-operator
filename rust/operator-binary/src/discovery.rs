@@ -67,7 +67,7 @@ pub async fn build_discovery_configmaps(
         .as_ref()
         .context(InvalidOwnerNameForDiscoveryConfigMapSnafu)?;
     let mut discovery_configmaps = vec![build_discovery_configmap(
-        &name,
+        name,
         owner,
         hive,
         controller,
