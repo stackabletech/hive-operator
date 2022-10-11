@@ -11,8 +11,9 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::{api::ListParams, runtime::Controller, CustomResourceExt},
+    kube::{api::ListParams, runtime::Controller},
     logging::controller::report_controller_reconciled,
+    CustomResourceExt,
 };
 use std::sync::Arc;
 
@@ -31,7 +32,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => println!("{}", serde_yaml::to_string(&HiveCluster::crd())?,),
+        Command::Crd => HiveCluster::print_yaml_schema()?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,

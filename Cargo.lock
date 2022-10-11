@@ -1712,7 +1712,6 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "serde_yaml 0.8.26",
  "snafu",
  "stackable-hive-crd",
  "stackable-operator",

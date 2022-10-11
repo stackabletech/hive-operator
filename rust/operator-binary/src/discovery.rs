@@ -1,15 +1,12 @@
 use crate::controller::hive_version;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{
-    HiveCluster, HiveRole, ServiceType, APP_NAME, HIVE_PORT, HIVE_PORT_NAME,
-    RESOURCE_MANAGER_HIVE_CONTROLLER,
-};
+use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, APP_NAME, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     k8s_openapi::api::core::v1::{Endpoints, Service, ServiceSpec},
-    kube::{runtime::reflector::ObjectRef, Resource, ResourceExt},
+    kube::{runtime::reflector::ObjectRef, Resource},
 };
 use std::collections::BTreeSet;
 use std::num::TryFromIntError;
@@ -51,6 +48,8 @@ pub enum Error {
     },
     #[snafu(display("nodePort was out of range"))]
     InvalidNodePort { source: TryFromIntError },
+    #[snafu(display("invalid owner name for discovery ConfigMap"))]
+    InvalidOwnerNameForDiscoveryConfigMap,
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`HiveCluster`] for all expected scenarios
@@ -58,14 +57,20 @@ pub async fn build_discovery_configmaps(
     client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
+    controller: &str,
     svc: &Service,
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
-    let name = owner.name_any();
+    let name = owner
+        .meta()
+        .name
+        .as_ref()
+        .context(InvalidOwnerNameForDiscoveryConfigMapSnafu)?;
     let mut discovery_configmaps = vec![build_discovery_configmap(
         &name,
         owner,
         hive,
+        controller,
         chroot,
         pod_hosts(hive)?,
     )?];
@@ -81,6 +86,7 @@ pub async fn build_discovery_configmaps(
                 &format!("{}-nodeport", name),
                 owner,
                 hive,
+                controller,
                 chroot,
                 nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
             )?);
@@ -97,6 +103,7 @@ fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
+    controller: &str,
     chroot: Option<&str>,
     hosts: impl IntoIterator<Item = (impl Into<String>, u16)>,
 ) -> Result<ConfigMap, Error> {
@@ -124,7 +131,7 @@ fn build_discovery_configmap(
                     hive,
                     APP_NAME,
                     hive_version(hive).unwrap(),
-                    RESOURCE_MANAGER_HIVE_CONTROLLER,
+                    controller,
                     &HiveRole::MetaStore.to_string(),
                     "discovery",
                 )

@@ -6,8 +6,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     DbType, HiveCluster, HiveClusterStatus, HiveRole, HiveStorageConfig, MetaStoreConfig, APP_NAME,
     CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME,
-    RESOURCE_MANAGER_HIVE_CONTROLLER, STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
+    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+    STACKABLE_RW_CONFIG_DIR,
 };
 use stackable_operator::kube::Resource;
 use stackable_operator::{
@@ -51,6 +51,7 @@ use strum::EnumDiscriminants;
 use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "hivecluster";
+const RESOURCE_MANAGER_HIVE_CONTROLLER: &str = "hive-operator-hive-controller";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -273,16 +274,21 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in
-        discovery::build_discovery_configmaps(client, &*hive, &*hive, &metastore_role_service, None)
-            .await
-            .context(BuildDiscoveryConfigSnafu)?
+    for discovery_cm in discovery::build_discovery_configmaps(
+        client,
+        &*hive,
+        &*hive,
+        RESOURCE_MANAGER_HIVE_CONTROLLER,
+        &metastore_role_service,
+        None,
+    )
+    .await
+    .context(BuildDiscoveryConfigSnafu)?
     {
-        let discovery_cm = cluster_resources
-            .add(client, &discovery_cm)
+        let discovery_cm = client
+            .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
-
         if let Some(generation) = discovery_cm.metadata.resource_version {
             discovery_hash.write(generation.as_bytes())
         }
