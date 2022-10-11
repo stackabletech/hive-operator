@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - `operator-rs` `0.22.0` -> `0.25.2` ([#254])
 
 [#242]: https://github.com/stackabletech/hive-operator/pull/242
-[#249]: https://github.com/stackabletech/hive-operator/pull/254
+[#254]: https://github.com/stackabletech/hive-operator/pull/254
 
 ## [0.7.0] - 2022-09-06
 
