@@ -1,0 +1,17 @@
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: test-hive
+spec:
+  metastore:
+    roleGroups:
+      default: null
+      newrolegroup:
+        replicas: 1
+        config:
+          database:
+            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
+            user: APP
+            password: mine
+            dbType: derby

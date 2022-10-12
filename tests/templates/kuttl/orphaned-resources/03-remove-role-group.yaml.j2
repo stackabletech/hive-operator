@@ -1,0 +1,10 @@
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: test-hive
+spec:
+  version: {{ test_scenario['values']['hive-latest'] }}
+  metastore:
+    roleGroups:
+      remove: null

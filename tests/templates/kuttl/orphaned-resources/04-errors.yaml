@@ -1,0 +1,20 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-hive-metastore-default
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-hive-metastore-default-0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-hive-metastore-default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-hive-metastore-default
