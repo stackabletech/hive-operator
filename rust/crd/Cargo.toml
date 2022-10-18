@@ -6,6 +6,7 @@ license = "OSL-3.0"
 name = "stackable-hive-crd"
 repository = "https://github.com/stackabletech/hive-operator"
 version = "0.8.0-nightly"
+publish = false
 
 [dependencies]
 indoc = "1.0.7"
