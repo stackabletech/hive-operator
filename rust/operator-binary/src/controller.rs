@@ -554,8 +554,8 @@ fn build_metastore_rolegroup_statefulset(
     if let Some(hdfs) = &hive.spec.hdfs {
         pod_builder.add_volume(
             VolumeBuilder::new("hdfs-site")
-            .with_config_map(&hdfs.config_map)
-            .build(),
+                .with_config_map(&hdfs.config_map)
+                .build(),
         );
         container_builder.add_volume_mounts(vec![VolumeMount {
             name: "hdfs-site".to_string(),
@@ -642,7 +642,7 @@ fn build_metastore_rolegroup_statefulset(
                 mount_path: format!("{STACKABLE_CONFIG_DIR}/log4j.properties"),
                 sub_path: Some("log4j.properties".to_string()),
                 ..VolumeMount::default()
-            }
+            },
         ])
         .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
