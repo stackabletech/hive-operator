@@ -22,6 +22,15 @@ spec:
         properties:
           spec:
             properties:
+              hdfs:
+                nullable: true
+                properties:
+                  configMap:
+                    description: Name of the discovery-configmap providing information about the HDFS cluster
+                    type: string
+                required:
+                - configMap
+                type: object
               metastore:
                 nullable: true
                 properties:

@@ -67,11 +67,20 @@ pub struct HiveClusterSpec {
     pub metastore: Option<Role<MetaStoreConfig>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3ConnectionDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hdfs: Option<HdfsConnection>,
     /// Specify the type of the created kubernetes service.
     /// This attribute will be removed in a future release when listener-operator is finished.
     /// Use with caution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_type: Option<ServiceType>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HdfsConnection {
+    /// Name of the discovery-configmap providing information about the HDFS cluster
+    pub config_map: String,
 }
 
 #[derive(strum::Display)]
