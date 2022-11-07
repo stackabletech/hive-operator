@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2022-11-07
+
 ### Added
 
 - PVCs for data storage, cpu and memory limits are now configurable ([#242]).
