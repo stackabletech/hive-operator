@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hive-crd"
-version = "0.8.0-nightly"
+version = "0.8.0"
 dependencies = [
  "indoc",
  "serde",
@@ -1701,7 +1701,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hive-operator"
-version = "0.8.0-nightly"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "built",
