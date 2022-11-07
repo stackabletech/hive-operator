@@ -9,6 +9,7 @@ use stackable_hive_crd::{
     JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
     STACKABLE_RW_CONFIG_DIR,
 };
+use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
 use stackable_operator::kube::Resource;
 use stackable_operator::{
     builder::{
@@ -550,6 +551,20 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    if let Some(hdfs) = &hive.spec.hdfs {
+        pod_builder.add_volume(
+            VolumeBuilder::new("hdfs-site")
+                .with_config_map(&hdfs.config_map)
+                .build(),
+        );
+        container_builder.add_volume_mounts(vec![VolumeMount {
+            name: "hdfs-site".to_string(),
+            mount_path: format!("{STACKABLE_CONFIG_DIR}/hdfs-site.xml"),
+            sub_path: Some("hdfs-site.xml".to_string()),
+            ..VolumeMount::default()
+        }]);
+    }
+
     if let Some(s3_conn) = s3_connection {
         if let Some(credentials) = &s3_conn.credentials {
             pod_builder.add_volume(credentials.to_volume("s3-credentials"));
@@ -607,7 +622,28 @@ fn build_metastore_rolegroup_statefulset(
                 .join(" "),
             s3_connection,
         ))
-        .add_volume_mount("config", STACKABLE_CONFIG_DIR)
+        .add_volume_mounts(vec![
+            // We have to mount every config file individually, so that we can add additional config files
+            // such as hdfs-site.xml as well
+            VolumeMount {
+                name: "config".to_string(),
+                mount_path: format!("{STACKABLE_CONFIG_DIR}/hive-env.sh"),
+                sub_path: Some("hive-env.sh".to_string()),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                name: "config".to_string(),
+                mount_path: format!("{STACKABLE_CONFIG_DIR}/hive-site.xml"),
+                sub_path: Some("hive-site.xml".to_string()),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                name: "config".to_string(),
+                mount_path: format!("{STACKABLE_CONFIG_DIR}/log4j.properties"),
+                sub_path: Some("log4j.properties".to_string()),
+                ..VolumeMount::default()
+            },
+        ])
         .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())

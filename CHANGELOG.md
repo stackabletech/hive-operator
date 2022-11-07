@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - PVCs for data storage, cpu and memory limits are now configurable ([#242]).
 - Orphaned resources are deleted ([#254])
+- Support HDFS connections ([#264])
 
 ### Changed
 
@@ -15,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#242]: https://github.com/stackabletech/hive-operator/pull/242
 [#254]: https://github.com/stackabletech/hive-operator/pull/254
+[#264]: https://github.com/stackabletech/hive-operator/pull/264
 
 ## [0.7.0] - 2022-09-06
 
