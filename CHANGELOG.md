@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated stackable image versions ([#271])
+
+[#271]: https://github.com/stackabletech/hive-operator/pull/271
+
 ## [0.8.0] - 2022-11-07
 
 ### Added
