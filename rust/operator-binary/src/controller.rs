@@ -1,16 +1,18 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
-use crate::discovery;
+use crate::{discovery, OPERATOR_NAME};
+
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, HiveStorageConfig, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, MetastoreStorageConfig,
+    APP_NAME, CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
     JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
     STACKABLE_RW_CONFIG_DIR,
 };
 use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
 use stackable_operator::kube::Resource;
+use stackable_operator::labels::ObjectLabels;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -51,9 +53,7 @@ use std::{
 use strum::EnumDiscriminants;
 use tracing::warn;
 
-const FIELD_MANAGER_SCOPE: &str = "hivecluster";
-const HIVE_CONTROLLER: &str = "hive-controller";
-const RESOURCE_MANAGER_HIVE_CONTROLLER: &str = "hive-operator-hive-controller";
+pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -68,6 +68,8 @@ pub enum Error {
     ObjectHasNoVersion,
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
+    #[snafu(display("crd validation failure"))]
+    CrdValidationFailure { source: stackable_hive_crd::Error },
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
@@ -138,7 +140,7 @@ pub enum Error {
     ))]
     S3TlsNoVerificationNotSupported,
     #[snafu(display("failed to resolve and merge resource config for role and role group"))]
-    FailedToResolveResourceConfig,
+    FailedToResolveResourceConfig { source: stackable_hive_crd::Error },
     #[snafu(display("invalid java heap config - missing default or value in crd?"))]
     InvalidJavaHeapConfig,
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
@@ -175,7 +177,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = &hive.spec.s3 {
         Some(
-            s3.resolve(client, hive.namespace().as_deref())
+            s3.resolve(client, hive.namespace().as_deref().unwrap())
                 .await
                 .context(ResolveS3ConnectionSnafu)?,
         )
@@ -215,7 +217,8 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
-        RESOURCE_MANAGER_HIVE_CONTROLLER,
+        OPERATOR_NAME,
+        HIVE_CONTROLLER_NAME,
         &hive.object_ref(&()),
     )
     .context(CreateClusterResourcesSnafu)?;
@@ -276,19 +279,13 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in discovery::build_discovery_configmaps(
-        client,
-        &*hive,
-        &*hive,
-        HIVE_CONTROLLER,
-        &metastore_role_service,
-        None,
-    )
-    .await
-    .context(BuildDiscoveryConfigSnafu)?
+    for discovery_cm in
+        discovery::build_discovery_configmaps(client, &*hive, &*hive, &metastore_role_service, None)
+            .await
+            .context(BuildDiscoveryConfigSnafu)?
     {
-        let discovery_cm = client
-            .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        let discovery_cm = cluster_resources
+            .add(client, &discovery_cm)
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
         if let Some(generation) = discovery_cm.metadata.resource_version {
@@ -303,7 +300,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     };
 
     client
-        .apply_patch_status(FIELD_MANAGER_SCOPE, &*hive, &status)
+        .apply_patch_status(OPERATOR_NAME, &*hive, &status)
         .await
         .context(ApplyStatusSnafu)?;
 
@@ -329,14 +326,12 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
             .name(&role_svc_name)
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hive,
-                APP_NAME,
-                hive_version(hive)?,
-                RESOURCE_MANAGER_HIVE_CONTROLLER,
+                hive.image_version().context(CrdValidationFailureSnafu)?,
                 &role_name,
                 "global",
-            )
+            ))
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(service_ports()),
@@ -360,7 +355,7 @@ fn build_metastore_rolegroup_config_map(
     rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
-    resources: &Resources<HiveStorageConfig, NoRuntimeLimits>,
+    resources: &Resources<MetastoreStorageConfig, NoRuntimeLimits>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let mut hive_env_data = String::new();
@@ -448,14 +443,12 @@ fn build_metastore_rolegroup_config_map(
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(hive, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     hive,
-                    APP_NAME,
-                    hive_version(hive)?,
-                    RESOURCE_MANAGER_HIVE_CONTROLLER,
+                    hive.image_version().context(CrdValidationFailureSnafu)?,
                     &rolegroup.role,
                     &rolegroup.role_group,
-                )
+                ))
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
@@ -480,14 +473,12 @@ fn build_rolegroup_service(
             .name(&rolegroup.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hive,
-                APP_NAME,
-                hive_version(hive)?,
-                RESOURCE_MANAGER_HIVE_CONTROLLER,
+                hive.image_version().context(CrdValidationFailureSnafu)?,
                 &rolegroup.role,
                 &rolegroup.role_group,
-            )
+            ))
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
@@ -515,7 +506,7 @@ fn build_metastore_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
-    resources: &Resources<HiveStorageConfig, NoRuntimeLimits>,
+    resources: &Resources<MetastoreStorageConfig, NoRuntimeLimits>,
 ) -> Result<StatefulSet> {
     let mut db_type: Option<DbType> = None;
     let mut container_builder =
@@ -605,7 +596,7 @@ fn build_metastore_rolegroup_statefulset(
         .role_groups
         .get(&rolegroup_ref.role_group);
 
-    let hive_version = hive_version(hive)?;
+    let hive_version = hive.image_version().context(CrdValidationFailureSnafu)?;
     let image = format!("docker.stackable.tech/stackable/hive:{}", hive_version);
 
     let container_hive = container_builder
@@ -675,14 +666,12 @@ fn build_metastore_rolegroup_statefulset(
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hive,
-                APP_NAME,
                 hive_version,
-                RESOURCE_MANAGER_HIVE_CONTROLLER,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
@@ -703,14 +692,12 @@ fn build_metastore_rolegroup_statefulset(
             service_name: rolegroup_ref.object_name(),
             template: pod_builder
                 .metadata_builder(|m| {
-                    m.with_recommended_labels(
+                    m.with_recommended_labels(build_recommended_labels(
                         hive,
-                        APP_NAME,
                         hive_version,
-                        RESOURCE_MANAGER_HIVE_CONTROLLER,
                         &rolegroup_ref.role,
                         &rolegroup_ref.role_group,
-                    )
+                    ))
                 })
                 .add_container(container_hive)
                 .add_volume(Volume {
@@ -745,7 +732,7 @@ pub fn hive_version(hive: &HiveCluster) -> Result<&str> {
         .context(ObjectHasNoVersionSnafu)
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<HiveCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -764,4 +751,22 @@ pub fn service_ports() -> Vec<ServicePort> {
             ..ServicePort::default()
         },
     ]
+}
+
+/// Creates recommended `ObjectLabels` to be used in deployed resources
+pub fn build_recommended_labels<'a, T>(
+    owner: &'a T,
+    app_version: &'a str,
+    role: &'a str,
+    role_group: &'a str,
+) -> ObjectLabels<'a, T> {
+    ObjectLabels {
+        owner,
+        app_name: APP_NAME,
+        app_version,
+        operator_name: OPERATOR_NAME,
+        controller_name: HIVE_CONTROLLER_NAME,
+        role,
+        role_group,
+    }
 }

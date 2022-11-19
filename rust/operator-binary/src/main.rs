@@ -2,6 +2,8 @@ mod command;
 mod controller;
 mod discovery;
 
+use crate::controller::HIVE_CONTROLLER_NAME;
+
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_hive_crd::{HiveCluster, APP_NAME};
@@ -20,6 +22,8 @@ use std::sync::Arc;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
+
+const OPERATOR_NAME: &str = "hive.stackable.tech";
 
 #[derive(Parser)]
 #[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
@@ -58,8 +62,7 @@ async fn main() -> anyhow::Result<()> {
             ])?;
 
             let client =
-                stackable_operator::client::create_client(Some("hive.stackable.tech".to_string()))
-                    .await?;
+                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
             Controller::new(
                 watch_namespace.get_api::<HiveCluster>(&client),
@@ -87,7 +90,11 @@ async fn main() -> anyhow::Result<()> {
                 }),
             )
             .map(|res| {
-                report_controller_reconciled(&client, "hiveclusters.hive.stackable.tech", &res);
+                report_controller_reconciled(
+                    &client,
+                    &format!("{HIVE_CONTROLLER_NAME}.{OPERATOR_NAME}"),
+                    &res,
+                );
             })
             .collect::<()>()
             .await;

@@ -1,7 +1,7 @@
-use crate::controller::hive_version;
+use crate::controller::build_recommended_labels;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, APP_NAME, HIVE_PORT, HIVE_PORT_NAME};
+use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -15,6 +15,10 @@ use std::num::TryFromIntError;
 pub enum Error {
     #[snafu(display("object has no name associated"))]
     NoName,
+    #[snafu(display("object has no namespace associated"))]
+    NoNamespace,
+    #[snafu(display("object defines no version"))]
+    ObjectHasNoVersion { source: stackable_hive_crd::Error },
     #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
@@ -57,7 +61,6 @@ pub async fn build_discovery_configmaps(
     client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
-    controller: &str,
     svc: &Service,
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
@@ -70,7 +73,6 @@ pub async fn build_discovery_configmaps(
         name,
         owner,
         hive,
-        controller,
         chroot,
         pod_hosts(hive)?,
     )?];
@@ -86,7 +88,6 @@ pub async fn build_discovery_configmaps(
                 &format!("{}-nodeport", name),
                 owner,
                 hive,
-                controller,
                 chroot,
                 nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
             )?);
@@ -103,7 +104,6 @@ fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
-    controller: &str,
     chroot: Option<&str>,
     hosts: impl IntoIterator<Item = (impl Into<String>, u16)>,
 ) -> Result<ConfigMap, Error> {
@@ -127,14 +127,12 @@ fn build_discovery_configmap(
                 .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     hive: ObjectRef::from_obj(hive),
                 })?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     hive,
-                    APP_NAME,
-                    hive_version(hive).unwrap(),
-                    controller,
+                    hive.image_version().context(ObjectHasNoVersionSnafu)?,
                     &HiveRole::MetaStore.to_string(),
                     "discovery",
-                )
+                ))
                 .build(),
         )
         .add_data("HIVE", conn_str)
@@ -181,7 +179,10 @@ async fn nodeport_hosts(
     let endpoints = client
         .get::<Endpoints>(
             svc.metadata.name.as_deref().context(NoNameSnafu)?,
-            svc.metadata.namespace.as_deref(),
+            svc.metadata
+                .namespace
+                .as_deref()
+                .context(NoNamespaceSnafu)?,
         )
         .await
         .with_context(|_| FindEndpointsSnafu {

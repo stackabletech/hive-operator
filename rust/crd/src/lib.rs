@@ -1,12 +1,15 @@
 use indoc::formatdoc;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
-        resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources},
+        resources::{
+            CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
+            PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
+        },
         s3::S3ConnectionDef,
     },
-    config::merge::Merge,
+    config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
@@ -40,6 +43,16 @@ pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
 // heap
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("object defines no version"))]
+    ObjectHasNoVersion,
+    #[snafu(display("no metastore role configuration provided"))]
+    NoMetaStoreRole,
+    #[snafu(display("fragment validation failure"))]
+    FragmentValidationFailure { source: ValidationError },
+}
 
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,10 +128,22 @@ impl HiveRole {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HiveStorageConfig {
-    #[serde(default)]
+#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
+pub struct MetastoreStorageConfig {
+    #[fragment_attrs(serde(default))]
     pub data: PvcConfig,
 }
 
@@ -128,7 +153,7 @@ pub struct MetaStoreConfig {
     pub warehouse_dir: Option<String>,
     #[serde(default)]
     pub database: DatabaseConnectionSpec,
-    pub resources: Option<Resources<HiveStorageConfig, NoRuntimeLimits>>,
+    pub resources: Option<ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits>>,
 }
 
 impl MetaStoreConfig {
@@ -147,18 +172,18 @@ impl MetaStoreConfig {
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
 
-    fn default_resources() -> Resources<HiveStorageConfig, NoRuntimeLimits> {
-        Resources {
-            cpu: CpuLimits {
+    fn default_resources() -> ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> {
+        ResourcesFragment {
+            cpu: CpuLimitsFragment {
                 min: Some(Quantity("200m".to_owned())),
                 max: Some(Quantity("4".to_owned())),
             },
-            memory: MemoryLimits {
+            memory: MemoryLimitsFragment {
                 limit: Some(Quantity("2Gi".to_owned())),
-                runtime_limits: NoRuntimeLimits {},
+                runtime_limits: NoRuntimeLimitsFragment {},
             },
-            storage: HiveStorageConfig {
-                data: PvcConfig {
+            storage: MetastoreStorageConfigFragment {
+                data: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_owned())),
                     storage_class: None,
                     selectors: None,
@@ -323,6 +348,14 @@ pub struct HiveClusterStatus {
 pub struct NoNamespaceError;
 
 impl HiveCluster {
+    /// The image version provided in the `spec.version` field
+    pub fn image_version(&self) -> Result<&str, Error> {
+        self.spec
+            .version
+            .as_deref()
+            .context(ObjectHasNoVersionSnafu)
+    }
+
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn metastore_role_service_name(&self) -> Option<String> {
         self.metadata.name.clone()
@@ -370,20 +403,20 @@ impl HiveCluster {
         &self,
         role: &HiveRole,
         rolegroup_ref: &RoleGroupRef<HiveCluster>,
-    ) -> Option<Resources<HiveStorageConfig, NoRuntimeLimits>> {
+    ) -> Result<Resources<MetastoreStorageConfig, NoRuntimeLimits>, Error> {
         // Initialize the result with all default values as baseline
         let conf_defaults = MetaStoreConfig::default_resources();
 
         let role = match role {
-            HiveRole::MetaStore => self.spec.metastore.as_ref()?,
+            HiveRole::MetaStore => self.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?,
         };
 
         // Retrieve role resource config
-        let mut conf_role: Resources<HiveStorageConfig, NoRuntimeLimits> =
+        let mut conf_role: ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> =
             role.config.config.resources.clone().unwrap_or_default();
 
         // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup: Resources<HiveStorageConfig, NoRuntimeLimits> = role
+        let mut conf_rolegroup: ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> = role
             .role_groups
             .get(&rolegroup_ref.role_group)
             .and_then(|rg| rg.config.config.resources.clone())
@@ -398,7 +431,7 @@ impl HiveCluster {
         conf_rolegroup.merge(&conf_role);
 
         tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
-        Some(conf_rolegroup)
+        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 }
 
