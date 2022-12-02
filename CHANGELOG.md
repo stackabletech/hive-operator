@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Updated stackable image versions ([#271])
 - `operator-rs` `0.25.2` → `0.27.1` ([#274]).
+- Consolidated security context user, group and fs group ([#277]).
 
 [#271]: https://github.com/stackabletech/hive-operator/pull/271
 [#274]: https://github.com/stackabletech/hive-operator/pull/274
+[#277]: https://github.com/stackabletech/hive-operator/pull/277
 
 ## [0.8.0] - 2022-11-07
 
