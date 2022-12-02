@@ -713,7 +713,13 @@ fn build_metastore_rolegroup_statefulset(
                         .with_empty_dir(Some(""), None)
                         .build(),
                 )
-                .security_context(PodSecurityContextBuilder::new().fs_group(1000).build())
+                .security_context(
+                    PodSecurityContextBuilder::new()
+                        .run_as_user(1000)
+                        .run_as_group(1000)
+                        .fs_group(1000)
+                        .build(),
+                )
                 .build_template(),
             volume_claim_templates: Some(vec![resources
                 .storage
