@@ -18,8 +18,6 @@ pub enum Error {
     NoName,
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion { source: stackable_hive_crd::Error },
     #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
