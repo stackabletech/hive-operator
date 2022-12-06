@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
+        product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
@@ -46,15 +47,13 @@ pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion,
     #[snafu(display("no metastore role configuration provided"))]
     NoMetaStoreRole,
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
 
-#[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[kube(
     group = "hive.stackable.tech",
@@ -74,8 +73,8 @@ pub struct HiveClusterSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
+    /// The Hive metastore image to use
+    pub image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metastore: Option<Role<MetaStoreConfig>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -348,14 +347,6 @@ pub struct HiveClusterStatus {
 pub struct NoNamespaceError;
 
 impl HiveCluster {
-    /// The image version provided in the `spec.version` field
-    pub fn image_version(&self) -> Result<&str, Error> {
-        self.spec
-            .version
-            .as_deref()
-            .context(ObjectHasNoVersionSnafu)
-    }
-
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn metastore_role_service_name(&self) -> Option<String> {
         self.metadata.name.clone()
