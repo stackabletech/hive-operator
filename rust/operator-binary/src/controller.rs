@@ -10,6 +10,7 @@ use stackable_hive_crd::{
     JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
     STACKABLE_RW_CONFIG_DIR,
 };
+use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
 use stackable_operator::kube::Resource;
 use stackable_operator::labels::ObjectLabels;
@@ -54,6 +55,7 @@ use strum::EnumDiscriminants;
 use tracing::warn;
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
+const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -64,12 +66,8 @@ pub struct Ctx {
 #[strum_discriminants(derive(strum::IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion,
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
-    #[snafu(display("crd validation failure"))]
-    CrdValidationFailure { source: stackable_hive_crd::Error },
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
@@ -173,7 +171,8 @@ impl ReconcilerError for Error {
 pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
-    let hive_version = hive_version(&hive)?;
+    let resolved_product_image: ResolvedProductImage =
+        hive.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
 
     let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = &hive.spec.s3 {
         Some(
@@ -186,7 +185,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     };
 
     let validated_config = validate_all_roles_and_groups_config(
-        hive_version,
+        &resolved_product_image.product_version,
         &transform_all_roles_to_config(
             &*hive,
             [(
@@ -223,7 +222,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let metastore_role_service = build_metastore_role_service(&hive)?;
+    let metastore_role_service = build_metastore_role_service(&hive, &resolved_product_image)?;
 
     // we have to get the assigned ports
     let metastore_role_service = cluster_resources
@@ -238,9 +237,10 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             .resolve_resource_config_for_role_and_rolegroup(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
-        let rg_service = build_rolegroup_service(&hive, &rolegroup)?;
+        let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             &hive,
+            &resolved_product_image,
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
@@ -248,6 +248,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
+            &resolved_product_image,
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
@@ -279,10 +280,16 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in
-        discovery::build_discovery_configmaps(client, &*hive, &*hive, &metastore_role_service, None)
-            .await
-            .context(BuildDiscoveryConfigSnafu)?
+    for discovery_cm in discovery::build_discovery_configmaps(
+        client,
+        &*hive,
+        &*hive,
+        &resolved_product_image,
+        &metastore_role_service,
+        None,
+    )
+    .await
+    .context(BuildDiscoveryConfigSnafu)?
     {
         let discovery_cm = cluster_resources
             .add(client, &discovery_cm)
@@ -314,7 +321,10 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
 
 /// The server-role service is the primary endpoint that should be used by clients that do not
 /// perform internal load balancing including targets outside of the cluster.
-pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
+pub fn build_metastore_role_service(
+    hive: &HiveCluster,
+    resolved_product_image: &ResolvedProductImage,
+) -> Result<Service> {
     let role_name = HiveRole::MetaStore.to_string();
 
     let role_svc_name = hive
@@ -328,7 +338,7 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 hive,
-                hive.image_version().context(CrdValidationFailureSnafu)?,
+                &resolved_product_image.app_version_label,
                 &role_name,
                 "global",
             ))
@@ -352,6 +362,7 @@ pub fn build_metastore_role_service(hive: &HiveCluster) -> Result<Service> {
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
 fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
@@ -445,7 +456,7 @@ fn build_metastore_rolegroup_config_map(
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(build_recommended_labels(
                     hive,
-                    hive.image_version().context(CrdValidationFailureSnafu)?,
+                    &resolved_product_image.app_version_label,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 ))
@@ -465,6 +476,7 @@ fn build_metastore_rolegroup_config_map(
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 fn build_rolegroup_service(
     hive: &HiveCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<HiveCluster>,
 ) -> Result<Service> {
     Ok(Service {
@@ -475,7 +487,7 @@ fn build_rolegroup_service(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 hive,
-                hive.image_version().context(CrdValidationFailureSnafu)?,
+                &resolved_product_image.app_version_label,
                 &rolegroup.role,
                 &rolegroup.role_group,
             ))
@@ -503,6 +515,7 @@ fn build_rolegroup_service(
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
 fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
@@ -596,11 +609,8 @@ fn build_metastore_rolegroup_statefulset(
         .role_groups
         .get(&rolegroup_ref.role_group);
 
-    let hive_version = hive.image_version().context(CrdValidationFailureSnafu)?;
-    let image = format!("docker.stackable.tech/stackable/hive:{}", hive_version);
-
     let container_hive = container_builder
-        .image(image)
+        .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
             "-c".to_string(),
@@ -668,7 +678,7 @@ fn build_metastore_rolegroup_statefulset(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 hive,
-                hive_version,
+                &resolved_product_image.app_version_label,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             ))
@@ -694,11 +704,12 @@ fn build_metastore_rolegroup_statefulset(
                 .metadata_builder(|m| {
                     m.with_recommended_labels(build_recommended_labels(
                         hive,
-                        hive_version,
+                        &resolved_product_image.app_version_label,
                         &rolegroup_ref.role,
                         &rolegroup_ref.role_group,
                     ))
                 })
+                .image_pull_secrets_from_product_image(resolved_product_image)
                 .add_container(container_hive)
                 .add_volume(Volume {
                     name: "config".to_string(),
@@ -729,13 +740,6 @@ fn build_metastore_rolegroup_statefulset(
         }),
         status: None,
     })
-}
-
-pub fn hive_version(hive: &HiveCluster) -> Result<&str> {
-    hive.spec
-        .version
-        .as_deref()
-        .context(ObjectHasNoVersionSnafu)
 }
 
 pub fn error_policy(_obj: Arc<HiveCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {

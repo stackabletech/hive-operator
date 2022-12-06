@@ -2,6 +2,7 @@ use crate::controller::build_recommended_labels;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME};
+use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -17,8 +18,6 @@ pub enum Error {
     NoName,
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion { source: stackable_hive_crd::Error },
     #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
@@ -61,6 +60,7 @@ pub async fn build_discovery_configmaps(
     client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
+    resolved_product_image: &ResolvedProductImage,
     svc: &Service,
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
@@ -73,6 +73,7 @@ pub async fn build_discovery_configmaps(
         name,
         owner,
         hive,
+        resolved_product_image,
         chroot,
         pod_hosts(hive)?,
     )?];
@@ -88,6 +89,7 @@ pub async fn build_discovery_configmaps(
                 &format!("{}-nodeport", name),
                 owner,
                 hive,
+                resolved_product_image,
                 chroot,
                 nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
             )?);
@@ -104,6 +106,7 @@ fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
     hive: &HiveCluster,
+    resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
     hosts: impl IntoIterator<Item = (impl Into<String>, u16)>,
 ) -> Result<ConfigMap, Error> {
@@ -129,7 +132,7 @@ fn build_discovery_configmap(
                 })?
                 .with_recommended_labels(build_recommended_labels(
                     hive,
-                    hive.image_version().context(ObjectHasNoVersionSnafu)?,
+                    &resolved_product_image.app_version_label,
                     &HiveRole::MetaStore.to_string(),
                     "discovery",
                 ))
