@@ -6,7 +6,7 @@
 #     --repo https://charts.bitnami.com/bitnami \
 #     --set auth.rootUser=minio-access-key \
 #     --set auth.rootPassword=minio-secret-key
-# helm install hive bitnami/postgresql --version=10 \
+# helm install hive bitnami/postgresql --version=12.1.5 \
 # --set postgresqlUsername=hive \
 # --set postgresqlPassword=hive \
 # --set postgresqlDatabase=hive

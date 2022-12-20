@@ -50,7 +50,7 @@ helm install minio \
 echo "Install postgres for Hive"
 # tag::helm-install-postgres[]
 helm install postgresql \
---version=10 \
+--version=12.1.5 \
 --namespace default \
 --set postgresqlUsername=hive \
 --set postgresqlPassword=hive \

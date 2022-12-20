@@ -285,7 +285,7 @@ If this is the case please either use an older PostgreSQL version or change its 
 This installs PostgreSQL in version 10 to work around the issue mentioned above:
 [source,bash]
 ----
-helm install hive bitnami/postgresql --version=10 \
+helm install hive bitnami/postgresql --version=12.1.5 \
 --set postgresqlUsername=hive \
 --set postgresqlPassword=hive \
 --set postgresqlDatabase=hive
