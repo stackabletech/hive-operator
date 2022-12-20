@@ -7,14 +7,16 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated stackable image versions ([#271])
-- `operator-rs` `0.25.2` → `0.27.1` ([#274]).
+- `operator-rs` `0.25.2` → `0.30.1` ([#274], [#283]).
 - Consolidated security context user, group and fs group ([#277]).
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#280]).
+- Fix role group node selector ([#283]).
 
 [#271]: https://github.com/stackabletech/hive-operator/pull/271
 [#274]: https://github.com/stackabletech/hive-operator/pull/274
 [#277]: https://github.com/stackabletech/hive-operator/pull/277
 [#280]: https://github.com/stackabletech/hive-operator/pull/280
+[#283]: https://github.com/stackabletech/hive-operator/pull/283
 
 ## [0.8.0] - 2022-11-07
 
