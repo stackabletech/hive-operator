@@ -521,12 +521,20 @@ fn build_metastore_rolegroup_statefulset(
     s3_connection: Option<&S3ConnectionSpec>,
     resources: &Resources<MetastoreStorageConfig, NoRuntimeLimits>,
 ) -> Result<StatefulSet> {
+    let rolegroup = hive
+        .spec
+        .metastore
+        .as_ref()
+        .context(NoMetaStoreRoleSnafu)?
+        .role_groups
+        .get(&rolegroup_ref.role_group);
     let mut db_type: Option<DbType> = None;
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
             name: APP_NAME.to_string(),
         })?;
     let mut pod_builder = PodBuilder::new();
+    pod_builder.node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()));
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
@@ -600,14 +608,6 @@ fn build_metastore_rolegroup_statefulset(
             }
         }
     }
-
-    let rolegroup = hive
-        .spec
-        .metastore
-        .as_ref()
-        .context(NoMetaStoreRoleSnafu)?
-        .role_groups
-        .get(&rolegroup_ref.role_group);
 
     let container_hive = container_builder
         .image_from_product_image(resolved_product_image)
