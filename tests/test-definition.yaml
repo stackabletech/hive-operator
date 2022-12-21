@@ -2,7 +2,7 @@
 dimensions:
   - name: postgres
     values:
-      - "10"
+      - "12.1.5"
   - name: hive
     values:
       - 2.3.9-stackable0.6.0
