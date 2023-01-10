@@ -199,6 +199,8 @@ spec:
         replicas: 1
 ----
 
+WARNING: You should not use the `Derby` database with more than one replica or in production. Derby stores data locally and therefore the data not shared between different metastore Pods and lost after Pod restarts.
+
 To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access, deploy a minio (or use any available S3 bucket):
 [source,bash]
 ----
@@ -298,17 +300,14 @@ spec:
   image:
     productVersion: 3.1.3
     stackableVersion: 0.2.0
+  clusterConfig:
+    database:
+      connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
+      user: hive
+      password: hive
+      dbType: postgres
   metastore:
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
-        config:
-          database:
-            connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
-            user: hive
-            password: hive
-            dbType: postgres
 ----
