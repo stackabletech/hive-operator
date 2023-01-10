@@ -24,14 +24,150 @@ spec:
           properties:
             spec:
               properties:
-                hdfs:
-                  nullable: true
+                clusterConfig:
+                  description: General Hive metastore cluster settings
                   properties:
-                    configMap:
-                      description: Name of the discovery-configmap providing information about the HDFS cluster
+                    database:
+                      description: Database connection specification
+                      properties:
+                        connString:
+                          type: string
+                        dbType:
+                          enum:
+                            - derby
+                            - mysql
+                            - postgres
+                            - oracle
+                            - mssql
+                          type: string
+                        password:
+                          type: string
+                        user:
+                          type: string
+                      required:
+                        - connString
+                        - dbType
+                        - password
+                        - user
+                      type: object
+                    hdfs:
+                      description: HDFS connection specification
+                      nullable: true
+                      properties:
+                        configMap:
+                          description: Name of the discovery-configmap providing information about the HDFS cluster
+                          type: string
+                      required:
+                        - configMap
+                      type: object
+                    s3:
+                      description: S3 connection specification
+                      nullable: true
+                      oneOf:
+                        - required:
+                            - inline
+                        - required:
+                            - reference
+                      properties:
+                        inline:
+                          description: S3 connection definition as CRD.
+                          properties:
+                            accessStyle:
+                              description: Which access style to use. Defaults to virtual hosted-style as most of the data products out there. Have a look at the official documentation on <https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html>
+                              enum:
+                                - Path
+                                - VirtualHosted
+                              nullable: true
+                              type: string
+                            credentials:
+                              description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a SecretClass providing `accessKey` and `secretKey` is sufficient.
+                              nullable: true
+                              properties:
+                                scope:
+                                  description: '[Scope](https://docs.stackable.tech/secret-operator/scope.html) of the [SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html)'
+                                  nullable: true
+                                  properties:
+                                    node:
+                                      default: false
+                                      type: boolean
+                                    pod:
+                                      default: false
+                                      type: boolean
+                                    services:
+                                      default: []
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                secretClass:
+                                  description: '[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) containing the LDAP bind credentials'
+                                  type: string
+                              required:
+                                - secretClass
+                              type: object
+                            host:
+                              description: Hostname of the S3 server without any protocol or port
+                              nullable: true
+                              type: string
+                            port:
+                              description: Port the S3 server listens on. If not specified the products will determine the port to use.
+                              format: uint16
+                              minimum: 0.0
+                              nullable: true
+                              type: integer
+                            tls:
+                              description: If you want to use TLS when talking to S3 you can enable TLS encrypted communication with this setting.
+                              nullable: true
+                              properties:
+                                verification:
+                                  description: The verification method used to verify the certificates of the server and/or the client
+                                  oneOf:
+                                    - required:
+                                        - none
+                                    - required:
+                                        - server
+                                  properties:
+                                    none:
+                                      description: Use TLS but don't verify certificates
+                                      type: object
+                                    server:
+                                      description: Use TLS and ca certificate to verify the server
+                                      properties:
+                                        caCert:
+                                          description: Ca cert to verify the server
+                                          oneOf:
+                                            - required:
+                                                - webPki
+                                            - required:
+                                                - secretClass
+                                          properties:
+                                            secretClass:
+                                              description: Name of the SecretClass which will provide the ca cert. Note that a SecretClass does not need to have a key but can also work with just a ca cert. So if you got provided with a ca cert but don't have access to the key you can still use this method.
+                                              type: string
+                                            webPki:
+                                              description: Use TLS and the ca certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
+                                              type: object
+                                          type: object
+                                      required:
+                                        - caCert
+                                      type: object
+                                  type: object
+                              required:
+                                - verification
+                              type: object
+                          type: object
+                        reference:
+                          type: string
+                      type: object
+                    serviceType:
+                      description: Specify the type of the created kubernetes service. This attribute will be removed in a future release when listener-operator is finished. Use with caution.
+                      enum:
+                        - NodePort
+                        - ClusterIP
+                      nullable: true
                       type: string
                   required:
-                    - configMap
+                    - database
                   type: object
                 image:
                   anyOf:
@@ -87,33 +223,6 @@ spec:
                     config:
                       default: {}
                       properties:
-                        database:
-                          default:
-                            connString: ''
-                            user: ''
-                            password: ''
-                            dbType: derby
-                          properties:
-                            connString:
-                              type: string
-                            dbType:
-                              enum:
-                                - derby
-                                - mysql
-                                - postgres
-                                - oracle
-                                - mssql
-                              type: string
-                            password:
-                              type: string
-                            user:
-                              type: string
-                          required:
-                            - connString
-                            - dbType
-                            - password
-                            - user
-                          type: object
                         resources:
                           nullable: true
                           properties:
@@ -312,6 +421,7 @@ spec:
                               type: object
                           type: object
                         warehouseDir:
+                          description: The location of default database for the Hive warehouse. Maps to the `hive.metastore.warehouse.dir` setting.
                           nullable: true
                           type: string
                       type: object
@@ -338,33 +448,6 @@ spec:
                           config:
                             default: {}
                             properties:
-                              database:
-                                default:
-                                  connString: ''
-                                  user: ''
-                                  password: ''
-                                  dbType: derby
-                                properties:
-                                  connString:
-                                    type: string
-                                  dbType:
-                                    enum:
-                                      - derby
-                                      - mysql
-                                      - postgres
-                                      - oracle
-                                      - mssql
-                                    type: string
-                                  password:
-                                    type: string
-                                  user:
-                                    type: string
-                                required:
-                                  - connString
-                                  - dbType
-                                  - password
-                                  - user
-                                type: object
                               resources:
                                 nullable: true
                                 properties:
@@ -563,6 +646,7 @@ spec:
                                     type: object
                                 type: object
                               warehouseDir:
+                                description: The location of default database for the Hive warehouse. Maps to the `hive.metastore.warehouse.dir` setting.
                                 nullable: true
                                 type: string
                             type: object
@@ -619,117 +703,12 @@ spec:
                   required:
                     - roleGroups
                   type: object
-                s3:
-                  description: Operators are expected to define fields for this type in order to work with S3 connections.
-                  nullable: true
-                  oneOf:
-                    - required:
-                        - inline
-                    - required:
-                        - reference
-                  properties:
-                    inline:
-                      description: S3 connection definition as CRD.
-                      properties:
-                        accessStyle:
-                          description: Which access style to use. Defaults to virtual hosted-style as most of the data products out there. Have a look at the official documentation on <https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html>
-                          enum:
-                            - Path
-                            - VirtualHosted
-                          nullable: true
-                          type: string
-                        credentials:
-                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a SecretClass providing `accessKey` and `secretKey` is sufficient.
-                          nullable: true
-                          properties:
-                            scope:
-                              description: '[Scope](https://docs.stackable.tech/secret-operator/scope.html) of the [SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html)'
-                              nullable: true
-                              properties:
-                                node:
-                                  default: false
-                                  type: boolean
-                                pod:
-                                  default: false
-                                  type: boolean
-                                services:
-                                  default: []
-                                  items:
-                                    type: string
-                                  type: array
-                              type: object
-                            secretClass:
-                              description: '[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) containing the LDAP bind credentials'
-                              type: string
-                          required:
-                            - secretClass
-                          type: object
-                        host:
-                          description: Hostname of the S3 server without any protocol or port
-                          nullable: true
-                          type: string
-                        port:
-                          description: Port the S3 server listens on. If not specified the products will determine the port to use.
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        tls:
-                          description: If you want to use TLS when talking to S3 you can enable TLS encrypted communication with this setting.
-                          nullable: true
-                          properties:
-                            verification:
-                              description: The verification method used to verify the certificates of the server and/or the client
-                              oneOf:
-                                - required:
-                                    - none
-                                - required:
-                                    - server
-                              properties:
-                                none:
-                                  description: Use TLS but don't verify certificates
-                                  type: object
-                                server:
-                                  description: Use TLS and ca certificate to verify the server
-                                  properties:
-                                    caCert:
-                                      description: Ca cert to verify the server
-                                      oneOf:
-                                        - required:
-                                            - webPki
-                                        - required:
-                                            - secretClass
-                                      properties:
-                                        secretClass:
-                                          description: Name of the SecretClass which will provide the ca cert. Note that a SecretClass does not need to have a key but can also work with just a ca cert. So if you got provided with a ca cert but don't have access to the key you can still use this method.
-                                          type: string
-                                        webPki:
-                                          description: Use TLS and the ca certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
-                                          type: object
-                                      type: object
-                                  required:
-                                    - caCert
-                                  type: object
-                              type: object
-                          required:
-                            - verification
-                          type: object
-                      type: object
-                    reference:
-                      type: string
-                  type: object
-                serviceType:
-                  description: Specify the type of the created kubernetes service. This attribute will be removed in a future release when listener-operator is finished. Use with caution.
-                  enum:
-                    - NodePort
-                    - ClusterIP
-                  nullable: true
-                  type: string
                 stopped:
                   description: Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
                   nullable: true
                   type: boolean
               required:
+                - clusterConfig
                 - image
               type: object
             status:
