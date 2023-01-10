@@ -160,6 +160,8 @@ pub struct MetastoreStorageConfig {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
+    /// The location of default database for the Hive warehouse.
+    /// Maps to the `hive.metastore.warehouse.dir` setting.
     pub warehouse_dir: Option<String>,
     pub resources: Option<ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits>>,
 }
@@ -272,7 +274,7 @@ impl Configuration for MetaStoreConfig {
 
     fn compute_env(
         &self,
-        _resource: &Self::Configurable,
+        _hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
@@ -292,20 +294,20 @@ impl Configuration for MetaStoreConfig {
 
     fn compute_cli(
         &self,
-        resource: &Self::Configurable,
+        hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
         result.insert(
             Self::DB_TYPE_CLI.to_string(),
-            Some(resource.spec.cluster_config.database.db_type.to_string()),
+            Some(hive.spec.cluster_config.database.db_type.to_string()),
         );
         Ok(result)
     }
 
     fn compute_files(
         &self,
-        resource: &Self::Configurable,
+        hive: &Self::Configurable,
         _role_name: &str,
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
@@ -319,21 +321,20 @@ impl Configuration for MetaStoreConfig {
         }
         result.insert(
             Self::CONNECTION_URL.to_string(),
-            Some(resource.spec.cluster_config.database.conn_string.clone()),
+            Some(hive.spec.cluster_config.database.conn_string.clone()),
         );
         result.insert(
             Self::CONNECTION_USER_NAME.to_string(),
-            Some(resource.spec.cluster_config.database.user.clone()),
+            Some(hive.spec.cluster_config.database.user.clone()),
         );
         result.insert(
             Self::CONNECTION_PASSWORD.to_string(),
-            Some(resource.spec.cluster_config.database.password.clone()),
+            Some(hive.spec.cluster_config.database.password.clone()),
         );
         result.insert(
             Self::CONNECTION_DRIVER_NAME.to_string(),
             Some(
-                resource
-                    .spec
+                hive.spec
                     .cluster_config
                     .database
                     .db_type

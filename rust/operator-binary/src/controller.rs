@@ -66,6 +66,8 @@ pub struct Ctx {
 #[strum_discriminants(derive(strum::IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("object defines no namespace"))]
+    ObjectHasNoNamespace,
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
     #[snafu(display("failed to calculate global service name"))]
@@ -177,9 +179,12 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let s3_connection_spec: Option<S3ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
             Some(
-                s3.resolve(client, hive.namespace().as_deref().unwrap())
-                    .await
-                    .context(ResolveS3ConnectionSnafu)?,
+                s3.resolve(
+                    client,
+                    &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
+                )
+                .await
+                .context(ResolveS3ConnectionSnafu)?,
             )
         } else {
             None
