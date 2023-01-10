@@ -421,6 +421,7 @@ spec:
                               type: object
                           type: object
                         warehouseDir:
+                          description: The location of default database for the Hive warehouse. Maps to the `hive.metastore.warehouse.dir` setting.
                           nullable: true
                           type: string
                       type: object
@@ -645,6 +646,7 @@ spec:
                                     type: object
                                 type: object
                               warehouseDir:
+                                description: The location of default database for the Hive warehouse. Maps to the `hive.metastore.warehouse.dir` setting.
                                 nullable: true
                                 type: string
                             type: object
