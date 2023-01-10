@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Fix role group node selector ([#283]).
 - [BREAKING] Moved `database` specification from role / role-group level to top-level `clusterConfig` ([#292]).
 - [BREAKING] Moved `s3`, `serviceType` and `hdfs` discovery to top-level `clusterConfig` ([#292]).
+- `operator-rs` `0.30.1` -> `0.30.2` ([#292])
 
 [#271]: https://github.com/stackabletech/hive-operator/pull/271
 [#274]: https://github.com/stackabletech/hive-operator/pull/274
