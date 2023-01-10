@@ -1,19 +1,16 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
+use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{discovery, OPERATOR_NAME};
 
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, MetastoreStorageConfig,
-    APP_NAME, CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-    JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
-    STACKABLE_RW_CONFIG_DIR,
+    Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig,
+    MetastoreStorageConfig, APP_NAME, CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT,
+    HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT,
+    METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
 };
-use stackable_operator::commons::product_image_selection::ResolvedProductImage;
-use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
-use stackable_operator::kube::Resource;
-use stackable_operator::labels::ObjectLabels;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -21,6 +18,7 @@ use stackable_operator::{
     },
     cluster_resources::ClusterResources,
     commons::{
+        product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
         s3::{S3AccessStyle, S3ConnectionSpec},
         tls::{CaCert, TlsVerification},
@@ -30,17 +28,24 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapVolumeSource, Probe, Service, ServicePort, ServiceSpec,
-                TCPSocketAction, Volume,
+                TCPSocketAction, Volume, VolumeMount,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{runtime::controller::Action, ResourceExt},
-    labels::{role_group_selector_labels, role_selector_labels},
+    kube::{runtime::controller::Action, Resource, ResourceExt},
+    labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{to_java_heap_value, BinaryMultiple},
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
+    product_logging::{
+        self,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
+    },
     role_utils::RoleGroupRef,
 };
 use std::{
@@ -56,6 +61,13 @@ use tracing::warn;
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
+
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const MAX_HIVE_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+
+const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
+const LOG_VOLUME_SIZE_IN_MIB: u32 =
+    MAX_HIVE_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -157,6 +169,15 @@ pub enum Error {
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("failed to resolve the Vector aggregator address"))]
+    ResolveVectorAggregatorAddress {
+        source: crate::product_logging::Error,
+    },
+    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    InvalidLoggingConfig {
+        source: crate::product_logging::Error,
+        cm_name: String,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -232,6 +253,10 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ApplyRoleServiceSnafu)?;
 
+    let vector_aggregator_address = resolve_vector_aggregator_address(&hive, client)
+        .await
+        .context(ResolveVectorAggregatorAddressSnafu)?;
+
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
@@ -246,7 +271,8 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
-            &config.resources,
+            &config,
+            vector_aggregator_address.as_deref(),
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
@@ -254,7 +280,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
-            &config.resources,
+            &config,
         )?;
 
         cluster_resources
@@ -367,20 +393,22 @@ fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<HiveCluster>,
-    metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
-    resources: &Resources<MetastoreStorageConfig, NoRuntimeLimits>,
+    merged_config: &MetaStoreConfig,
+    vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let mut hive_env_data = String::new();
     let log4j_data = include_str!("../../../deploy/external/log4j.properties");
 
-    for (property_name_kind, config) in metastore_config {
+    for (property_name_kind, config) in role_group_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
                 // heap in mebi
                 let heap_in_mebi = to_java_heap_value(
-                    resources
+                    merged_config
+                        .resources
                         .memory
                         .limit
                         .as_ref()
@@ -450,7 +478,9 @@ fn build_metastore_rolegroup_config_map(
         }
     }
 
-    ConfigMapBuilder::new()
+    let mut cm_builder = ConfigMapBuilder::new();
+
+    cm_builder
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(hive)
@@ -467,7 +497,19 @@ fn build_metastore_rolegroup_config_map(
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
         .add_data(HIVE_ENV_SH, hive_env_data)
-        .add_data(LOG_4J_PROPERTIES, log4j_data)
+        .add_data(LOG_4J_PROPERTIES, log4j_data);
+
+    extend_role_group_config_map(
+        rolegroup,
+        vector_aggregator_address,
+        &merged_config.logging,
+        &mut cm_builder,
+    )
+    .context(InvalidLoggingConfigSnafu {
+        cm_name: rolegroup.object_name(),
+    })?;
+
+    cm_builder
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),
@@ -522,7 +564,7 @@ fn build_metastore_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
-    resources: &Resources<MetastoreStorageConfig, NoRuntimeLimits>,
+    merged_config: &MetaStoreConfig,
 ) -> Result<StatefulSet> {
     let rolegroup = hive
         .spec
@@ -536,8 +578,6 @@ fn build_metastore_rolegroup_statefulset(
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
             name: APP_NAME.to_string(),
         })?;
-    let mut pod_builder = PodBuilder::new();
-    pod_builder.node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()));
 
     for (property_name_kind, config) in metastore_config {
         match property_name_kind {
@@ -565,6 +605,9 @@ fn build_metastore_rolegroup_statefulset(
             _ => {}
         }
     }
+
+    let mut pod_builder = PodBuilder::new();
+    pod_builder.node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()));
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
         pod_builder.add_volume(
@@ -651,7 +694,7 @@ fn build_metastore_rolegroup_statefulset(
         .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
-        .resources(resources.clone().into())
+        .resources(merged_config.resources.clone().into())
         .readiness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
@@ -672,6 +715,73 @@ fn build_metastore_rolegroup_statefulset(
             ..Probe::default()
         })
         .build();
+
+    pod_builder
+        .metadata_builder(|m| {
+            m.with_recommended_labels(build_recommended_labels(
+                hive,
+                &resolved_product_image.app_version_label,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            ))
+        })
+        .image_pull_secrets_from_product_image(resolved_product_image)
+        .add_container(container_hive)
+        .add_volume(Volume {
+            name: "config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        .add_volume(
+            VolumeBuilder::new("rwconfig")
+                .with_empty_dir(Some(""), None)
+                .build(),
+        )
+        .security_context(
+            PodSecurityContextBuilder::new()
+                .run_as_user(1000)
+                .run_as_group(1000)
+                .fs_group(1000)
+                .build(),
+        );
+
+    if let Some(ContainerLogConfig {
+        choice:
+            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                custom: ConfigMapLogConfig { config_map },
+            })),
+    }) = merged_config.logging.containers.get(&Container::Hive)
+    {
+        pod_builder.add_volume(Volume {
+            name: "log-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(config_map.into()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+    } else {
+        pod_builder.add_volume(Volume {
+            name: "log-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+    }
+
+    if merged_config.logging.enable_vector_agent {
+        pod_builder.add_container(product_logging::framework::vector_container(
+            resolved_product_image,
+            "hive-config",
+            "log",
+            merged_config.logging.containers.get(&Container::Vector),
+        ));
+    }
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -703,39 +813,9 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: pod_builder
-                .metadata_builder(|m| {
-                    m.with_recommended_labels(build_recommended_labels(
-                        hive,
-                        &resolved_product_image.app_version_label,
-                        &rolegroup_ref.role,
-                        &rolegroup_ref.role_group,
-                    ))
-                })
-                .image_pull_secrets_from_product_image(resolved_product_image)
-                .add_container(container_hive)
-                .add_volume(Volume {
-                    name: "config".to_string(),
-                    config_map: Some(ConfigMapVolumeSource {
-                        name: Some(rolegroup_ref.object_name()),
-                        ..ConfigMapVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                })
-                .add_volume(
-                    VolumeBuilder::new("rwconfig")
-                        .with_empty_dir(Some(""), None)
-                        .build(),
-                )
-                .security_context(
-                    PodSecurityContextBuilder::new()
-                        .run_as_user(1000)
-                        .run_as_group(1000)
-                        .fs_group(1000)
-                        .build(),
-                )
-                .build_template(),
-            volume_claim_templates: Some(vec![resources
+            template: pod_builder.build_template(),
+            volume_claim_templates: Some(vec![merged_config
+                .resources
                 .storage
                 .data
                 .build_pvc("data", Some(vec!["ReadWriteOnce"]))]),
