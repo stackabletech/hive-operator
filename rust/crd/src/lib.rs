@@ -18,7 +18,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 use std::collections::BTreeMap;
-use strum::{Display, EnumString};
+use strum::{Display, EnumIter, EnumString};
 
 pub const APP_NAME: &str = "hive";
 
@@ -48,7 +48,7 @@ pub const JVM_HEAP_FACTOR: f32 = 0.8;
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("no metastore role configuration provided"))]
-    NoMetaStoreRole,
+    MissingMetaStoreRole,
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
@@ -75,7 +75,7 @@ pub struct HiveClusterSpec {
     /// The Hive metastore image to use
     pub image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metastore: Option<Role<MetaStoreConfig>>,
+    pub metastore: Option<Role<MetaStoreConfigFragment>>,
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
@@ -138,6 +138,25 @@ impl HiveRole {
     }
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum Container {
+    Hive,
+    Vector,
+}
+
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
 #[fragment_attrs(
     derive(
@@ -157,13 +176,26 @@ pub struct MetastoreStorageConfig {
     pub data: PvcConfig,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
 pub struct MetaStoreConfig {
     /// The location of default database for the Hive warehouse.
     /// Maps to the `hive.metastore.warehouse.dir` setting.
     pub warehouse_dir: Option<String>,
-    pub resources: Option<ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits>>,
+    #[fragment_attrs(serde(default))]
+    pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
 }
 
 impl MetaStoreConfig {
@@ -182,21 +214,24 @@ impl MetaStoreConfig {
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
 
-    fn default_resources() -> ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> {
-        ResourcesFragment {
-            cpu: CpuLimitsFragment {
-                min: Some(Quantity("200m".to_owned())),
-                max: Some(Quantity("4".to_owned())),
-            },
-            memory: MemoryLimitsFragment {
-                limit: Some(Quantity("2Gi".to_owned())),
-                runtime_limits: NoRuntimeLimitsFragment {},
-            },
-            storage: MetastoreStorageConfigFragment {
-                data: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
+    fn default_config() -> MetaStoreConfigFragment {
+        MetaStoreConfigFragment {
+            warehouse_dir: None,
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("200m".to_owned())),
+                    max: Some(Quantity("4".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("2Gi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: MetastoreStorageConfigFragment {
+                    data: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
                 },
             },
         }
@@ -269,7 +304,7 @@ pub struct DatabaseConnectionSpec {
     pub db_type: DbType,
 }
 
-impl Configuration for MetaStoreConfig {
+impl Configuration for MetaStoreConfigFragment {
     type Configurable = HiveCluster;
 
     fn compute_env(
@@ -299,7 +334,7 @@ impl Configuration for MetaStoreConfig {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
         result.insert(
-            Self::DB_TYPE_CLI.to_string(),
+            MetaStoreConfig::DB_TYPE_CLI.to_string(),
             Some(hive.spec.cluster_config.database.db_type.to_string()),
         );
         Ok(result)
@@ -315,24 +350,24 @@ impl Configuration for MetaStoreConfig {
 
         if let Some(warehouse_dir) = &self.warehouse_dir {
             result.insert(
-                Self::METASTORE_WAREHOUSE_DIR.to_string(),
+                MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
                 Some(warehouse_dir.to_string()),
             );
         }
         result.insert(
-            Self::CONNECTION_URL.to_string(),
+            MetaStoreConfig::CONNECTION_URL.to_string(),
             Some(hive.spec.cluster_config.database.conn_string.clone()),
         );
         result.insert(
-            Self::CONNECTION_USER_NAME.to_string(),
+            MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
             Some(hive.spec.cluster_config.database.user.clone()),
         );
         result.insert(
-            Self::CONNECTION_PASSWORD.to_string(),
+            MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
             Some(hive.spec.cluster_config.database.password.clone()),
         );
         result.insert(
-            Self::CONNECTION_DRIVER_NAME.to_string(),
+            MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
             Some(
                 hive.spec
                     .cluster_config
@@ -344,7 +379,7 @@ impl Configuration for MetaStoreConfig {
         );
 
         result.insert(
-            Self::METASTORE_METRICS_ENABLED.to_string(),
+            MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
             Some("true".to_string()),
         );
 
@@ -407,28 +442,31 @@ impl HiveCluster {
             }))
     }
 
+    pub fn get_role(&self, role: &HiveRole) -> Option<&Role<MetaStoreConfigFragment>> {
+        match role {
+            HiveRole::MetaStore => self.spec.metastore.as_ref(),
+        }
+    }
+
     /// Retrieve and merge resource configs for role and role groups
-    pub fn resolve_resource_config_for_role_and_rolegroup(
+    pub fn merged_config(
         &self,
         role: &HiveRole,
         rolegroup_ref: &RoleGroupRef<HiveCluster>,
-    ) -> Result<Resources<MetastoreStorageConfig, NoRuntimeLimits>, Error> {
+    ) -> Result<MetaStoreConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_resources();
+        let conf_defaults = MetaStoreConfig::default_config();
 
-        let role = match role {
-            HiveRole::MetaStore => self.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?,
-        };
+        let role = self.get_role(role).context(MissingMetaStoreRoleSnafu)?;
 
         // Retrieve role resource config
-        let mut conf_role: ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> =
-            role.config.config.resources.clone().unwrap_or_default();
+        let mut conf_role = role.config.config.to_owned();
 
         // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup: ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> = role
+        let mut conf_rolegroup = role
             .role_groups
             .get(&rolegroup_ref.role_group)
-            .and_then(|rg| rg.config.config.resources.clone())
+            .map(|rg| rg.config.config.clone())
             .unwrap_or_default();
 
         // Merge more specific configs into default config
@@ -439,7 +477,7 @@ impl HiveCluster {
         conf_role.merge(&conf_defaults);
         conf_rolegroup.merge(&conf_role);
 
-        tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
+        tracing::debug!("Merged config: {:?}", conf_rolegroup);
         fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 }

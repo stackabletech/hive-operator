@@ -127,14 +127,10 @@ pub enum Error {
         source: strum::ParseError,
         db_type: String,
     },
-    #[snafu(display("failed to write discovery config map"))]
-    InvalidDiscovery { source: discovery::Error },
     #[snafu(display("failed to resolve S3 connection"))]
     ResolveS3Connection {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("invalid S3 connection: {reason}"))]
-    InvalidS3Connection { reason: String },
     #[snafu(display(
         "Hive does not support skipping the verification of the tls enabled S3 server"
     ))]
@@ -239,8 +235,8 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
-        let resources = hive
-            .resolve_resource_config_for_role_and_rolegroup(&HiveRole::MetaStore, &rolegroup)
+        let config = hive
+            .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
         let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
@@ -250,7 +246,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
-            &resources,
+            &config.resources,
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
@@ -258,7 +254,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
-            &resources,
+            &config.resources,
         )?;
 
         cluster_resources
