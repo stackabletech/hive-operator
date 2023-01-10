@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
 [#277]: https://github.com/stackabletech/hive-operator/pull/277
 [#280]: https://github.com/stackabletech/hive-operator/pull/280
 [#283]: https://github.com/stackabletech/hive-operator/pull/283
-[#283]: https://github.com/stackabletech/hive-operator/pull/292
+[#292]: https://github.com/stackabletech/hive-operator/pull/292
 
 ## [0.8.0] - 2022-11-07
 
