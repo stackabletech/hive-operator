@@ -70,17 +70,28 @@ pub enum Error {
     )
 )]
 pub struct HiveClusterSpec {
-    /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stopped: Option<bool>,
+    /// General Hive metastore cluster settings
+    pub cluster_config: HiveClusterConfig,
     /// The Hive metastore image to use
     pub image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metastore: Option<Role<MetaStoreConfig>>,
+    /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3: Option<S3ConnectionDef>,
+    pub stopped: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HiveClusterConfig {
+    /// Database connection specification
+    pub database: DatabaseConnectionSpec,
+    /// HDFS connection specification
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hdfs: Option<HdfsConnection>,
+    /// S3 connection specification
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub s3: Option<S3ConnectionDef>,
     /// Specify the type of the created kubernetes service.
     /// This attribute will be removed in a future release when listener-operator is finished.
     /// Use with caution.
@@ -95,7 +106,7 @@ pub struct HdfsConnection {
     pub config_map: String,
 }
 
-#[derive(strum::Display)]
+#[derive(Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum HiveRole {
     #[strum(serialize = "metastore")]
@@ -150,8 +161,6 @@ pub struct MetastoreStorageConfig {
 #[serde(rename_all = "camelCase")]
 pub struct MetaStoreConfig {
     pub warehouse_dir: Option<String>,
-    #[serde(default)]
-    pub database: DatabaseConnectionSpec,
     pub resources: Option<ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits>>,
 }
 
@@ -283,20 +292,20 @@ impl Configuration for MetaStoreConfig {
 
     fn compute_cli(
         &self,
-        _resource: &Self::Configurable,
+        resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
         result.insert(
             Self::DB_TYPE_CLI.to_string(),
-            Some(self.database.db_type.to_string()),
+            Some(resource.spec.cluster_config.database.db_type.to_string()),
         );
         Ok(result)
     }
 
     fn compute_files(
         &self,
-        _resource: &Self::Configurable,
+        resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
@@ -310,19 +319,27 @@ impl Configuration for MetaStoreConfig {
         }
         result.insert(
             Self::CONNECTION_URL.to_string(),
-            Some(self.database.conn_string.clone()),
+            Some(resource.spec.cluster_config.database.conn_string.clone()),
         );
         result.insert(
             Self::CONNECTION_USER_NAME.to_string(),
-            Some(self.database.user.clone()),
+            Some(resource.spec.cluster_config.database.user.clone()),
         );
         result.insert(
             Self::CONNECTION_PASSWORD.to_string(),
-            Some(self.database.password.clone()),
+            Some(resource.spec.cluster_config.database.password.clone()),
         );
         result.insert(
             Self::CONNECTION_DRIVER_NAME.to_string(),
-            Some(self.database.db_type.get_jdbc_driver_class().to_string()),
+            Some(
+                resource
+                    .spec
+                    .cluster_config
+                    .database
+                    .db_type
+                    .get_jdbc_driver_class()
+                    .to_string(),
+            ),
         );
 
         result.insert(

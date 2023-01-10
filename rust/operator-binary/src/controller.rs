@@ -174,15 +174,16 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let resolved_product_image: ResolvedProductImage =
         hive.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
 
-    let s3_connection_spec: Option<S3ConnectionSpec> = if let Some(s3) = &hive.spec.s3 {
-        Some(
-            s3.resolve(client, hive.namespace().as_deref().unwrap())
-                .await
-                .context(ResolveS3ConnectionSnafu)?,
-        )
-    } else {
-        None
-    };
+    let s3_connection_spec: Option<S3ConnectionSpec> =
+        if let Some(s3) = &hive.spec.cluster_config.s3 {
+            Some(
+                s3.resolve(client, hive.namespace().as_deref().unwrap())
+                    .await
+                    .context(ResolveS3ConnectionSnafu)?,
+            )
+        } else {
+            None
+        };
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
@@ -348,6 +349,7 @@ pub fn build_metastore_role_service(
             selector: Some(role_selector_labels(hive, APP_NAME, &role_name)),
             type_: Some(
                 hive.spec
+                    .cluster_config
                     .service_type
                     .clone()
                     .unwrap_or_default()
@@ -563,7 +565,7 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
-    if let Some(hdfs) = &hive.spec.hdfs {
+    if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
         pod_builder.add_volume(
             VolumeBuilder::new("hdfs-site")
                 .with_config_map(&hdfs.config_map)
