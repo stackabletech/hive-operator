@@ -7,16 +7,17 @@ spec:
   image:
     productVersion: 2.3.9
     stackableVersion: 0.6.0
+  clusterConfig:
+    database:
+      connString: jdbc:derby:;databaseName=/tmp/hive;create=true
+      user: APP
+      password: mine
+      dbType: derby
   metastore:
     roleGroups:
       default:
         replicas: 1
         config:
-          database:
-            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-            user: APP
-            password: mine
-            dbType: derby
           resources:
             storage:
               data:
