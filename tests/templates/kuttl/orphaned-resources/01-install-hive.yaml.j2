@@ -7,21 +7,15 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['hive-latest'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['hive-latest'].split('-stackable')[1] }}"
+  clusterConfig:
+    database:
+      connString: jdbc:derby:;databaseName=/tmp/hive;create=true
+      user: APP
+      password: mine
+      dbType: derby
   metastore:
     roleGroups:
       default:
         replicas: 1
-        config:
-          database:
-            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-            user: APP
-            password: mine
-            dbType: derby
       remove:
         replicas: 1
-        config:
-          database:
-            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-            user: APP
-            password: mine
-            dbType: derby

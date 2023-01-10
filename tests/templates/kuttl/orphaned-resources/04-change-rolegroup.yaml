@@ -4,14 +4,14 @@ kind: HiveCluster
 metadata:
   name: test-hive
 spec:
+  clusterConfig:
+    database:
+      connString: jdbc:derby:;databaseName=/tmp/hive;create=true
+      user: APP
+      password: mine
+      dbType: derby
   metastore:
     roleGroups:
       default: null
       newrolegroup:
         replicas: 1
-        config:
-          database:
-            connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-            user: APP
-            password: mine
-            dbType: derby
