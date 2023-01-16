@@ -1,0 +1,61 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-log-config
+data:
+  log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/hive/hive.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: test-hive
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['hive'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['hive'].split('-stackable')[1] }}"
+  clusterConfig:
+    database:
+      connString: jdbc:postgresql://hive-postgresql:5432/hive
+      user: hive
+      password: hive
+      dbType: postgres
+    vectorAggregatorConfigMapName: hive-vector-aggregator-discovery
+  metastore:
+    roleGroups:
+      automatic-log-config:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hive:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              vector:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+      custom-log-config:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hive:
+                custom:
+                  configMap: hive-log-config
+
