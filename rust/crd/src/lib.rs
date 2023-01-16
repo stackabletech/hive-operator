@@ -22,19 +22,24 @@ use std::collections::BTreeMap;
 use strum::{Display, EnumIter, EnumString};
 
 pub const APP_NAME: &str = "hive";
-
+// directories
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
-pub const STACKABLE_RW_CONFIG_DIR: &str = "/stackable/rwconfig";
+pub const STACKABLE_CONFIG_DIR_NAME: &str = "config";
+pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
+pub const STACKABLE_CONFIG_MOUNT_DIR_NAME: &str = "config-mount";
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const STACKABLE_LOG_DIR_NAME: &str = "log";
+pub const STACKABLE_LOG_MOUNT_DIR: &str = "/stackable/mount/log";
+pub const STACKABLE_LOG_MOUNT_DIR_NAME: &str = "log-mount";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
-pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
 // default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
-// Certificates and trust stores
+// certificates and trust stores
 pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
@@ -125,7 +130,7 @@ impl HiveRole {
             vec![
                 "bin/start-metastore".to_string(),
                 "--config".to_string(),
-                STACKABLE_RW_CONFIG_DIR.to_string(),
+                STACKABLE_CONFIG_DIR.to_string(),
                 "--db-type".to_string(),
                 db_type.to_string(),
                 "--hive-bin-dir".to_string(),
@@ -135,7 +140,7 @@ impl HiveRole {
             vec![
                 "/bin/hive".to_string(),
                 "--config".to_string(),
-                STACKABLE_RW_CONFIG_DIR.to_string(),
+                STACKABLE_CONFIG_DIR.to_string(),
                 "--service".to_string(),
                 "metastore".to_string(),
             ]

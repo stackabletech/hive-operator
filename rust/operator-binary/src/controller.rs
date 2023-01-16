@@ -6,10 +6,12 @@ use crate::{discovery, OPERATOR_NAME};
 use fnv::FnvHasher;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig,
-    MetastoreStorageConfig, APP_NAME, CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT,
-    HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, LOG_4J_PROPERTIES, METRICS_PORT,
-    METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR,
+    Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
+    CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+    JVM_HEAP_FACTOR, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+    STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+    STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_MOUNT_DIR,
+    STACKABLE_LOG_MOUNT_DIR_NAME,
 };
 use stackable_operator::{
     builder::{
@@ -19,7 +21,6 @@ use stackable_operator::{
     cluster_resources::ClusterResources,
     commons::{
         product_image_selection::ResolvedProductImage,
-        resources::{NoRuntimeLimits, Resources},
         s3::{S3AccessStyle, S3ConnectionSpec},
         tls::{CaCert, TlsVerification},
     },
@@ -27,11 +28,13 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, Probe, Service, ServicePort, ServiceSpec,
-                TCPSocketAction, Volume, VolumeMount,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
+                ServicePort, ServiceSpec, TCPSocketAction, Volume, VolumeMount,
             },
         },
-        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
+        apimachinery::pkg::{
+            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+        },
     },
     kube::{runtime::controller::Action, Resource, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
@@ -62,7 +65,6 @@ use tracing::warn;
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
-pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const MAX_HIVE_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
@@ -400,7 +402,6 @@ fn build_metastore_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let mut hive_env_data = String::new();
-    let log4j_data = include_str!("../../../deploy/external/log4j.properties");
 
     for (property_name_kind, config) in role_group_config {
         match property_name_kind {
@@ -496,8 +497,7 @@ fn build_metastore_rolegroup_config_map(
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
-        .add_data(HIVE_ENV_SH, hive_env_data)
-        .add_data(LOG_4J_PROPERTIES, log4j_data);
+        .add_data(HIVE_ENV_SH, hive_env_data);
 
     extend_role_group_config_map(
         rolegroup,
@@ -607,7 +607,6 @@ fn build_metastore_rolegroup_statefulset(
     }
 
     let mut pod_builder = PodBuilder::new();
-    pod_builder.node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()));
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
         pod_builder.add_volume(
@@ -673,25 +672,21 @@ fn build_metastore_rolegroup_statefulset(
             // We have to mount every config file individually, so that we can add additional config files
             // such as hdfs-site.xml as well
             VolumeMount {
-                name: "config".to_string(),
-                mount_path: format!("{STACKABLE_CONFIG_DIR}/hive-env.sh"),
+                name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
+                mount_path: format!("{STACKABLE_CONFIG_MOUNT_DIR}/hive-env.sh"),
                 sub_path: Some("hive-env.sh".to_string()),
                 ..VolumeMount::default()
             },
             VolumeMount {
-                name: "config".to_string(),
-                mount_path: format!("{STACKABLE_CONFIG_DIR}/hive-site.xml"),
+                name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
+                mount_path: format!("{STACKABLE_CONFIG_MOUNT_DIR}/hive-site.xml"),
                 sub_path: Some("hive-site.xml".to_string()),
                 ..VolumeMount::default()
             },
-            VolumeMount {
-                name: "config".to_string(),
-                mount_path: format!("{STACKABLE_CONFIG_DIR}/log4j.properties"),
-                sub_path: Some("log4j.properties".to_string()),
-                ..VolumeMount::default()
-            },
         ])
-        .add_volume_mount("rwconfig", STACKABLE_RW_CONFIG_DIR)
+        .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
+        .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
+        .add_volume_mount(STACKABLE_LOG_MOUNT_DIR_NAME, STACKABLE_LOG_MOUNT_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .resources(merged_config.resources.clone().into())
@@ -728,18 +723,30 @@ fn build_metastore_rolegroup_statefulset(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_container(container_hive)
         .add_volume(Volume {
-            name: "config".to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
-                ..ConfigMapVolumeSource::default()
+            name: STACKABLE_CONFIG_DIR_NAME.to_string(),
+            empty_dir: Some(EmptyDirVolumeSource {
+                medium: None,
+                size_limit: Some(Quantity(format!("10Mi"))),
             }),
             ..Volume::default()
         })
-        .add_volume(
-            VolumeBuilder::new("rwconfig")
-                .with_empty_dir(Some(""), None)
-                .build(),
-        )
+        .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
+            name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .add_volume(Volume {
+            name: STACKABLE_LOG_DIR_NAME.to_string(),
+            empty_dir: Some(EmptyDirVolumeSource {
+                medium: None,
+                size_limit: Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
+            }),
+            ..Volume::default()
+        })
+        .node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()))
         .security_context(
             PodSecurityContextBuilder::new()
                 .run_as_user(1000)
@@ -756,7 +763,7 @@ fn build_metastore_rolegroup_statefulset(
     }) = merged_config.logging.containers.get(&Container::Hive)
     {
         pod_builder.add_volume(Volume {
-            name: "log-config".to_string(),
+            name: STACKABLE_LOG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: Some(config_map.into()),
                 ..ConfigMapVolumeSource::default()
@@ -765,7 +772,7 @@ fn build_metastore_rolegroup_statefulset(
         });
     } else {
         pod_builder.add_volume(Volume {
-            name: "log-config".to_string(),
+            name: STACKABLE_LOG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: Some(rolegroup_ref.object_name()),
                 ..ConfigMapVolumeSource::default()
@@ -777,8 +784,8 @@ fn build_metastore_rolegroup_statefulset(
     if merged_config.logging.enable_vector_agent {
         pod_builder.add_container(product_logging::framework::vector_container(
             resolved_product_image,
-            "hive-config",
-            "log",
+            STACKABLE_CONFIG_DIR_NAME,
+            STACKABLE_LOG_DIR_NAME,
             merged_config.logging.containers.get(&Container::Vector),
         ));
     }

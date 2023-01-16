@@ -1,7 +1,7 @@
-use crate::controller::{MAX_HIVE_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR};
+use crate::controller::MAX_HIVE_LOG_FILES_SIZE_IN_MIB;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{Container, HiveCluster};
+use stackable_hive_crd::{Container, HiveCluster, STACKABLE_LOG_DIR};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
@@ -37,7 +37,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
-const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %-5p [%t] %c{2}: %.1000m%n";
+const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %5p [%t] %c{2}: %m%n";
 const HIVE_LOG_FILE: &str = "hive.log4j.xml";
 pub const LOG4J_CONFIG_FILE: &str = "log4j.properties";
 

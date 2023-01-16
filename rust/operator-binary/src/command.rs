@@ -1,6 +1,8 @@
+use crate::product_logging::LOG4J_CONFIG_FILE;
 use stackable_hive_crd::{
-    HIVE_SITE_XML, STACKABLE_CONFIG_DIR, STACKABLE_RW_CONFIG_DIR, STACKABLE_TRUST_STORE,
-    STACKABLE_TRUST_STORE_PASSWORD, SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
+    HIVE_SITE_XML, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_DIR,
+    STACKABLE_LOG_MOUNT_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
+    SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
 };
 use stackable_operator::commons::{
     s3::S3ConnectionSpec,
@@ -20,8 +22,10 @@ pub fn build_container_command_args(
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set
         // s3 access and secret keys
-        format!("echo copying {STACKABLE_CONFIG_DIR} to {STACKABLE_RW_CONFIG_DIR}"),
-        format!("cp -RL {STACKABLE_CONFIG_DIR}/* {STACKABLE_RW_CONFIG_DIR}"),
+        format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
+        format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
+        format!("echo copying {STACKABLE_LOG_MOUNT_DIR}/{LOG4J} to {STACKABLE_CONF_DIR}/{LOG4J_CONFIG_FILE}"),
+        format!("cp -RL {STACKABLE_LOG_MOUNT_DIR}/{LOG4J_CONFIG_FILE} {STACKABLE_CONF_DIR}/{LOG4J_CONFIG_FILE}"),
         // Copy system truststore to stackable truststore
         format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE} -deststoretype pkcs12 -deststorepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt")
     ];
@@ -30,8 +34,8 @@ pub fn build_container_command_args(
         if s3.credentials.is_some() {
             args.extend([
                 format!("echo replacing {ACCESS_KEY_PLACEHOLDER} and {SECRET_KEY_PLACEHOLDER} with secret values."),
-                format!("sed -i \"s|{ACCESS_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_ACCESS_KEY})|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
-                format!("sed -i \"s|{SECRET_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_SECRET_KEY})|g\" {STACKABLE_RW_CONFIG_DIR}/{HIVE_SITE_XML}"),
+                format!("sed -i \"s|{ACCESS_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_ACCESS_KEY})|g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}"),
+                format!("sed -i \"s|{SECRET_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_SECRET_KEY})|g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}"),
             ]);
         }
 

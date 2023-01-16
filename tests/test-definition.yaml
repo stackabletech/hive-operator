@@ -13,7 +13,7 @@ dimensions:
   - name: s3-use-tls
     values:
       - "true"
-      #- "false"
+      - "false"
 tests:
   - name: smoke
     dimensions:
