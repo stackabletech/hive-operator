@@ -5,7 +5,7 @@ metadata:
   name: hive-log-config
 data:
   log4j.properties: |
-    log4j.rootLogger=INFO, FILE
+    log4j.rootLogger=DEBUG, FILE
     log4j.appender.FILE=org.apache.log4j.FileAppender
     log4j.appender.FILE.File=/stackable/log/hive/hive.log4j.xml
     log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
@@ -35,20 +35,20 @@ spec:
             containers:
               hive:
                 console:
-                  level: INFO
+                  level: DEBUG
                 file:
-                  level: INFO
+                  level: DEBUG
                 loggers:
                   ROOT:
-                    level: INFO
+                    level: DEBUG
               vector:
                 console:
-                  level: INFO
+                  level: DEBUG
                 file:
-                  level: INFO
+                  level: DEBUG
                 loggers:
                   ROOT:
-                    level: INFO
+                    level: DEBUG
       custom-log-config:
         replicas: 1
         config:
@@ -58,4 +58,3 @@ spec:
               hive:
                 custom:
                   configMap: hive-log-config
-
