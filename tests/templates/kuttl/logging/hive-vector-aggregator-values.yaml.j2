@@ -20,25 +20,25 @@ customConfig:
       type: vector
       version: "2"
   transforms:
-    automaticLogConfigMasterHive:
+    automaticLogConfigMetastoreHive:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hive-metastore-automatic-log-config-0" &&
         .container == "hive"
-    automaticLogConfigMasterVector:
+    automaticLogConfigMetastoreVector:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hive-metastore-automatic-log-config-0" &&
         .container == "vector"
-    customLogConfigMasterHive:
+    customLogConfigMetastoreHive:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hive-metastore-custom-log-config-0" &&
         .container == "hive"
-    customLogConfigMasterVector:
+    customLogConfigMetastoreVector:
       type: filter
       inputs: [vector]
       condition: >-
