@@ -193,7 +193,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
         &transform_all_roles_to_config(
-            &*hive,
+            hive.as_ref(),
             [(
                 HiveRole::MetaStore.to_string(),
                 (
@@ -289,7 +289,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     for discovery_cm in discovery::build_discovery_configmaps(
         client,
         &*hive,
-        &*hive,
+        &hive,
         &resolved_product_image,
         &metastore_role_service,
         None,
