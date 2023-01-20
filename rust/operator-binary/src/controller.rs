@@ -363,7 +363,7 @@ pub fn build_metastore_role_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(&role_svc_name)
+            .name(role_svc_name)
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -406,6 +406,7 @@ fn build_metastore_rolegroup_config_map(
     for (property_name_kind, config) in role_group_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
+                let mut data = BTreeMap::new();
                 // heap in mebi
                 let heap_in_mebi = to_java_heap_value(
                     merged_config
@@ -421,7 +422,20 @@ fn build_metastore_rolegroup_config_map(
                     unit: BinaryMultiple::Mebi.to_java_memory_unit(),
                 })?;
 
-                hive_env_data = format!("export {HADOOP_HEAPSIZE}={heap_in_mebi}");
+                data.insert(HADOOP_HEAPSIZE.to_string(), Some(heap_in_mebi.to_string()));
+
+                // other properties /  overrides
+                for (property_name, property_value) in config {
+                    data.insert(property_name.to_string(), Some(property_value.to_string()));
+                }
+
+                hive_env_data = data
+                    .into_iter()
+                    .map(|(key, value)| {
+                        format!("export {key}={val}", val = value.unwrap_or_default())
+                    })
+                    .collect::<Vec<String>>()
+                    .join("\n");
             }
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
@@ -668,23 +682,10 @@ fn build_metastore_rolegroup_statefulset(
                 .join(" "),
             s3_connection,
         ))
-        .add_volume_mounts(vec![
-            // We have to mount every config file individually, so that we can add additional config files
-            // such as hdfs-site.xml as well
-            VolumeMount {
-                name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
-                mount_path: format!("{STACKABLE_CONFIG_MOUNT_DIR}/hive-env.sh"),
-                sub_path: Some("hive-env.sh".to_string()),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
-                mount_path: format!("{STACKABLE_CONFIG_MOUNT_DIR}/hive-site.xml"),
-                sub_path: Some("hive-site.xml".to_string()),
-                ..VolumeMount::default()
-            },
-        ])
+        // TODO: test
+        .add_env_var("HADOOP_OPTS", "-Dlog4j.debug ")
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
+        .add_volume_mount(STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR)
         .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
         .add_volume_mount(STACKABLE_LOG_MOUNT_DIR_NAME, STACKABLE_LOG_MOUNT_DIR)
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())

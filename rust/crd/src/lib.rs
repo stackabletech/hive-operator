@@ -34,6 +34,7 @@ pub const STACKABLE_LOG_MOUNT_DIR_NAME: &str = "log-mount";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
+pub const LOG4J_PROPERTIES: &str = "log4j.properties";
 // default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
@@ -357,44 +358,50 @@ impl Configuration for MetaStoreConfigFragment {
         &self,
         hive: &Self::Configurable,
         _role_name: &str,
-        _file: &str,
+        file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        if let Some(warehouse_dir) = &self.warehouse_dir {
-            result.insert(
-                MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-                Some(warehouse_dir.to_string()),
-            );
-        }
-        result.insert(
-            MetaStoreConfig::CONNECTION_URL.to_string(),
-            Some(hive.spec.cluster_config.database.conn_string.clone()),
-        );
-        result.insert(
-            MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-            Some(hive.spec.cluster_config.database.user.clone()),
-        );
-        result.insert(
-            MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-            Some(hive.spec.cluster_config.database.password.clone()),
-        );
-        result.insert(
-            MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-            Some(
-                hive.spec
-                    .cluster_config
-                    .database
-                    .db_type
-                    .get_jdbc_driver_class()
-                    .to_string(),
-            ),
-        );
+        match file {
+            HIVE_SITE_XML => {
+                if let Some(warehouse_dir) = &self.warehouse_dir {
+                    result.insert(
+                        MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
+                        Some(warehouse_dir.to_string()),
+                    );
+                }
+                result.insert(
+                    MetaStoreConfig::CONNECTION_URL.to_string(),
+                    Some(hive.spec.cluster_config.database.conn_string.clone()),
+                );
+                result.insert(
+                    MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
+                    Some(hive.spec.cluster_config.database.user.clone()),
+                );
+                result.insert(
+                    MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
+                    Some(hive.spec.cluster_config.database.password.clone()),
+                );
+                result.insert(
+                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+                    Some(
+                        hive.spec
+                            .cluster_config
+                            .database
+                            .db_type
+                            .get_jdbc_driver_class()
+                            .to_string(),
+                    ),
+                );
 
-        result.insert(
-            MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-            Some("true".to_string()),
-        );
+                result.insert(
+                    MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
+                    Some("true".to_string()),
+                );
+            }
+            HIVE_ENV_SH => {}
+            _ => {}
+        }
 
         Ok(result)
     }
@@ -414,8 +421,8 @@ pub struct NoNamespaceError;
 
 impl HiveCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_name(&self) -> Option<String> {
-        self.metadata.name.clone()
+    pub fn metastore_role_service_name(&self) -> Option<&str> {
+        self.metadata.name.as_deref()
     }
 
     /// Metadata about a metastore rolegroup
