@@ -5,61 +5,35 @@ metadata:
   name: hive-log-config
 data:
   log4j.properties: |
-    status = INFO
-    name = MetastoreLog4j2
-    packages = org.apache.hadoop.hive.metastore
+    status = warn
+    name = stackable-log4j2-configuration
 
-    # list of properties
-    property.metastore.log.level = INFO
-    property.metastore.root.logger = DRFA
-    property.metastore.log.dir = ${sys:java.io.tmpdir}/${sys:user.name}
-    property.metastore.log.file = metastore.log
-    property.hive.perflogger.log.level = INFO
+    appenders = FILE, CONSOLE
 
-    # list of all appenders
-    appenders = console, DRFA
+    appender.CONSOLE.type = Console
+    appender.CONSOLE.name = CONSOLE
+    appender.CONSOLE.target = SYSTEM_ERR
+    appender.CONSOLE.layout.type = PatternLayout
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %-5p %m%n
+    appender.CONSOLE.filter.threshold.type = ThresholdFilter
+    appender.CONSOLE.filter.threshold.level = INFO
 
-    # console appender
-    appender.console.type = Console
-    appender.console.name = console
-    appender.console.target = SYSTEM_ERR
-    appender.console.layout.type = PatternLayout
-    appender.console.layout.pattern = %d{ISO8601} %5p [%t] %c{2}: %m%n
+    appender.FILE.type = RollingFile
+    appender.FILE.name = FILE
+    appender.FILE.fileName= /stackable/log/hive/hive.log4j.xml
+    appender.FILE.filePattern= /stackable/log/hive/hive.log4j.xml.%i
+    appender.FILE.layout.type = XMLLayout
+    appender.FILE.policies.type = Policies
+    appender.FILE.policies.size.type = SizeBasedTriggeringPolicy
+    appender.FILE.policies.size.size = 5MB
+    appender.FILE.strategy.type = DefaultRolloverStrategy
+    appender.FILE.strategy.max = 1
+    appender.FILE.filter.threshold.type = ThresholdFilter
+    appender.FILE.filter.threshold.level = DEBUG
 
-    # daily rolling file appender
-    appender.DRFA.type = RollingRandomAccessFile
-    appender.DRFA.name = DRFA
-    appender.DRFA.fileName = #${sys:metastore.log.dir}/${sys:metastore.log.file}
-    # Use %pid in the filePattern to append <process-id>@<host-name> to the filename if you want separate log files for different CLI session
-    appender.DRFA.filePattern = ${sys:metastore.log.dir}/${sys:metastore.log.file}.%d{yyyy-MM-dd}
-    appender.DRFA.layout.type = PatternLayout
-    appender.DRFA.layout.pattern = %d{ISO8601} %5p [%t] %c{2}: %m%n
-    appender.DRFA.policies.type = Policies
-    appender.DRFA.policies.time.type = TimeBasedTriggeringPolicy
-    appender.DRFA.policies.time.interval = 1
-    appender.DRFA.policies.time.modulate = true
-    appender.DRFA.strategy.type = DefaultRolloverStrategy
-    appender.DRFA.strategy.max = 30
-
-    # list of all loggers
-    loggers = DataNucleus, Datastore, JPOX, PerfLogger
-
-    logger.DataNucleus.name = DataNucleus
-    logger.DataNucleus.level = ERROR
-
-    logger.Datastore.name = Datastore
-    logger.Datastore.level = ERROR
-
-    logger.JPOX.name = JPOX
-    logger.JPOX.level = ERROR
-
-    logger.PerfLogger.name = org.apache.hadoop.hive.ql.log.PerfLogger
-    logger.PerfLogger.level = ${sys:hive.perflogger.log.level}
-
-    # root logger
-    rootLogger.level = ${sys:metastore.log.level}
+    rootLogger.level=DEBUG
     rootLogger.appenderRefs = root
-    rootLogger.appenderRef.root.ref = ${sys:metastore.root.logger}
+    rootLogger.appenderRef.root.ref = FILE
 ---
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster

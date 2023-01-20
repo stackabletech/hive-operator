@@ -682,8 +682,6 @@ fn build_metastore_rolegroup_statefulset(
                 .join(" "),
             s3_connection,
         ))
-        // TODO: test
-        .add_env_var("HADOOP_OPTS", "-Dlog4j.debug ")
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
         .add_volume_mount(STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR)
         .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
