@@ -88,7 +88,7 @@ pub fn extend_role_group_config_map(
     {
         cm_builder.add_data(
             LOG4J_PROPERTIES,
-            product_logging::framework::create_log4j_2_config(
+            product_logging::framework::create_log4j2_config(
                 &format!("{STACKABLE_LOG_DIR}/hive"),
                 HIVE_LOG_FILE,
                 MAX_HIVE_LOG_FILES_SIZE_IN_MIB,
