@@ -26,9 +26,9 @@ data:
     appender.FILE.strategy.type = DefaultRolloverStrategy
     appender.FILE.strategy.max = 1
     appender.FILE.filter.threshold.type = ThresholdFilter
-    appender.FILE.filter.threshold.level = DEBUG
+    appender.FILE.filter.threshold.level = INFO
 
-    rootLogger.level=DEBUG
+    rootLogger.level=INFO
     rootLogger.appenderRefs = root
     rootLogger.appenderRef.root.ref = FILE
 ---
