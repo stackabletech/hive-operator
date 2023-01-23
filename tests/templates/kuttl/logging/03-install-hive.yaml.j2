@@ -4,7 +4,7 @@ kind: ConfigMap
 metadata:
   name: hive-log-config
 data:
-  log4j.properties: |
+  hive-log4j2.properties: |
     appenders = FILE, CONSOLE
 
     appender.CONSOLE.type = Console
@@ -17,8 +17,8 @@ data:
 
     appender.FILE.type = RollingFile
     appender.FILE.name = FILE
-    appender.FILE.fileName= /stackable/log/hive/hive.log4j.xml
-    appender.FILE.filePattern= /stackable/log/hive/hive.log4j.xml.%i
+    appender.FILE.fileName= /stackable/log/hive/hive.log4j2.xml
+    appender.FILE.filePattern= /stackable/log/hive/hive.log4j2.xml.%i
     appender.FILE.layout.type = XMLLayout
     appender.FILE.policies.type = Policies
     appender.FILE.policies.size.type = SizeBasedTriggeringPolicy
