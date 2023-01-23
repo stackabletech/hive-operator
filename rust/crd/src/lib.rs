@@ -34,7 +34,7 @@ pub const STACKABLE_LOG_MOUNT_DIR_NAME: &str = "log-mount";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
-pub const LOG4J_PROPERTIES: &str = "log4j.properties";
+pub const HIVE_LOG4J2_PROPERTIES: &str = "hive-log4j2.properties";
 // default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
