@@ -1806,8 +1806,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.31.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=add-create-log4j-2-config#0abbed20cfd87c8a871ca1228b8b1b0b965a4341"
+version = "0.32.0"
+source = "git+https://github.com//stackabletech/operator-rs.git?branch=fix-vector-config-for-log4j2#16cea8377f84e9c4f1d1e3210db9c1d7c727e2de"
 dependencies = [
  "chrono",
  "clap",
@@ -1840,8 +1840,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator-derive"
-version = "0.31.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=add-create-log4j-2-config#0abbed20cfd87c8a871ca1228b8b1b0b965a4341"
+version = "0.32.0"
+source = "git+https://github.com//stackabletech/operator-rs.git?branch=fix-vector-config-for-log4j2#16cea8377f84e9c4f1d1e3210db9c1d7c727e2de"
 dependencies = [
  "darling",
  "proc-macro2",
