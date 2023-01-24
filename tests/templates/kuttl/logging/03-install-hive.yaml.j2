@@ -28,9 +28,9 @@ data:
     appender.FILE.filter.threshold.type = ThresholdFilter
     appender.FILE.filter.threshold.level = INFO
 
-    rootLogger.level=INFO
-    rootLogger.appenderRefs = root
-    rootLogger.appenderRef.root.ref = FILE
+    rootLogger.appenderRefs = CONSOLE, FILE
+    rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+    rootLogger.appenderRef.FILE.ref = FILE
 ---
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
