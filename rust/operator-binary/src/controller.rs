@@ -725,7 +725,7 @@ fn build_metastore_rolegroup_statefulset(
             name: STACKABLE_CONFIG_DIR_NAME.to_string(),
             empty_dir: Some(EmptyDirVolumeSource {
                 medium: None,
-                size_limit: Some(Quantity(format!("10Mi"))),
+                size_limit: Some(Quantity("10Mi".to_string())),
             }),
             ..Volume::default()
         })
