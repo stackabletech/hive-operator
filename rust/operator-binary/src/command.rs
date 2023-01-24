@@ -23,8 +23,8 @@ pub fn build_container_command_args(
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
         format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
 
-        // TODO: test
-        format!("echo copying {STACKABLE_LOG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/hive-{HIVE_LOG4J2_PROPERTIES}"),
+        // Copy log4j2 properties
+        format!("echo copying {STACKABLE_LOG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/{HIVE_LOG4J2_PROPERTIES}"),
         format!("cp -RL {STACKABLE_LOG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} {STACKABLE_CONFIG_DIR}/{HIVE_LOG4J2_PROPERTIES}"),
 
         // Copy system truststore to stackable truststore
