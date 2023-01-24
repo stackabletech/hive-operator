@@ -40,9 +40,16 @@ stacks:
           repo:
             name: bitnami
             url: https://charts.bitnami.com/bitnami/
-          version: 10.16.2
+          version: 12.1.5
           options:
-            # Old version (10) of helm-charts has old way of setting credentials
-            postgresqlUsername: hive
-            postgresqlPassword: hive
-            postgresqlDatabase: hive
+            volumePermissions:
+              enabled: false
+              securityContext:
+                runAsUser: auto
+            primary:
+              extendedConfiguration: |
+                password_encryption=md5
+            auth:
+              username: hive
+              password: hive
+              database: hive
