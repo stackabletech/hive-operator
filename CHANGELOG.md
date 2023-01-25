@@ -7,13 +7,12 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated stackable image versions ([#271])
-- `operator-rs` `0.25.2` → `0.30.1` ([#274], [#283]).
+- `operator-rs` `0.25.2` → `0.32.2` ([#274], [#283], [#292], [#298]).
 - Consolidated security context user, group and fs group ([#277]).
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#280]).
 - Fix role group node selector ([#283]).
 - [BREAKING] Moved `database` specification from role / role-group level to top-level `clusterConfig` ([#292]).
 - [BREAKING] Moved `s3`, `serviceType` and `hdfs` discovery to top-level `clusterConfig` ([#292]).
-- `operator-rs` `0.30.1` -> `0.32.1` ([#292], [#298])
 - Enable logging ([#298])
 
 [#271]: https://github.com/stackabletech/hive-operator/pull/271
