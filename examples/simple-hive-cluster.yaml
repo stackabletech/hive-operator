@@ -6,7 +6,7 @@ metadata:
 spec:
   image:
     productVersion: 2.3.9
-    stackableVersion: 0.7.0
+    stackableVersion: stackableVersion
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
