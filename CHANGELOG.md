@@ -6,14 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Updated stackable image versions ([#271])
+- Updated stackable image versions ([#271]).
 - `operator-rs` `0.25.2` → `0.32.2` ([#274], [#283], [#292], [#298]).
 - Consolidated security context user, group and fs group ([#277]).
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#280]).
 - Fix role group node selector ([#283]).
 - [BREAKING] Moved `database` specification from role / role-group level to top-level `clusterConfig` ([#292]).
 - [BREAKING] Moved `s3`, `serviceType` and `hdfs` discovery to top-level `clusterConfig` ([#292]).
-- Enable logging ([#298])
+- Enable logging ([#298]).
 
 [#271]: https://github.com/stackabletech/hive-operator/pull/271
 [#274]: https://github.com/stackabletech/hive-operator/pull/274
@@ -28,12 +28,12 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - PVCs for data storage, cpu and memory limits are now configurable ([#242]).
-- Orphaned resources are deleted ([#254])
-- Support HDFS connections ([#264])
+- Orphaned resources are deleted ([#254]).
+- Support HDFS connections ([#264]).
 
 ### Changed
 
-- `operator-rs` `0.22.0` -> `0.25.2` ([#254])
+- `operator-rs` `0.22.0` -> `0.25.2` ([#254]).
 
 [#242]: https://github.com/stackabletech/hive-operator/pull/242
 [#254]: https://github.com/stackabletech/hive-operator/pull/254
