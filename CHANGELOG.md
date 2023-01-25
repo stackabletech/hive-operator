@@ -13,7 +13,8 @@ All notable changes to this project will be documented in this file.
 - Fix role group node selector ([#283]).
 - [BREAKING] Moved `database` specification from role / role-group level to top-level `clusterConfig` ([#292]).
 - [BREAKING] Moved `s3`, `serviceType` and `hdfs` discovery to top-level `clusterConfig` ([#292]).
-- `operator-rs` `0.30.1` -> `0.30.2` ([#292])
+- `operator-rs` `0.30.1` -> `0.32.1` ([#292], [#298])
+- Enable logging ([#298])
 
 [#271]: https://github.com/stackabletech/hive-operator/pull/271
 [#274]: https://github.com/stackabletech/hive-operator/pull/274
@@ -21,6 +22,7 @@ All notable changes to this project will be documented in this file.
 [#280]: https://github.com/stackabletech/hive-operator/pull/280
 [#283]: https://github.com/stackabletech/hive-operator/pull/283
 [#292]: https://github.com/stackabletech/hive-operator/pull/292
+[#298]: https://github.com/stackabletech/hive-operator/pull/298
 
 ## [0.8.0] - 2022-11-07
 
