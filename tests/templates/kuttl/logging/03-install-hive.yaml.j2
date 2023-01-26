@@ -11,7 +11,7 @@ data:
     appender.CONSOLE.name = CONSOLE
     appender.CONSOLE.target = SYSTEM_ERR
     appender.CONSOLE.layout.type = PatternLayout
-    appender.CONSOLE.layout.pattern = %d{ISO8601} %-5p %m%n
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %5p [%t] %c{2}: %m%n
     appender.CONSOLE.filter.threshold.type = ThresholdFilter
     appender.CONSOLE.filter.threshold.level = INFO
 
@@ -28,6 +28,7 @@ data:
     appender.FILE.filter.threshold.type = ThresholdFilter
     appender.FILE.filter.threshold.level = INFO
 
+    rootLogger.level=INFO
     rootLogger.appenderRefs = CONSOLE, FILE
     rootLogger.appenderRef.CONSOLE.ref = CONSOLE
     rootLogger.appenderRef.FILE.ref = FILE
