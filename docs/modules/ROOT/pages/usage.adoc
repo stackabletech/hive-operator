@@ -42,6 +42,25 @@ clusterConfig:
 The managed Hive instances are automatically configured to export Prometheus metrics. See
 xref:home:operators:monitoring.adoc[] for more details.
 
+== Log aggregation
+
+The logs can be forwarded to a Vector log aggregator by providing a discovery
+ConfigMap for the aggregator and by enabling the log agent:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+  metastore:
+    config:
+      logging:
+        enableVectorAgent: true
+----
+
+Further information on how to configure logging, can be found in
+xref:home:concepts:logging.adoc[].
+
 == Configuration & Environment Overrides
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
@@ -186,7 +205,7 @@ metadata:
 spec:
   image:
     productVersion: 3.1.3
-    stackableVersion: 0.2.0
+    stackableVersion: 0.prerelease
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
@@ -229,7 +248,7 @@ metadata:
 spec:
   image:
     productVersion: 3.1.3
-    stackableVersion: 0.2.0
+    stackableVersion: 0.prerelease
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
@@ -299,7 +318,7 @@ metadata:
 spec:
   image:
     productVersion: 3.1.3
-    stackableVersion: 0.2.0
+    stackableVersion: 0.prerelease
   clusterConfig:
     database:
       connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive

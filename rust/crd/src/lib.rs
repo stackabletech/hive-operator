@@ -14,26 +14,33 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
+    product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 use std::collections::BTreeMap;
-use strum::{Display, EnumString};
+use strum::{Display, EnumIter, EnumString};
 
 pub const APP_NAME: &str = "hive";
-
+// directories
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
-pub const STACKABLE_RW_CONFIG_DIR: &str = "/stackable/rwconfig";
+pub const STACKABLE_CONFIG_DIR_NAME: &str = "config";
+pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
+pub const STACKABLE_CONFIG_MOUNT_DIR_NAME: &str = "config-mount";
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const STACKABLE_LOG_DIR_NAME: &str = "log";
+pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
+pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
-pub const LOG_4J_PROPERTIES: &str = "log4j.properties";
+pub const HIVE_LOG4J2_PROPERTIES: &str = "hive-log4j2.properties";
 // default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
-// Certificates and trust stores
+// certificates and trust stores
 pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
@@ -48,7 +55,7 @@ pub const JVM_HEAP_FACTOR: f32 = 0.8;
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("no metastore role configuration provided"))]
-    NoMetaStoreRole,
+    MissingMetaStoreRole,
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
@@ -75,7 +82,7 @@ pub struct HiveClusterSpec {
     /// The Hive metastore image to use
     pub image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metastore: Option<Role<MetaStoreConfig>>,
+    pub metastore: Option<Role<MetaStoreConfigFragment>>,
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
@@ -97,6 +104,10 @@ pub struct HiveClusterConfig {
     /// Use with caution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_type: Option<ServiceType>,
+    /// Name of the Vector aggregator discovery ConfigMap.
+    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_aggregator_config_map_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -120,7 +131,7 @@ impl HiveRole {
             vec![
                 "bin/start-metastore".to_string(),
                 "--config".to_string(),
-                STACKABLE_RW_CONFIG_DIR.to_string(),
+                STACKABLE_CONFIG_DIR.to_string(),
                 "--db-type".to_string(),
                 db_type.to_string(),
                 "--hive-bin-dir".to_string(),
@@ -130,12 +141,32 @@ impl HiveRole {
             vec![
                 "/bin/hive".to_string(),
                 "--config".to_string(),
-                STACKABLE_RW_CONFIG_DIR.to_string(),
+                STACKABLE_CONFIG_DIR.to_string(),
                 "--service".to_string(),
                 "metastore".to_string(),
             ]
         }
     }
+}
+
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum Container {
+    Hive,
+    Vector,
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -157,13 +188,28 @@ pub struct MetastoreStorageConfig {
     pub data: PvcConfig,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
 pub struct MetaStoreConfig {
     /// The location of default database for the Hive warehouse.
     /// Maps to the `hive.metastore.warehouse.dir` setting.
     pub warehouse_dir: Option<String>,
-    pub resources: Option<ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits>>,
+    #[fragment_attrs(serde(default))]
+    pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<Container>,
 }
 
 impl MetaStoreConfig {
@@ -182,23 +228,27 @@ impl MetaStoreConfig {
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
 
-    fn default_resources() -> ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> {
-        ResourcesFragment {
-            cpu: CpuLimitsFragment {
-                min: Some(Quantity("200m".to_owned())),
-                max: Some(Quantity("4".to_owned())),
-            },
-            memory: MemoryLimitsFragment {
-                limit: Some(Quantity("2Gi".to_owned())),
-                runtime_limits: NoRuntimeLimitsFragment {},
-            },
-            storage: MetastoreStorageConfigFragment {
-                data: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
+    fn default_config() -> MetaStoreConfigFragment {
+        MetaStoreConfigFragment {
+            warehouse_dir: None,
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("200m".to_owned())),
+                    max: Some(Quantity("4".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("2Gi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: MetastoreStorageConfigFragment {
+                    data: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
                 },
             },
+            logging: product_logging::spec::default_logging(),
         }
     }
 }
@@ -269,7 +319,7 @@ pub struct DatabaseConnectionSpec {
     pub db_type: DbType,
 }
 
-impl Configuration for MetaStoreConfig {
+impl Configuration for MetaStoreConfigFragment {
     type Configurable = HiveCluster;
 
     fn compute_env(
@@ -299,7 +349,7 @@ impl Configuration for MetaStoreConfig {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
         result.insert(
-            Self::DB_TYPE_CLI.to_string(),
+            MetaStoreConfig::DB_TYPE_CLI.to_string(),
             Some(hive.spec.cluster_config.database.db_type.to_string()),
         );
         Ok(result)
@@ -309,44 +359,50 @@ impl Configuration for MetaStoreConfig {
         &self,
         hive: &Self::Configurable,
         _role_name: &str,
-        _file: &str,
+        file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        if let Some(warehouse_dir) = &self.warehouse_dir {
-            result.insert(
-                Self::METASTORE_WAREHOUSE_DIR.to_string(),
-                Some(warehouse_dir.to_string()),
-            );
-        }
-        result.insert(
-            Self::CONNECTION_URL.to_string(),
-            Some(hive.spec.cluster_config.database.conn_string.clone()),
-        );
-        result.insert(
-            Self::CONNECTION_USER_NAME.to_string(),
-            Some(hive.spec.cluster_config.database.user.clone()),
-        );
-        result.insert(
-            Self::CONNECTION_PASSWORD.to_string(),
-            Some(hive.spec.cluster_config.database.password.clone()),
-        );
-        result.insert(
-            Self::CONNECTION_DRIVER_NAME.to_string(),
-            Some(
-                hive.spec
-                    .cluster_config
-                    .database
-                    .db_type
-                    .get_jdbc_driver_class()
-                    .to_string(),
-            ),
-        );
+        match file {
+            HIVE_SITE_XML => {
+                if let Some(warehouse_dir) = &self.warehouse_dir {
+                    result.insert(
+                        MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
+                        Some(warehouse_dir.to_string()),
+                    );
+                }
+                result.insert(
+                    MetaStoreConfig::CONNECTION_URL.to_string(),
+                    Some(hive.spec.cluster_config.database.conn_string.clone()),
+                );
+                result.insert(
+                    MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
+                    Some(hive.spec.cluster_config.database.user.clone()),
+                );
+                result.insert(
+                    MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
+                    Some(hive.spec.cluster_config.database.password.clone()),
+                );
+                result.insert(
+                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+                    Some(
+                        hive.spec
+                            .cluster_config
+                            .database
+                            .db_type
+                            .get_jdbc_driver_class()
+                            .to_string(),
+                    ),
+                );
 
-        result.insert(
-            Self::METASTORE_METRICS_ENABLED.to_string(),
-            Some("true".to_string()),
-        );
+                result.insert(
+                    MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
+                    Some("true".to_string()),
+                );
+            }
+            HIVE_ENV_SH => {}
+            _ => {}
+        }
 
         Ok(result)
     }
@@ -366,8 +422,8 @@ pub struct NoNamespaceError;
 
 impl HiveCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_name(&self) -> Option<String> {
-        self.metadata.name.clone()
+    pub fn metastore_role_service_name(&self) -> Option<&str> {
+        self.metadata.name.as_deref()
     }
 
     /// Metadata about a metastore rolegroup
@@ -407,28 +463,31 @@ impl HiveCluster {
             }))
     }
 
+    pub fn get_role(&self, role: &HiveRole) -> Option<&Role<MetaStoreConfigFragment>> {
+        match role {
+            HiveRole::MetaStore => self.spec.metastore.as_ref(),
+        }
+    }
+
     /// Retrieve and merge resource configs for role and role groups
-    pub fn resolve_resource_config_for_role_and_rolegroup(
+    pub fn merged_config(
         &self,
         role: &HiveRole,
         rolegroup_ref: &RoleGroupRef<HiveCluster>,
-    ) -> Result<Resources<MetastoreStorageConfig, NoRuntimeLimits>, Error> {
+    ) -> Result<MetaStoreConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_resources();
+        let conf_defaults = MetaStoreConfig::default_config();
 
-        let role = match role {
-            HiveRole::MetaStore => self.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?,
-        };
+        let role = self.get_role(role).context(MissingMetaStoreRoleSnafu)?;
 
         // Retrieve role resource config
-        let mut conf_role: ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> =
-            role.config.config.resources.clone().unwrap_or_default();
+        let mut conf_role = role.config.config.to_owned();
 
         // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup: ResourcesFragment<MetastoreStorageConfig, NoRuntimeLimits> = role
+        let mut conf_rolegroup = role
             .role_groups
             .get(&rolegroup_ref.role_group)
-            .and_then(|rg| rg.config.config.resources.clone())
+            .map(|rg| rg.config.config.clone())
             .unwrap_or_default();
 
         // Merge more specific configs into default config
@@ -439,7 +498,7 @@ impl HiveCluster {
         conf_role.merge(&conf_defaults);
         conf_rolegroup.merge(&conf_role);
 
-        tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
+        tracing::debug!("Merged config: {:?}", conf_rolegroup);
         fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 }
