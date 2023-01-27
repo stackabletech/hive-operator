@@ -29,8 +29,8 @@ pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
 pub const STACKABLE_CONFIG_MOUNT_DIR_NAME: &str = "config-mount";
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_DIR_NAME: &str = "log";
-pub const STACKABLE_LOG_MOUNT_DIR: &str = "/stackable/mount/log";
-pub const STACKABLE_LOG_MOUNT_DIR_NAME: &str = "log-mount";
+pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
+pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 // config file names
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";

@@ -10,8 +10,8 @@ use stackable_hive_crd::{
     CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
     JVM_HEAP_FACTOR, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
     STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
-    STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_MOUNT_DIR,
-    STACKABLE_LOG_MOUNT_DIR_NAME,
+    STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
+    STACKABLE_LOG_DIR_NAME,
 };
 use stackable_operator::{
     builder::{
@@ -685,7 +685,10 @@ fn build_metastore_rolegroup_statefulset(
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
         .add_volume_mount(STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR)
         .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
-        .add_volume_mount(STACKABLE_LOG_MOUNT_DIR_NAME, STACKABLE_LOG_MOUNT_DIR)
+        .add_volume_mount(
+            STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
+            STACKABLE_LOG_CONFIG_MOUNT_DIR,
+        )
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .resources(merged_config.resources.clone().into())
@@ -762,7 +765,7 @@ fn build_metastore_rolegroup_statefulset(
     }) = merged_config.logging.containers.get(&Container::Hive)
     {
         pod_builder.add_volume(Volume {
-            name: STACKABLE_LOG_MOUNT_DIR_NAME.to_string(),
+            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: Some(config_map.into()),
                 ..ConfigMapVolumeSource::default()
@@ -771,7 +774,7 @@ fn build_metastore_rolegroup_statefulset(
         });
     } else {
         pod_builder.add_volume(Volume {
-            name: STACKABLE_LOG_MOUNT_DIR_NAME.to_string(),
+            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: Some(rolegroup_ref.object_name()),
                 ..ConfigMapVolumeSource::default()
