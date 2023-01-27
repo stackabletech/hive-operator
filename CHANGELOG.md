@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated stackable image versions ([#271]).
-- `operator-rs` `0.25.2` → `0.32.2` ([#274], [#283], [#292], [#298]).
+- `operator-rs` `0.25.2` → `0.32.1` ([#274], [#283], [#292], [#298]).
 - Consolidated security context user, group and fs group ([#277]).
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#280]).
 - Fix role group node selector ([#283]).

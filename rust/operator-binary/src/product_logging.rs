@@ -89,7 +89,7 @@ pub fn extend_role_group_config_map(
         cm_builder.add_data(
             HIVE_LOG4J2_PROPERTIES,
             product_logging::framework::create_log4j2_config(
-                &format!("{STACKABLE_LOG_DIR}/hive"),
+                &format!("{STACKABLE_LOG_DIR}/{container}", container = Container::Hive),
                 HIVE_LOG_FILE,
                 MAX_HIVE_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
