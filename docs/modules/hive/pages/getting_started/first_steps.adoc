@@ -1,10 +1,10 @@
 = First steps
 
-After going through the xref:installation.adoc[] section and having installed all the operators, you will now deploy a Hive metastore cluster and it's dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>>.
+After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you will now deploy a Hive metastore cluster and it's dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>>.
 
 == Setup
 
-Several requirements should have already been installed in the xref:installation.adoc[Installation guide]:
+Several requirements should have already been installed in the xref:getting_started/installation.adoc[Installation guide]:
 
 * xref:commons-operator::index.adoc[Commons Operator]
 * xref:secret-operator::index.adoc[Secret Operator]
@@ -16,39 +16,39 @@ Several requirements should have already been installed in the xref:installation
 
 In order to connect Hive to MinIO we need to create several files (or concat in one file).
 
-An xref:home:concepts:s3.adoc[S3Connection] to connect to MinIO (`hive-minio-s3-connection.yaml`)
+An xref:concepts:s3.adoc[S3Connection] to connect to MinIO (`hive-minio-s3-connection.yaml`)
 
 [source,yaml]
 ----
-include::example$code/hive-minio-s3-connection.yaml[]
+include::example$getting_started/hive-minio-s3-connection.yaml[]
 ----
 
 Credentials for the S3Connection to log into MinIO (`hive-minio-credentials.yaml`)
 
 [source,yaml]
 ----
-include::example$code/hive-minio-credentials.yaml[]
+include::example$getting_started/hive-minio-credentials.yaml[]
 ----
 
 A SecretClass for the credentials to the Minio. The credentials were defined in the installation of Minio (`hive-minio-credentials-secret-class.yaml`)
 
 [source,yaml]
 ----
-include::example$code/hive-minio-credentials-secret-class.yaml[]
+include::example$getting_started/hive-minio-credentials-secret-class.yaml[]
 ----
 
 And lastly the actual Apache Hive cluster definition (`hive-postgres-s3.yaml`). Note how it references the `minio` S3 object
 
 [source,yaml]
 ----
-include::example$code/hive-postgres-s3.yaml[]
+include::example$getting_started/hive-postgres-s3.yaml[]
 ----
 
 Once the files are created apply them to the cluster:
 
 [source,bash]
 ----
-include::example$code/getting-started.sh[tag=install-hive]
+include::example$getting_started/getting-started.sh[tag=install-hive]
 ----
 
 == Verify that it works
@@ -72,4 +72,4 @@ For further testing we recommend to use e.g. the python https://github.com/quint
 
 == What's next
 
-Have a look at the xref:ROOT:usage.adoc[] page to find out more about the features of the Operator.
+Have a look at the xref:usage.adoc[] page to find out more about the features of the Operator.
