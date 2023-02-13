@@ -19,5 +19,5 @@ Resource sizing depends on cluster type(s), usage and scope, but as a starting p
 
 The Guide is divided into two steps:
 
-* xref:installation.adoc[Installing the operators].
-* xref:first_steps.adoc[Setting up the Hive metastore instance with PostgreSQL and Minio].
+* xref:getting_started/installation.adoc[Installing the operators].
+* xref:getting_started/first_steps.adoc[Setting up the Hive metastore instance with PostgreSQL and Minio].
