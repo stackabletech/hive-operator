@@ -9,7 +9,7 @@ Please open an https://github.com/stackabletech/hive-operator/issues[issue] if y
 == S3 Support
 
 Hive supports creating tables in S3 compatible object stores.
-To use this feature you need to provide connection details for the object store using the xref:home:concepts:s3.adoc[S3Connection] in the top level `clusterConfig`.
+To use this feature you need to provide connection details for the object store using the xref:concepts:s3.adoc[S3Connection] in the top level `clusterConfig`.
 
 An example usage can look like this:
 
@@ -40,7 +40,7 @@ clusterConfig:
 == Monitoring
 
 The managed Hive instances are automatically configured to export Prometheus metrics. See
-xref:home:operators:monitoring.adoc[] for more details.
+xref:operators:monitoring.adoc[] for more details.
 
 == Configuration & Environment Overrides
 
