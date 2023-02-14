@@ -1,0 +1,3 @@
+= Stackable Operator for Apache Hive
+
+The docs can now be found at: xref:home:hive:index.adoc[]
