@@ -48,7 +48,7 @@ Once the files are created apply them to the cluster:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=install-hive]
+include::example$getting_started/getting_started.sh[tag=install-hive]
 ----
 
 == Verify that it works
