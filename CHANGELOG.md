@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## Added
+
+- Deploy default and support custom affinities ([#315]).
+
+[#315]: https://github.com/stackabletech/hive-operator/pull/315
+
 ## [23.1.0] - 2023-01-23
 
 ### Changed
