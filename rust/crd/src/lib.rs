@@ -1,8 +1,12 @@
+pub mod affinity;
+
+use affinity::get_affinity;
 use indoc::formatdoc;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
+        affinity::StackableAffinity,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -12,10 +16,10 @@ use stackable_operator::{
     },
     config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{runtime::reflector::ObjectRef, CustomResource},
+    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{Role, RoleGroupRef},
+    role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 use std::collections::BTreeMap;
@@ -210,6 +214,8 @@ pub struct MetaStoreConfig {
     pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<Container>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MetaStoreConfig {
@@ -228,7 +234,7 @@ impl MetaStoreConfig {
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
     pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
 
-    fn default_config() -> MetaStoreConfigFragment {
+    fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
             warehouse_dir: None,
             resources: ResourcesFragment {
@@ -249,6 +255,7 @@ impl MetaStoreConfig {
                 },
             },
             logging: product_logging::spec::default_logging(),
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -473,10 +480,10 @@ impl HiveCluster {
     pub fn merged_config(
         &self,
         role: &HiveRole,
-        rolegroup_ref: &RoleGroupRef<HiveCluster>,
+        role_group: &str,
     ) -> Result<MetaStoreConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config();
+        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
 
         let role = self.get_role(role).context(MissingMetaStoreRoleSnafu)?;
 
@@ -486,9 +493,20 @@ impl HiveCluster {
         // Retrieve rolegroup specific resource config
         let mut conf_rolegroup = role
             .role_groups
-            .get(&rolegroup_ref.role_group)
+            .get(role_group)
             .map(|rg| rg.config.config.clone())
             .unwrap_or_default();
+
+        if let Some(RoleGroup {
+            selector: Some(selector),
+            ..
+        }) = role.role_groups.get(role_group)
+        {
+            // Migrate old `selector` attribute, see ADR 26 affinities.
+            // TODO Can be removed after support for the old `selector` field is dropped.
+            #[allow(deprecated)]
+            conf_rolegroup.affinity.add_legacy_selector(selector);
+        }
 
         // Merge more specific configs into default config
         // Hierarchy is:

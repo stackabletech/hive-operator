@@ -13,6 +13,7 @@ use stackable_hive_crd::{
     STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
     STACKABLE_LOG_DIR_NAME,
 };
+use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -39,7 +40,7 @@ use stackable_operator::{
     kube::{runtime::controller::Action, Resource, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
-    memory::{to_java_heap_value, BinaryMultiple},
+    memory::BinaryMultiple,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
@@ -263,7 +264,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         let config = hive
-            .merged_config(&HiveRole::MetaStore, &rolegroup)
+            .merged_config(&HiveRole::MetaStore, &rolegroup.role_group)
             .context(FailedToResolveResourceConfigSnafu)?;
 
         let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
@@ -407,20 +408,24 @@ fn build_metastore_rolegroup_config_map(
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
                 let mut data = BTreeMap::new();
-                // heap in mebi
-                let heap_in_mebi = to_java_heap_value(
+
+                let memory_limit = MemoryQuantity::try_from(
                     merged_config
                         .resources
                         .memory
                         .limit
                         .as_ref()
                         .context(InvalidJavaHeapConfigSnafu)?,
-                    JVM_HEAP_FACTOR,
-                    BinaryMultiple::Mebi,
                 )
                 .context(FailedToConvertJavaHeapSnafu {
                     unit: BinaryMultiple::Mebi.to_java_memory_unit(),
                 })?;
+                let heap_in_mebi = (memory_limit * JVM_HEAP_FACTOR)
+                    .scale_to(BinaryMultiple::Mebi)
+                    .format_for_java()
+                    .context(FailedToConvertJavaHeapSnafu {
+                        unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+                    })?;
 
                 data.insert(HADOOP_HEAPSIZE.to_string(), Some(heap_in_mebi.to_string()));
 
@@ -748,7 +753,7 @@ fn build_metastore_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()))
+        .affinity(&merged_config.affinity)
         .security_context(
             PodSecurityContextBuilder::new()
                 .run_as_user(1000)
