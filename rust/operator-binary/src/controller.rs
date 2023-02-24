@@ -422,10 +422,8 @@ fn build_metastore_rolegroup_config_map(
                 })?;
                 let heap_in_mebi = (memory_limit * JVM_HEAP_FACTOR)
                     .scale_to(BinaryMultiple::Mebi)
-                    .format_for_java()
-                    .context(FailedToConvertJavaHeapSnafu {
-                        unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                    })?;
+                    .floor()
+                    .value as u32;
 
                 data.insert(HADOOP_HEAPSIZE.to_string(), Some(heap_in_mebi.to_string()));
 

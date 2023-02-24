@@ -8,7 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Deploy default and support custom affinities ([#315]).
 
+### Fixes
+
+- Bugfix: heap formatting and update product images used for tests ([#317])
+
 [#315]: https://github.com/stackabletech/hive-operator/pull/315
+[#317]: https://github.com/stackabletech/hive-operator/pull/317
 
 ## [23.1.0] - 2023-01-23
 
