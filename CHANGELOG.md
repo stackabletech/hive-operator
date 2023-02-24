@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixes
 
-- Bugfix: update product images used for tests ([#317])
+- Bugfix: heap formatting and update product images used for tests ([#317])
 
 [#315]: https://github.com/stackabletech/hive-operator/pull/315
 [#317]: https://github.com/stackabletech/hive-operator/pull/317
