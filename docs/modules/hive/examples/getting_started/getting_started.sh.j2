@@ -25,6 +25,8 @@ echo "Adding '{{ helm.repo_name }}' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add {{ helm.repo_name }} {{ helm.repo_url }}
 # end::helm-add-repo[]
+echo "Updating Helm repo"
+helm repo update
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
@@ -91,20 +93,20 @@ kubectl apply -f hive-minio-s3-connection.yaml
 kubectl apply -f hive-postgres-s3.yaml
 # end::install-hive[]
 
-sleep 5
+sleep 15
 
 echo "Awaiting Hive rollout finish"
 # tag::watch-hive-rollout[]
-kubectl rollout status --watch statefulset/hive-postgres-s3-metastore-default
+kubectl rollout status --watch --timeout=5m statefulset/hive-postgres-s3-metastore-default
 # end::watch-hive-rollout[]
 
 echo "Install Hive test helper from hive-test-helper.yaml"
 kubectl apply -f hive-test-helper.yaml
 
-sleep 5
+sleep 15
 
 echo "Awaiting Hive test helper rollout finish"
-kubectl rollout status --watch statefulset/hive-test-helper
+kubectl rollout status --watch --timeout=5m statefulset/hive-test-helper
 
 # Only for testing the cluster (not required for documentation)
 echo "Running test scripts"
