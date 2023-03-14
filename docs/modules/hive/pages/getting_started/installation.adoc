@@ -24,11 +24,11 @@ include::example$getting_started/getting_started.sh[tag=stackablectl-install-min
 
 For this to work you need to create two yaml files.
 
-The _stackablectl-hive-postgres-s3-stack.yaml_:
+The _stackablectl-hive-postgres-minio-stack.yaml_:
 
 [source,yaml]
 ----
-include::example$getting_started/stackablectl-postgres-minio-stack.yaml[]
+include::example$getting_started/stackablectl-hive-postgres-minio-stack.yaml[]
 ----
 
 The _release.yaml_:

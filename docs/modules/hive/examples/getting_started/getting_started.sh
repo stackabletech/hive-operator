@@ -25,6 +25,8 @@ echo "Adding 'stackable-dev' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
+echo "Updating Helm repo"
+helm repo update
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
@@ -57,24 +59,30 @@ helm install postgresql \
 --set postgresqlUsername=hive \
 --set postgresqlPassword=hive \
 --set postgresqlDatabase=hive \
+--set primary.extendedConfiguration="password_encryption=md5" \
 --repo https://charts.bitnami.com/bitnami postgresql
 # end::helm-install-postgres[]
 ;;
 "stackablectl")
-echo "installing Operators with stackablectl"
+
+# This step will be omitted since the operators are installed via the stack definition
+# It is just kept for documentation purposes here
+if false; then
+echo "Installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
   commons=0.0.0-dev \
   secret=0.0.0-dev \
   hive=0.0.0-dev
 # end::stackablectl-install-operators[]
+fi
 
-echo "installing MinIO and PostgreSQL with stackablectl"
+echo "Installing MinIO and PostgreSQL with stackablectl"
 # tag::stackablectl-install-minio-postgres-stack[]
 stackablectl \
---additional-stacks-file stackablectl-postgres-minio-stack.yaml \
+--additional-stacks-file stackablectl-hive-postgres-minio-stack.yaml \
 --additional-releases-file release.yaml \
-stack install minio-postgres
+stack install hive-minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
 *)
@@ -91,20 +99,20 @@ kubectl apply -f hive-minio-s3-connection.yaml
 kubectl apply -f hive-postgres-s3.yaml
 # end::install-hive[]
 
-sleep 5
+sleep 15
 
 echo "Awaiting Hive rollout finish"
 # tag::watch-hive-rollout[]
-kubectl rollout status --watch statefulset/hive-postgres-s3-metastore-default
+kubectl rollout status --watch --timeout=5m statefulset/hive-postgres-s3-metastore-default
 # end::watch-hive-rollout[]
 
 echo "Install Hive test helper from hive-test-helper.yaml"
 kubectl apply -f hive-test-helper.yaml
 
-sleep 5
+sleep 15
 
 echo "Awaiting Hive test helper rollout finish"
-kubectl rollout status --watch statefulset/hive-test-helper
+kubectl rollout status --watch --timeout=5m statefulset/hive-test-helper
 
 # Only for testing the cluster (not required for documentation)
 echo "Running test scripts"

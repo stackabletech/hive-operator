@@ -59,24 +59,30 @@ helm install postgresql \
 --set postgresqlUsername=hive \
 --set postgresqlPassword=hive \
 --set postgresqlDatabase=hive \
+--set primary.extendedConfiguration="password_encryption=md5" \
 --repo https://charts.bitnami.com/bitnami postgresql
 # end::helm-install-postgres[]
 ;;
 "stackablectl")
-echo "installing Operators with stackablectl"
+
+# This step will be omitted since the operators are installed via the stack definition
+# It is just kept for documentation purposes here
+if false; then
+echo "Installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
   commons={{ versions.commons }} \
   secret={{ versions.secret }} \
   hive={{ versions.hive }}
 # end::stackablectl-install-operators[]
+fi
 
-echo "installing MinIO and PostgreSQL with stackablectl"
+echo "Installing MinIO and PostgreSQL with stackablectl"
 # tag::stackablectl-install-minio-postgres-stack[]
 stackablectl \
---additional-stacks-file stackablectl-postgres-minio-stack.yaml \
+--additional-stacks-file stackablectl-hive-postgres-minio-stack.yaml \
 --additional-releases-file release.yaml \
-stack install minio-postgres
+stack install hive-minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
 *)

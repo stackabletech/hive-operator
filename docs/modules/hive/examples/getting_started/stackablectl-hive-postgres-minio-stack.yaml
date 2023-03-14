@@ -1,0 +1,15 @@
+---
+stacks:
+  hive-minio-postgres:
+    stackableRelease: hive-getting-started
+    description: Stack for Hive getting started guide
+    stackableOperators:
+      - commons
+      - secret
+      - hive
+    labels:
+      - minio
+      - postgresql
+    manifests:
+      - helmChart: ./minio-stack.yaml
+      - helmChart: ./postgres-stack.yaml
