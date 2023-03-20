@@ -103,7 +103,7 @@ sleep 15
 
 echo "Awaiting Hive rollout finish"
 # tag::watch-hive-rollout[]
-kubectl rollout status --watch --timeout=5m statefulset/hive-postgres-s3-metastore-default
+kubectl rollout status --watch --timeout=8m statefulset/hive-postgres-s3-metastore-default
 # end::watch-hive-rollout[]
 
 echo "Install Hive test helper from hive-test-helper.yaml"
