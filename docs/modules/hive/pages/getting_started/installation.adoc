@@ -8,35 +8,58 @@ The stackablectl command line tool is the recommended way to interact with opera
 
 First you need to install MinIO and PostgreSQL instances for the Hive metastore.
 
-There are 2 ways to install the dependencies:
+There are two ways to install the dependencies:
 
 1. Using xref:stackablectl::index.adoc[stackablectl]
 2. Using Helm
 
 === stackablectl
 
-In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of stackablectl. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, below>>.
+stackablectl was designed to install Stackable components, but its xref:stackablectl::commands/stack.adoc[Stacks] feature can also be used to install arbitrary Helm Charts. You can install MinIO and PostgreSQL using the Stacks feature as follows, but a simpler method via Helm is shown <<Helm, below>>.
 
 [source,bash]
 ----
 include::example$getting_started/getting_started.sh[tag=stackablectl-install-minio-postgres-stack]
 ----
 
-For this to work you need to create two yaml files.
+Create a file called `minio-stack.yaml`:
 
-The _stackablectl-hive-postgres-minio-stack.yaml_:
+[source,yaml]
+----
+include::example$getting_started/minio-stack.yaml[]
+----
+
+As well as `postgres-stack.yaml`:
+
+[source,yaml]
+----
+include::example$getting_started/postgres-stack.yaml[]
+----
+
+And then reference both files in another file called `stackablectl-hive-postgres-minio-stack.yaml`:
 
 [source,yaml]
 ----
 include::example$getting_started/stackablectl-hive-postgres-minio-stack.yaml[]
 ----
 
-The _release.yaml_:
+Also create a `release.yaml` file:
 
 [source,yaml]
 ----
 include::example$getting_started/release.yaml[]
 ----
+
+The release definition already references the required operators for this Getting Started guide.
+
+Now call stackablectl and reference those two files:
+
+[source,bash]
+----
+include::example$getting_started/getting_started.sh[tag=stackablectl-install-minio-postgres-stack]
+----
+
+This will install MinIO and PostgreSQL as defined in the Stacks, as well as the Operators. You can now skip the <<Stackable Operators>> step that follows next.
 
 TIP: Consult the xref:stackablectl::quickstart.adoc[Quickstart] to learn more about how to use stackablectl.
 
