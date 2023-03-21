@@ -11,5 +11,5 @@ stacks:
       - minio
       - postgresql
     manifests:
-      - helmChart: ./minio-stack.yaml
-      - helmChart: ./postgres-stack.yaml
+      - helmChart: minio-stack.yaml
+      - helmChart: postgres-stack.yaml
