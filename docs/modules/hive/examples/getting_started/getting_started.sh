@@ -79,9 +79,91 @@ fi
 
 echo "Installing MinIO and PostgreSQL with stackablectl"
 # tag::stackablectl-install-minio-postgres-stack[]
+cat > release.yaml << 'EOF'
+releases:
+  hive-getting-started:
+    releaseDate: 2023-03-14
+    description: Demo / Test release for Hive getting started guide
+    products:
+      commons:
+        operatorVersion: 0.0.0-dev
+      hive:
+        operatorVersion: 0.0.0-dev
+      secret:
+        operatorVersion: 0.0.0-dev
+EOF
+
+cat > stackablectl-hive-postgres-minio-stack.yaml << 'EOF'
+stacks:
+  hive-minio-postgres:
+    stackableRelease: hive-getting-started
+    description: Stack for Hive getting started guide
+    stackableOperators:
+      - commons
+      - secret
+      - hive
+    labels:
+      - minio
+      - postgresql
+    manifests:
+      - helmChart: ./minio-stack.yaml
+      - helmChart: ./postgres-stack.yaml
+EOF
+
+cat > minio-stack.yaml << 'EOF'
+releaseName: minio
+name: minio
+repo:
+  name: minio
+  url: https://charts.min.io/
+version: 4.0.2
+options:
+  rootUser: root
+  rootPassword: rootroot
+  mode: standalone
+  users:
+    - accessKey: hive
+      secretKey: hivehive
+      policy: readwrite
+  buckets:
+    - name: hive
+      policy: public
+  resources:
+    requests:
+      memory: 2Gi
+  service:
+    type: NodePort
+    nodePort: null
+  consoleService:
+    type: NodePort
+    nodePort: null
+
+EOF
+
+cat > postgres-stack.yaml << 'EOF'
+releaseName: postgresql
+name: postgresql
+repo:
+  name: bitnami
+  url: https://charts.bitnami.com/bitnami/
+version: 12.1.5
+options:
+  volumePermissions:
+    enabled: false
+    securityContext:
+      runAsUser: auto
+  primary:
+    extendedConfiguration: |
+      password_encryption=md5
+  auth:
+    username: hive
+    password: hive
+    database: hive
+EOF
+
 stackablectl \
---additional-stacks-file stackablectl-hive-postgres-minio-stack.yaml \
 --additional-releases-file release.yaml \
+--additional-stacks-file stackablectl-hive-postgres-minio-stack.yaml \
 stack install hive-minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
