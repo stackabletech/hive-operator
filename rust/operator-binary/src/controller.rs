@@ -1,6 +1,7 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
+use crate::rbac;
 use crate::{discovery, OPERATOR_NAME};
 
 use fnv::FnvHasher;
@@ -63,6 +64,8 @@ use std::{
 use strum::EnumDiscriminants;
 use tracing::warn;
 
+/// Used as runAsUser in the pod security context. This is specified in the kafka image file
+pub const HIVE_UID: i64 = 1000;
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
@@ -181,6 +184,16 @@ pub enum Error {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+    #[snafu(display("failed to patch service account: {source}"))]
+    ApplyServiceAccount {
+        name: String,
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to patch role binding: {source}"))]
+    ApplyRoleBinding {
+        name: String,
+        source: stackable_operator::error::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -195,6 +208,20 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let client = &ctx.client;
     let resolved_product_image: ResolvedProductImage =
         hive.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+
+    let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hive.as_ref(), "hive");
+    client
+        .apply_patch(HIVE_CONTROLLER_NAME, &rbac_sa, &rbac_sa)
+        .await
+        .with_context(|_| ApplyServiceAccountSnafu {
+            name: rbac_sa.name_unchecked(),
+        })?;
+    client
+        .apply_patch(HIVE_CONTROLLER_NAME, &rbac_rolebinding, &rbac_rolebinding)
+        .await
+        .with_context(|_| ApplyRoleBindingSnafu {
+            name: rbac_rolebinding.name_unchecked(),
+        })?;
 
     let s3_connection_spec: Option<S3ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
@@ -284,6 +311,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             rolegroup_config,
             s3_connection_spec.as_ref(),
             &config,
+            &rbac_sa.name_unchecked(),
         )?;
 
         cluster_resources
@@ -582,6 +610,7 @@ fn build_metastore_rolegroup_statefulset(
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
+    sa_name: &str,
 ) -> Result<StatefulSet> {
     let rolegroup = hive
         .spec
@@ -752,11 +781,12 @@ fn build_metastore_rolegroup_statefulset(
             ..Volume::default()
         })
         .affinity(&merged_config.affinity)
+        .service_account_name(sa_name)
         .security_context(
             PodSecurityContextBuilder::new()
-                .run_as_user(1000)
-                .run_as_group(1000)
-                .fs_group(1000)
+                .run_as_user(HIVE_UID)
+                .run_as_group(0)
+                .fs_group(1000) // Needed for secret-operator
                 .build(),
         );
 

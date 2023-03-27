@@ -14,6 +14,8 @@ commands:
       --set resources.requests.memory=1Gi
       --set service.type=NodePort,service.nodePort=null
       --set consoleService.type=NodePort,consoleService.nodePort=null
+      --set podSecurityContext.enabled=false
+      --set containerSecurityContext.enabled=false
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
       --set tls.enabled=true,tls.certSecret=minio-tls-certificates,tls.publicCrt=tls.crt,tls.privateKey=tls.key
 {% endif %}

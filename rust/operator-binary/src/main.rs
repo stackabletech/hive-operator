@@ -2,6 +2,7 @@ mod command;
 mod controller;
 mod discovery;
 mod product_logging;
+mod rbac;
 
 use crate::controller::HIVE_CONTROLLER_NAME;
 
