@@ -1,3 +1,4 @@
+{% if test_scenario['values']['openshift'] == 'false' %}
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
@@ -20,3 +21,4 @@ commands:
 {% endif %}
       --repo https://charts.min.io/ minio
     timeout: 600
+{% endif %}
