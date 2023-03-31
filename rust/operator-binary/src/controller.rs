@@ -281,7 +281,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     // we have to get the assigned ports
     let metastore_role_service = cluster_resources
-        .add(client, metastore_role_service.clone())
+        .add(client, metastore_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -317,21 +317,21 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
 
         cluster_resources
-            .add(client, rg_service.clone())
+            .add(client, rg_service)
             .await
             .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         cluster_resources
-            .add(client, rg_configmap.clone())
+            .add(client, rg_configmap)
             .await
             .context(ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         cluster_resources
-            .add(client, rg_statefulset.clone())
+            .add(client, rg_statefulset)
             .await
             .context(ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
@@ -353,7 +353,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     .context(BuildDiscoveryConfigSnafu)?
     {
         let discovery_cm = cluster_resources
-            .add(client, discovery_cm.clone())
+            .add(client, discovery_cm)
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
         if let Some(generation) = discovery_cm.metadata.resource_version {
