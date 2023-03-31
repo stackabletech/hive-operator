@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Deploy default and support custom affinities ([#315]).
+- Openshift compatibility ([#323]).
+- Incorporated cluster-operation change. ([#323]).
 
 ### Fixes
 
@@ -14,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#315]: https://github.com/stackabletech/hive-operator/pull/315
 [#317]: https://github.com/stackabletech/hive-operator/pull/317
+[#323]: https://github.com/stackabletech/hive-operator/pull/323
 
 ## [23.1.0] - 2023-01-23
 
