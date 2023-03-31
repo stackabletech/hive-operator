@@ -1,7 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
-use crate::rbac;
 use crate::{discovery, OPERATOR_NAME};
 
 use fnv::FnvHasher;
@@ -14,6 +13,8 @@ use stackable_hive_crd::{
     STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
     STACKABLE_LOG_DIR_NAME,
 };
+use stackable_operator::cluster_resources::ClusterResourceApplyStrategy;
+use stackable_operator::commons::rbac::build_rbac_resources;
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::{
     builder::{
@@ -209,7 +210,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let resolved_product_image: ResolvedProductImage =
         hive.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
 
-    let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hive.as_ref(), "hive");
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(hive.as_ref(), "hive");
     client
         .apply_patch(HIVE_CONTROLLER_NAME, &rbac_sa, &rbac_sa)
         .await
@@ -272,6 +273,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         OPERATOR_NAME,
         HIVE_CONTROLLER_NAME,
         &hive.object_ref(&()),
+        ClusterResourceApplyStrategy::from(&hive.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -279,7 +281,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     // we have to get the assigned ports
     let metastore_role_service = cluster_resources
-        .add(client, &metastore_role_service)
+        .add(client, metastore_role_service.clone())
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -315,21 +317,21 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
 
         cluster_resources
-            .add(client, &rg_service)
+            .add(client, rg_service.clone())
             .await
             .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         cluster_resources
-            .add(client, &rg_configmap)
+            .add(client, rg_configmap.clone())
             .await
             .context(ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         cluster_resources
-            .add(client, &rg_statefulset)
+            .add(client, rg_statefulset.clone())
             .await
             .context(ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
@@ -351,7 +353,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     .context(BuildDiscoveryConfigSnafu)?
     {
         let discovery_cm = cluster_resources
-            .add(client, &discovery_cm)
+            .add(client, discovery_cm.clone())
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
         if let Some(generation) = discovery_cm.metadata.resource_version {
