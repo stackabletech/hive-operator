@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Deploy default and support custom affinities ([#315]).
-- - Extend cluster resources for status and cluster operation (paused, stopped) ([#324]).
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#324]).
 
 ### Changed
 
