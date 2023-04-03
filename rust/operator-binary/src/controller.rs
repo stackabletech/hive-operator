@@ -19,7 +19,7 @@ use stackable_operator::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
         PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
-    cluster_resources::ClusterResources,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
         product_image_selection::ResolvedProductImage,
         s3::{S3AccessStyle, S3ConnectionSpec},
@@ -245,6 +245,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         OPERATOR_NAME,
         HIVE_CONTROLLER_NAME,
         &hive.object_ref(&()),
+        ClusterResourceApplyStrategy::from(&hive.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -252,7 +253,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     // we have to get the assigned ports
     let metastore_role_service = cluster_resources
-        .add(client, &metastore_role_service)
+        .add(client, metastore_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -287,21 +288,21 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
 
         cluster_resources
-            .add(client, &rg_service)
+            .add(client, rg_service)
             .await
             .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         cluster_resources
-            .add(client, &rg_configmap)
+            .add(client, rg_configmap)
             .await
             .context(ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         cluster_resources
-            .add(client, &rg_statefulset)
+            .add(client, rg_statefulset)
             .await
             .context(ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
@@ -323,7 +324,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     .context(BuildDiscoveryConfigSnafu)?
     {
         let discovery_cm = cluster_resources
-            .add(client, &discovery_cm)
+            .add(client, discovery_cm)
             .await
             .context(ApplyDiscoveryConfigSnafu)?;
         if let Some(generation) = discovery_cm.metadata.resource_version {
