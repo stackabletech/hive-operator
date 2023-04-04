@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Deploy default and support custom affinities ([#315]).
 - Extend cluster resources for status and cluster operation (paused, stopped) ([#324]).
+- Cluster status conditions ([#326]).
 
 ### Changed
 
@@ -20,6 +21,7 @@ All notable changes to this project will be documented in this file.
 [#315]: https://github.com/stackabletech/hive-operator/pull/315
 [#317]: https://github.com/stackabletech/hive-operator/pull/317
 [#324]: https://github.com/stackabletech/hive-operator/pull/324
+[#326]: https://github.com/stackabletech/hive-operator/pull/326
 
 ## [23.1.0] - 2023-01-23
 
