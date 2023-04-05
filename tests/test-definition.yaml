@@ -38,11 +38,9 @@ tests:
   - name: resources
     dimensions:
       - hive
-      - openshift
   - name: orphaned-resources
     dimensions:
       - hive-latest
-      - openshift
   - name: logging
     dimensions:
       - postgres
@@ -51,4 +49,3 @@ tests:
   - name: cluster-operation
     dimensions:
       - hive-latest
-      - openshift
