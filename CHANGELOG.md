@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 - Deploy default and support custom affinities ([#315]).
 - Openshift compatibility ([#323]).
 - Incorporated cluster-operation change. ([#323]).
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#324]).
+
+### Changed
+
+- `operator-rs` `0.36.0` → `0.39.0` ([#324]).
 
 ### Fixes
 
@@ -17,6 +22,7 @@ All notable changes to this project will be documented in this file.
 [#315]: https://github.com/stackabletech/hive-operator/pull/315
 [#317]: https://github.com/stackabletech/hive-operator/pull/317
 [#323]: https://github.com/stackabletech/hive-operator/pull/323
+[#324]: https://github.com/stackabletech/hive-operator/pull/324
 
 ## [23.1.0] - 2023-01-23
 

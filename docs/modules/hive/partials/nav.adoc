@@ -5,3 +5,4 @@
 * xref:hive:usage.adoc[]
 * Concepts
 ** xref:hive:discovery.adoc[]
+** xref:hive:cluster_operations.adoc[]

@@ -48,3 +48,7 @@ tests:
       - postgres
       - hive
       - openshift
+  - name: cluster-operation
+    dimensions:
+      - hive-latest
+      - openshift
