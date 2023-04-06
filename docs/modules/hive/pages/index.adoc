@@ -6,7 +6,7 @@ Currently it does only support running a Hive metastore service (HMS) that store
 There are multiple tools that can use the HMS:
 
 * Hive server
-** This this is the "original" tool using the HMS.
+** This is the "original" tool using the HMS.
 ** It offers a SQL endpoint, where you can submit HiveQL (similar to SQL) queries.
 ** It needs a execution engine, e.g. YARN or Spark.
 *** The reason it is currently not supported on the Stackable Platform is the complexity needed to operate YARN on kubernetes as well as the misconception of running a resource manager (YARN) on another resource manager (Kubernetes)
