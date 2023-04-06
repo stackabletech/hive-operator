@@ -1,7 +1,22 @@
 = Stackable Operator for Apache Hive
 
-This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive].
-Currently, it only supports the Hive Metastore!
+This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores.
+
+Currently it does only support running a Hive metastore service (HMS) that stores metadata about schemas and tables.
+There are multiple tools that can use the HMS:
+
+* Hive server
+** This this is the "original" tool using the HMS.
+** It offers a SQL endpoint, where you can submit HiveQL (similar to SQL) queries.
+** It needs a execution engine, e.g. YARN or Spark.
+*** The reason it is currently not supported on the Stackable Platform is the complexity needed to operate YARN on kubernetes as well as the misconception of running a resource managed (YARN) on another resource managed (Kubernetes)
+*** We offer Trino as a (often times drop-in) replacement (see below)
+* Trino
+** Takes SQL queries and executes them against the tables, whose metadata are stored in HMS
+** It should offer all the capabilities Hive offers including lot#s of additional functionality, such as connections to other datasources.
+* Spark
+** Takes SQL or programmatic jobs and executes them against the tables, whose metadata are stored in HMS
+* And others
 
 WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive[Stackable] repository
 
