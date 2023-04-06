@@ -391,16 +391,9 @@ pub fn build_metastore_role_service(
             ))
             .build(),
         spec: Some(ServiceSpec {
+            type_: Some(hive.spec.cluster_config.listener_class.k8s_service_type()),
             ports: Some(service_ports()),
             selector: Some(role_selector_labels(hive, APP_NAME, &role_name)),
-            type_: Some(
-                hive.spec
-                    .cluster_config
-                    .service_type
-                    .clone()
-                    .unwrap_or_default()
-                    .to_string(),
-            ),
             ..ServiceSpec::default()
         }),
         status: None,
@@ -572,6 +565,8 @@ fn build_rolegroup_service(
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
+            // Internal communication does not need to be exposed
+            type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(service_ports()),
             selector: Some(role_group_selector_labels(
