@@ -189,11 +189,11 @@ pub enum Error {
         source: crate::product_logging::Error,
         cm_name: String,
     },
-    #[snafu(display("failed to patch service account [{APP_NAME}-sa]"))]
+    #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to patch role binding [{APP_NAME}-rolebinding]"))]
+    #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
@@ -323,7 +323,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             rolegroup_config,
             s3_connection_spec.as_ref(),
             &config,
-            &rbac_sa.name_unchecked(),
+            &rbac_sa.name_any(),
         )?;
 
         cluster_resources
