@@ -13,17 +13,16 @@ use stackable_hive_crd::{
     STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
     STACKABLE_LOG_DIR_NAME,
 };
-use stackable_operator::cluster_resources::ClusterResourceApplyStrategy;
-use stackable_operator::commons::rbac::build_rbac_resources;
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
         PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
-    cluster_resources::ClusterResources,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
         product_image_selection::ResolvedProductImage,
+        rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
         tls::{CaCert, TlsVerification},
     },
