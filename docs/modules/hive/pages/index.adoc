@@ -2,7 +2,7 @@
 
 This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores.
 
-Currently it does only support running a Hive metastore service (HMS) that stores metadata about schemas and tables.
+Currently it only supports running a Hive metastore service (HMS) that stores metadata about schemas and tables.
 There are multiple tools that can use the HMS:
 
 * Hive server
