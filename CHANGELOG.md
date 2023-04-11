@@ -7,6 +7,17 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Deploy default and support custom affinities ([#315]).
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#324]).
+- Cluster status conditions ([#326]).
+
+### Changed
+
+- [BREAKING]: Support specifying Service type by moving `serviceType` (which was an experimental feature) to `clusterConfig.listenerClass`.
+  This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
+  This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
+  If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
+  to `external-unstable` or `external-stable` ([#327]).
+- `operator-rs` `0.36.0` → `0.39.0` ([#324]).
 
 ### Fixes
 
@@ -14,6 +25,9 @@ All notable changes to this project will be documented in this file.
 
 [#315]: https://github.com/stackabletech/hive-operator/pull/315
 [#317]: https://github.com/stackabletech/hive-operator/pull/317
+[#324]: https://github.com/stackabletech/hive-operator/pull/324
+[#326]: https://github.com/stackabletech/hive-operator/pull/326
+[#327]: https://github.com/stackabletech/hive-operator/pull/327
 
 ## [23.1.0] - 2023-01-23
 

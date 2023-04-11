@@ -30,3 +30,6 @@ tests:
     dimensions:
       - postgres
       - hive
+  - name: cluster-operation
+    dimensions:
+      - hive-latest
