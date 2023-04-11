@@ -9,7 +9,7 @@ There are multiple tools that can use the HMS:
 ** This is the "original" tool using the HMS.
 ** It offers a SQL endpoint, where you can submit HiveQL (similar to SQL) queries.
 ** It needs a execution engine, e.g. YARN or Spark.
-*** The reason it is currently not supported on the Stackable Platform is the complexity needed to operate YARN on kubernetes as well as the misconception of running a resource manager (YARN) on another resource manager (Kubernetes)
+*** This operator does not support running the Hive server because of  the complexity needed to operate YARN on Kubernetes. YARN is a resource manager which is not meant to be running on Kubernetes as Kubernetes already manages its own resources.
 *** We offer Trino as a (often times drop-in) replacement (see below)
 * Trino
 ** Takes SQL queries and executes them against the tables, whose metadata are stored in HMS.
