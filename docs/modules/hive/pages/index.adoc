@@ -15,7 +15,7 @@ There are multiple tools that can use the HMS:
 ** Takes SQL queries and executes them against the tables, whose metadata are stored in HMS.
 ** It should offer all the capabilities Hive offers including a lot of additional functionality, such as connections to other data sources.
 * Spark
-** Takes SQL or programmatic jobs and executes them against the tables, whose metadata are stored in HMS
+** Takes SQL or programmatic jobs and executes them against the tables, whose metadata are stored in HMS.
 * And others
 
 WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive[Stackable] repository
