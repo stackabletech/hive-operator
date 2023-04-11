@@ -53,6 +53,10 @@ use stackable_operator::{
         },
     },
     role_utils::RoleGroupRef,
+    status::condition::{
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
+    },
 };
 use std::{
     borrow::Cow,
@@ -289,6 +293,8 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
@@ -330,12 +336,14 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
                 rolegroup: rolegroup.clone(),
             })?;
 
-        cluster_resources
-            .add(client, rg_statefulset)
-            .await
-            .context(ApplyRoleGroupStatefulSetSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
+        ss_cond_builder.add(
+            cluster_resources
+                .add(client, rg_statefulset)
+                .await
+                .context(ApplyRoleGroupStatefulSetSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?,
+        );
     }
 
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
@@ -361,10 +369,17 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         }
     }
 
+    let cluster_operation_cond_builder =
+        ClusterOperationsConditionBuilder::new(&hive.spec.cluster_operation);
+
     let status = HiveClusterStatus {
         // Serialize as a string to discourage users from trying to parse the value,
         // and to keep things flexible if we end up changing the hasher at some point.
         discovery_hash: Some(discovery_hash.finish().to_string()),
+        conditions: compute_conditions(
+            hive.as_ref(),
+            &[&ss_cond_builder, &cluster_operation_cond_builder],
+        ),
     };
 
     client
@@ -405,16 +420,9 @@ pub fn build_metastore_role_service(
             ))
             .build(),
         spec: Some(ServiceSpec {
+            type_: Some(hive.spec.cluster_config.listener_class.k8s_service_type()),
             ports: Some(service_ports()),
             selector: Some(role_selector_labels(hive, APP_NAME, &role_name)),
-            type_: Some(
-                hive.spec
-                    .cluster_config
-                    .service_type
-                    .clone()
-                    .unwrap_or_default()
-                    .to_string(),
-            ),
             ..ServiceSpec::default()
         }),
         status: None,
@@ -586,6 +594,8 @@ fn build_rolegroup_service(
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
+            // Internal communication does not need to be exposed
+            type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(service_ports()),
             selector: Some(role_group_selector_labels(
@@ -842,11 +852,7 @@ fn build_metastore_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: if hive.spec.stopped.unwrap_or(false) {
-                Some(0)
-            } else {
-                rolegroup.and_then(|rg| rg.replicas).map(i32::from)
-            },
+            replicas: rolegroup.and_then(|rg| rg.replicas).map(i32::from),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
                     hive,

@@ -1,0 +1,27 @@
+---
+releaseName: minio
+name: minio
+repo:
+  name: minio
+  url: https://charts.min.io/
+version: 4.0.2
+options:
+  rootUser: root
+  rootPassword: rootroot
+  mode: standalone
+  users:
+    - accessKey: hive
+      secretKey: hivehive
+      policy: readwrite
+  buckets:
+    - name: hive
+      policy: public
+  resources:
+    requests:
+      memory: 2Gi
+  service:
+    type: NodePort
+    nodePort: null
+  consoleService:
+    type: NodePort
+    nodePort: null

@@ -22,6 +22,7 @@ use stackable_operator::{
     product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
+    status::condition::{ClusterCondition, HasStatusCondition},
 };
 use std::collections::BTreeMap;
 use strum::{Display, EnumIter, EnumString};
@@ -91,9 +92,6 @@ pub struct HiveClusterSpec {
     pub image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metastore: Option<Role<MetaStoreConfigFragment>>,
-    /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stopped: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -107,15 +105,46 @@ pub struct HiveClusterConfig {
     /// S3 connection specification
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3ConnectionDef>,
-    /// Specify the type of the created kubernetes service.
-    /// This attribute will be removed in a future release when listener-operator is finished.
-    /// Use with caution.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub service_type: Option<ServiceType>,
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
+    /// In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// will be used to expose the service.
+    /// Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services
+    /// by looking at the ListenerClass name specified,
+    /// In a future release support for custom ListenerClasses will be introduced without a breaking change:
+    ///
+    /// * cluster-internal: Use a ClusterIP service
+    ///
+    /// * external-unstable: Use a NodePort service
+    ///
+    /// * external-stable: Use a LoadBalancer service
+    #[serde(default)]
+    pub listener_class: CurrentlySupportedListenerClasses,
+}
+
+// TODO: Temporary solution until listener-operator is finished
+#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum CurrentlySupportedListenerClasses {
+    #[default]
+    #[serde(rename = "cluster-internal")]
+    ClusterInternal,
+    #[serde(rename = "external-unstable")]
+    ExternalUnstable,
+    #[serde(rename = "external-stable")]
+    ExternalStable,
+}
+
+impl CurrentlySupportedListenerClasses {
+    pub fn k8s_service_type(&self) -> String {
+        match self {
+            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
+            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
+            CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -425,6 +454,16 @@ pub struct HiveClusterStatus {
     /// An opaque value that changes every time a discovery detail does
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discovery_hash: Option<String>,
+    pub conditions: Vec<ClusterCondition>,
+}
+
+impl HasStatusCondition for HiveCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
+    }
 }
 
 #[derive(Debug, Snafu)]
