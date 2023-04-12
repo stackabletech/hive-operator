@@ -8,7 +8,7 @@ Due to several reasons we do not feel that running Hive on Kubernetes makes much
 For this reason we decided to provide [Trino](https://github.com/stackabletech/trino-operator) as query engine in the Stackable Data Platform instead of Hive - which still uses the Hive Metastore, hence this operator exists.
 There are multiple tools that can use the HMS:
 
-* Hive server
+* HiveServer2
 ** This is the "original" tool using the HMS.
 ** It offers an endpoint, where you can submit HiveQL (similar to SQL) queries.
 ** It needs a execution engine, e.g. YARN or Spark.
