@@ -3,6 +3,9 @@
 This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores.
 
 Currently it only supports running a Hive metastore service (HMS) that stores metadata about schemas and tables.
+
+Due to several reasons we do not feel that running Hive on Kubernetes makes much sense these days. The most obvious reason being that Hive requires Yarn as execution framework, which basically tries to do the same job as Kubernetes - i.e. assign resources. 
+For this reason in the Stackable Data Platform we decided to provide [Trino](https://github.com/stackabletech/trino-operator) as query engine instead of Hive - which still uses the Hive Metastore, hence this operator exists.
 There are multiple tools that can use the HMS:
 
 * Hive server
