@@ -10,7 +10,7 @@ There are multiple tools that can use the HMS:
 
 * Hive server
 ** This is the "original" tool using the HMS.
-** It offers a SQL endpoint, where you can submit HiveQL (similar to SQL) queries.
+** It offers an endpoint, where you can submit HiveQL (similar to SQL) queries.
 ** It needs a execution engine, e.g. YARN or Spark.
 *** This operator does not support running the Hive server because of  the complexity needed to operate YARN on Kubernetes. YARN is a resource manager which is not meant to be running on Kubernetes as Kubernetes already manages its own resources.
 *** We offer Trino as a (often times drop-in) replacement (see below)
