@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
   If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
   to `external-unstable` or `external-stable` ([#327]).
 - Use operator-rs `build_rbac_resources` method ([#323]).
-- `operator-rs` `0.36.0` → `0.40.0` ([#323]m [#324]).
+- `operator-rs` `0.36.0` → `0.40.1` ([#323]m [#324]).
 
 ### Fixes
 
