@@ -22,6 +22,7 @@ use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
         product_image_selection::ResolvedProductImage,
+        rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
         tls::{CaCert, TlsVerification},
     },
@@ -67,6 +68,8 @@ use std::{
 use strum::EnumDiscriminants;
 use tracing::warn;
 
+/// Used as runAsUser in the pod security context. This is specified in the kafka image file
+pub const HIVE_UID: i64 = 1000;
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
@@ -185,6 +188,18 @@ pub enum Error {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+    #[snafu(display("failed to patch service account"))]
+    ApplyServiceAccount {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to patch role binding"))]
+    ApplyRoleBinding {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
+        source: stackable_operator::error::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -253,6 +268,22 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(CreateClusterResourcesSnafu)?;
 
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
+        hive.as_ref(),
+        APP_NAME,
+        cluster_resources.get_required_labels(),
+    )
+    .context(BuildRbacResourcesSnafu)?;
+
+    let rbac_sa = cluster_resources
+        .add(client, rbac_sa)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+    cluster_resources
+        .add(client, rbac_rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
+
     let metastore_role_service = build_metastore_role_service(&hive, &resolved_product_image)?;
 
     // we have to get the assigned ports
@@ -291,6 +322,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             rolegroup_config,
             s3_connection_spec.as_ref(),
             &config,
+            &rbac_sa.name_any(),
         )?;
 
         cluster_resources
@@ -593,6 +625,7 @@ fn build_metastore_rolegroup_statefulset(
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
+    sa_name: &str,
 ) -> Result<StatefulSet> {
     let rolegroup = hive
         .spec
@@ -763,10 +796,11 @@ fn build_metastore_rolegroup_statefulset(
             ..Volume::default()
         })
         .affinity(&merged_config.affinity)
+        .service_account_name(sa_name)
         .security_context(
             PodSecurityContextBuilder::new()
-                .run_as_user(1000)
-                .run_as_group(1000)
+                .run_as_user(HIVE_UID)
+                .run_as_group(0)
                 .fs_group(1000)
                 .build(),
         );
