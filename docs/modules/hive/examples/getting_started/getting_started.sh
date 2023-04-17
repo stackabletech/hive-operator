@@ -56,9 +56,9 @@ echo "Install postgres for Hive"
 helm install postgresql \
 --version=12.1.5 \
 --namespace default \
---set postgresqlUsername=hive \
---set postgresqlPassword=hive \
---set postgresqlDatabase=hive \
+--set auth.username=hive \
+--set auth.password=hive \
+--set auth.database=hive \
 --set primary.extendedConfiguration="password_encryption=md5" \
 --repo https://charts.bitnami.com/bitnami postgresql
 # end::helm-install-postgres[]
