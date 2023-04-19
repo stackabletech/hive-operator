@@ -9,7 +9,7 @@ version = "0.0.0-dev"
 publish = false
 
 [dependencies]
-indoc = "1.0.8"
+indoc = "2.0.1"
 serde = "1.0"
 serde_json = "1.0"
 snafu = "0.7"
