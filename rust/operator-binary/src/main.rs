@@ -14,7 +14,7 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::{api::ListParams, runtime::Controller},
+    kube::runtime::{watcher, Controller},
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
@@ -68,19 +68,19 @@ async fn main() -> anyhow::Result<()> {
 
             Controller::new(
                 watch_namespace.get_api::<HiveCluster>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<Service>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<StatefulSet>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<ConfigMap>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .shutdown_on_signal()
             .run(
