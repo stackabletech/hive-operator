@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
+
+[#336]: https://github.com/stackabletech/hive-operator/pull/336
+
 ## [23.4.0] - 2023-04-17
 
 ### Added
