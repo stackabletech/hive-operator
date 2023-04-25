@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
-- Use 0.0.0-dev product images for testing ([#337)
+- Use 0.0.0-dev product images for testing ([#337])
 - Use testing-tools 0.2.0 ([#337])
 
 [#336]: https://github.com/stackabletech/hive-operator/pull/336
