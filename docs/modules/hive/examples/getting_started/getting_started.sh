@@ -21,18 +21,18 @@ cd "$(dirname "$0")"
 
 case "$1" in
 "helm")
-echo "Adding 'stackable-stable' Helm Chart repository"
+echo "Adding 'stackable-dev' Helm Chart repository"
 # tag::helm-add-repo[]
-helm repo add stackable-stable https://repo.stackable.tech/repository/helm-stable/
+helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
 echo "Updating Helm repo"
 helm repo update
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-stable/commons-operator --version 23.4.0
-helm install --wait secret-operator stackable-stable/secret-operator --version 23.4.0
-helm install --wait hive-operator stackable-stable/hive-operator --version 23.4.0
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.0.0-dev
+helm install --wait secret-operator stackable-dev/secret-operator --version 0.0.0-dev
+helm install --wait hive-operator stackable-dev/hive-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 
 echo "Install minio for S3"
@@ -71,9 +71,9 @@ if false; then
 echo "Installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=23.4.0 \
-  secret=23.4.0 \
-  hive=23.4.0
+  commons=0.0.0-dev \
+  secret=0.0.0-dev \
+  hive=0.0.0-dev
 # end::stackablectl-install-operators[]
 fi
 
