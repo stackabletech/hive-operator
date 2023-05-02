@@ -150,7 +150,6 @@ fn pod_hosts(hive: &HiveCluster) -> Result<impl IntoIterator<Item = (String, u16
     Ok(hive
         .pods()
         .context(ExpectedPodsSnafu)?
-        .into_iter()
         .map(|pod_ref| (pod_ref.fqdn(), HIVE_PORT)))
 }
 

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
+- Use 0.0.0-dev product images for testing ([#337])
+- Use testing-tools 0.2.0 ([#337])
+
+[#336]: https://github.com/stackabletech/hive-operator/pull/336
+[#337]: https://github.com/stackabletech/hive-operator/pull/337
+
 ## [23.4.0] - 2023-04-17
 
 ### Added
