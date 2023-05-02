@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Generate OLM bundle for Release 23.4.0 ([#338]).
+
 ### Changed
 
 - Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
