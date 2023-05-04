@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Generate OLM bundle for Release 23.4.0 ([#338]).
+
 ### Changed
 
 - Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
@@ -12,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#336]: https://github.com/stackabletech/hive-operator/pull/336
 [#337]: https://github.com/stackabletech/hive-operator/pull/337
+[#338]: https://github.com/stackabletech/hive-operator/pull/338
 
 ## [23.4.0] - 2023-04-17
 
