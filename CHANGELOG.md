@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Generate OLM bundle for Release 23.4.0 ([#338]).
+- Missing CRD defaults for `status.conditions` field ([#340]).
 
 ### Changed
 
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 [#336]: https://github.com/stackabletech/hive-operator/pull/336
 [#337]: https://github.com/stackabletech/hive-operator/pull/337
 [#338]: https://github.com/stackabletech/hive-operator/pull/338
+[#340]: https://github.com/stackabletech/hive-operator/pull/340
 
 ## [23.4.0] - 2023-04-17
 
