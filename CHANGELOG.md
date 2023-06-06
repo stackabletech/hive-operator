@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Generate OLM bundle for Release 23.4.0 ([#338]).
 - Missing CRD defaults for `status.conditions` field ([#340]).
-- Add support for resource quotas ([#xxx])
+- Add support for resource quotas ([#345])
 
 ### Changed
 
@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
 [#337]: https://github.com/stackabletech/hive-operator/pull/337
 [#338]: https://github.com/stackabletech/hive-operator/pull/338
 [#340]: https://github.com/stackabletech/hive-operator/pull/340
-[#xxx]: https://github.com/stackabletech/hive-operator/pull/xxx
+[#345]: https://github.com/stackabletech/hive-operator/pull/345
 
 ## [23.4.0] - 2023-04-17
 
