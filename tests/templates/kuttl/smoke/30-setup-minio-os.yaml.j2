@@ -47,4 +47,11 @@ spec:
           value: "9000"
         - name: MINIO_SERVER_SCHEME
           value: http
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "512m"
+        limits:
+          memory: "128Mi"
+          cpu: "1"
 {% endif %}
