@@ -1,4 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
+use stackable_operator::builder::resources::ResourceRequirementsBuilder;
+
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{discovery, OPERATOR_NAME};
@@ -198,6 +200,10 @@ pub enum Error {
     },
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to build pod template"))]
+    BuildTemplate {
         source: stackable_operator::error::Error,
     },
 }
@@ -832,11 +838,19 @@ fn build_metastore_rolegroup_statefulset(
     }
 
     if merged_config.logging.enable_vector_agent {
+        let resources = ResourceRequirementsBuilder::new()
+            .with_cpu_limit("500m")
+            .with_cpu_request("100m")
+            .with_memory_limit("40Mi")
+            .with_memory_request("8Mi")
+            .build();
+
         pod_builder.add_container(product_logging::framework::vector_container(
             resolved_product_image,
             STACKABLE_CONFIG_DIR_NAME,
             STACKABLE_LOG_DIR_NAME,
             merged_config.logging.containers.get(&Container::Vector),
+            resources,
         ));
     }
 
@@ -866,7 +880,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: pod_builder.build_template(),
+            template: pod_builder.build_template().context(BuildTemplateSnafu)?,
             volume_claim_templates: Some(vec![merged_config
                 .resources
                 .storage
