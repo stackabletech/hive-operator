@@ -23,10 +23,10 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
+        authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
         rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
-        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
@@ -200,10 +200,6 @@ pub enum Error {
     },
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
-        source: stackable_operator::error::Error,
-    },
-    #[snafu(display("failed to build pod template"))]
-    BuildTemplate {
         source: stackable_operator::error::Error,
     },
 }
@@ -839,10 +835,10 @@ fn build_metastore_rolegroup_statefulset(
 
     if merged_config.logging.enable_vector_agent {
         let resources = ResourceRequirementsBuilder::new()
-            .with_cpu_limit("500m")
             .with_cpu_request("100m")
-            .with_memory_limit("40Mi")
+            .with_cpu_limit("500m")
             .with_memory_request("8Mi")
+            .with_memory_limit("40Mi")
             .build();
 
         pod_builder.add_container(product_logging::framework::vector_container(
@@ -880,7 +876,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: pod_builder.build_template().context(BuildTemplateSnafu)?,
+            template: pod_builder.build_template(),
             volume_claim_templates: Some(vec![merged_config
                 .resources
                 .storage
