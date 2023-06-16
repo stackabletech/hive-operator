@@ -836,9 +836,9 @@ fn build_metastore_rolegroup_statefulset(
     if merged_config.logging.enable_vector_agent {
         let resources = ResourceRequirementsBuilder::new()
             .with_cpu_request("100m")
-            .with_cpu_limit("500m")
-            .with_memory_request("8Mi")
-            .with_memory_limit("40Mi")
+            .with_cpu_limit("200m")
+            .with_memory_request("64Mi")
+            .with_memory_limit("64Mi")
             .build();
 
         pod_builder.add_container(product_logging::framework::vector_container(
