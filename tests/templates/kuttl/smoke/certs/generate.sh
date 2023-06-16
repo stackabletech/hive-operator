@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo "Creating client cert"
+FQDN="minio"
+
 echo "Creating Root Certificate Authority"
 openssl genrsa \
   -out root-ca.key.pem \
@@ -15,9 +18,6 @@ openssl req \
   -out root-ca.crt.pem \
   -subj "/C=DE/ST=Schleswig-Holstein/L=Wedel/O=Stackable Signing Authority Inc/CN=stackable.de"
 
-echo "Creating client cert"
-FQDN="minio"
-
 openssl genrsa \
   -out client.key.pem \
   2048
@@ -26,7 +26,8 @@ echo "Creating the CSR"
 openssl req -new \
   -key client.key.pem \
   -out client.csr.pem \
-  -subj "/C=DE/ST=Schleswig-Holstein/L=Wedel/O=Stackable/CN=${FQDN}"
+  -subj "/C=DE/ST=Schleswig-Holstein/L=Wedel/O=Stackable/CN=${FQDN}" \
+  -addext "subjectAltName = DNS:${FQDN}, DNS:localhost"
 
 echo "Signing the client cert with the root ca"
 openssl x509 \
@@ -35,7 +36,8 @@ openssl x509 \
   -CAkey root-ca.key.pem \
   -CAcreateserial \
   -out client.crt.pem \
-  -days 36500
+  -days 36500 \
+  -copy_extensions copy
 
 echo "Copying the files to match the api of the secret-operator"
 cp root-ca.crt.pem ca.crt
