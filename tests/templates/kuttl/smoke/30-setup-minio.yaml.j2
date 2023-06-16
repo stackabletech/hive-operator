@@ -1,4 +1,7 @@
 ---
+# NOTE: nothing is actually read/written to Minio/S3 in this test case.
+# It is still required to have a Minio instance because, for tables with an S3 location, HMS performs a check
+# to ensure that the configured bucket/path actually exist.
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
