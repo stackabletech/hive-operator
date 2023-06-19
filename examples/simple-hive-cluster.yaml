@@ -19,9 +19,6 @@ spec:
         replicas: 1
         config:
           resources:
-            storage:
-              data:
-                capacity: 5Gi
             cpu:
               min: 300m
               max: "2"
