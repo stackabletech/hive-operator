@@ -2,14 +2,14 @@
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
-  name: test-hive-postgres
+  name: hive
 spec:
   image:
     productVersion: "{{ test_scenario['values']['hive'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['hive'].split('-stackable')[1] }}"
   clusterConfig:
     database:
-      connString: jdbc:postgresql://hive-postgresql:5432/hive
+      connString: jdbc:postgresql://postgresql:5432/hive
       user: hive
       password: hive
       dbType: postgres
@@ -24,10 +24,10 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
-          max: '1000m'
+          max: '750m'
           min: '250m'
         memory:
-          limit: '512Mi'
+          limit: '1024Mi'
     roleGroups:
       default:
         replicas: 1

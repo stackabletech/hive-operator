@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: >-
-      helm install hive
+      helm install postgresql
       --version={{ test_scenario['values']['postgres'] }}
       --namespace $NAMESPACE
       -f helm-bitnami-postgresql-values.yaml

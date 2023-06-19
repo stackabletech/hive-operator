@@ -158,12 +158,18 @@ By default, in case nothing is configured in the custom resource for a certain r
 
 === Resource Requests
 
-// The "nightly" version is needed because the "include" directive searches for
-// files in the "stable" version by default.
-// TODO: remove the "nightly" version after the next platform release (current: 22.09)
-include::nightly@home:concepts:stackable_resource_requests.adoc[]
+include::home:concepts:stackable_resource_requests.adoc[]
 
-If no resource requests are configured explicitly, the Hive operator uses the following defaults:
+For a minimal production environment, we recommend to provision the following *minimum* resources for Hive alone.
+
+* `2` metastore replicas
+* `700m` CPU
+* `1Gi` memory
+* `1Gi` of storage
+
+Of course, additional services, require additional resources. For Stackable components, see the corresponding documentation on further resource requirements.
+
+Corresponding the values above, the operator uses the following resource defaults.
 
 [source,yaml]
 ----
@@ -173,17 +179,19 @@ metastore:
       config:
         resources:
           requests:
-            cpu: 200m
-            memory: 2Gi
+            cpu: "250m"
+            memory: "512Mi"
           limits:
-            cpu: "4"
-            memory: 2Gi
+            cpu: "1000m"
+            memory: "512Mi"
           storage:
             data:
-              capacity: 2Gi
+              capacity: 512Mi
 ----
 
-WARNING: The default values are _most likely_ not sufficient to run a proper cluster in production. Please adapt according to your requirements.
+The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use pod overrides for this purpose.
+
+You can configure your own resource requests and limits by following the example above.
 
 For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/[Assign CPU Resources to Containers and Pods].
 

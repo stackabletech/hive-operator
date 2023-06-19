@@ -6,7 +6,19 @@ timeout: 600
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-hive-postgres-metastore-default
+  name: hive-metastore-default
+spec:
+  template:
+    spec:
+      containers:
+      - name: hive
+        resources:
+          limits:
+            cpu: 750m
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
 status:
   readyReplicas: 1
   replicas: 1
