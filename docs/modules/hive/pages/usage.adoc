@@ -158,7 +158,7 @@ metastore:
             memory: "512Mi"
 ----
 
-The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use xref:nightly@home:concepts:overrides.adoc[] for this purpose.
+The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use xref:nightly@home:concepts:overrides.adoc#_pod_overrides[podOverrides] for this purpose.
 
 You can configure your own resource requests and limits by following the example above.
 
