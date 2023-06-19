@@ -1,17 +1,12 @@
 ---
-apiVersion: kuttl.dev/v1beta1
-kind: TestStep
-commands:
-  - script: |
-      kubectl apply -n $NAMESPACE -f - <<EOF
-      apiVersion: v1
-      kind: LimitRange
-      metadata:
-        name: limit-request-ratio
-      spec:
-        limits:
-        - type: "Container"
-          maxLimitRequestRatio:
-            cpu: 5
-            memory: 1
-      EOF
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limit-request-ratio
+spec:
+  limits:
+    - type: "Container"
+      maxLimitRequestRatio:
+        cpu: 5
+        memory: 1
+
