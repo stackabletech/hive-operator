@@ -9,4 +9,3 @@ spec:
       maxLimitRequestRatio:
         cpu: 5
         memory: 1
-
