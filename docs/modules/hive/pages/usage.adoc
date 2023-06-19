@@ -141,7 +141,7 @@ A minimal HA setup consisting of 2 Hive metastore instances has the following ht
 
 Of course, additional services, require additional resources. For Stackable components, see the corresponding documentation on further resource requirements.
 
-Corresponding the values above, the operator uses the following resource defaults.
+Corresponding to the values above, the operator uses the following resource defaults:
 
 [source,yaml]
 ----
