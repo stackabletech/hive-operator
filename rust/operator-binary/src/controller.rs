@@ -760,6 +760,14 @@ fn build_metastore_rolegroup_statefulset(
             }),
             ..Probe::default()
         })
+        .resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("100m")
+                .with_cpu_limit("400m")
+                .with_memory_request("500Mi")
+                .with_memory_limit("500Mi")
+                .build(),
+        )
         .build();
 
     pod_builder
