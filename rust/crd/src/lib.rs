@@ -11,7 +11,7 @@ use stackable_operator::{
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
-            PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
+            Resources, ResourcesFragment,
         },
         s3::S3ConnectionDef,
     },
@@ -220,10 +220,7 @@ pub enum Container {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct MetastoreStorageConfig {
-    #[fragment_attrs(serde(default))]
-    pub data: PvcConfig,
-}
+pub struct MetastoreStorageConfig {}
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
@@ -279,13 +276,7 @@ impl MetaStoreConfig {
                     limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
-                storage: MetastoreStorageConfigFragment {
-                    data: PvcConfigFragment {
-                        capacity: Some(Quantity("512Mi".to_owned())),
-                        storage_class: None,
-                        selectors: None,
-                    },
-                },
+                storage: MetastoreStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),

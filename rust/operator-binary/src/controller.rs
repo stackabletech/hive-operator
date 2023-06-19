@@ -877,11 +877,6 @@ fn build_metastore_rolegroup_statefulset(
             },
             service_name: rolegroup_ref.object_name(),
             template: pod_builder.build_template(),
-            volume_claim_templates: Some(vec![merged_config
-                .resources
-                .storage
-                .data
-                .build_pvc("data", Some(vec!["ReadWriteOnce"]))]),
             ..StatefulSetSpec::default()
         }),
         status: None,

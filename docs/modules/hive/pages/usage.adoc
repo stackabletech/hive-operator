@@ -165,7 +165,6 @@ For a minimal production environment, we recommend to provision the following *m
 * `2` metastore replicas
 * `700m` CPU
 * `1Gi` memory
-* `1Gi` of storage
 
 Of course, additional services, require additional resources. For Stackable components, see the corresponding documentation on further resource requirements.
 
@@ -184,9 +183,6 @@ metastore:
           limits:
             cpu: "1000m"
             memory: "512Mi"
-          storage:
-            data:
-              capacity: 512Mi
 ----
 
 The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use pod overrides for this purpose.
