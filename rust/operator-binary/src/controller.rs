@@ -1,6 +1,4 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-use stackable_operator::builder::resources::ResourceRequirementsBuilder;
-
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{discovery, OPERATOR_NAME};
@@ -18,8 +16,9 @@ use stackable_hive_crd::{
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::{
     builder::{
-        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+        resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
+        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+        SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
