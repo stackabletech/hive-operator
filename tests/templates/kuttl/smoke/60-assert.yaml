@@ -14,11 +14,11 @@ spec:
       - name: hive
         resources:
           limits:
-            cpu: 750m
-            memory: 1Gi
+            cpu: "1"
+            memory: 512Mi
           requests:
             cpu: 250m
-            memory: 1Gi
+            memory: 512Mi
 status:
   readyReplicas: 1
   replicas: 1

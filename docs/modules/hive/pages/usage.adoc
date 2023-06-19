@@ -133,11 +133,11 @@ metastore:
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
-For a minimal production environment, we recommend to provision the following *minimum* resources for Hive alone.
+A minimal HA setup consisting of 2 Hive metastore instances has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
 
-* `2` metastore replicas
-* `700m` CPU
-* `1Gi` memory
+* `700m` CPU request
+* `2400m` CPU limit
+* `1152m` memory request and limit
 
 Of course, additional services, require additional resources. For Stackable components, see the corresponding documentation on further resource requirements.
 
@@ -158,7 +158,7 @@ metastore:
             memory: "512Mi"
 ----
 
-The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use pod overrides for this purpose.
+The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use xref:nightly@home:concepts:overrides.adoc[] for this purpose.
 
 You can configure your own resource requests and limits by following the example above.
 
