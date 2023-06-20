@@ -11,7 +11,7 @@ use stackable_operator::{
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
-            Resources, ResourcesFragment,
+            PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
         s3::S3ConnectionDef,
     },
@@ -220,7 +220,12 @@ pub enum Container {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct MetastoreStorageConfig {}
+pub struct MetastoreStorageConfig {
+    /// This field is deprecated. It was never used by Hive and will be removed in a future
+    /// CRD version. The controller will warn if it's set to a non zero value
+    #[fragment_attrs(serde(default))]
+    pub data: PvcConfig,
+}
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
@@ -276,7 +281,13 @@ impl MetaStoreConfig {
                     limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
-                storage: MetastoreStorageConfigFragment {},
+                storage: MetastoreStorageConfigFragment {
+                    data: PvcConfigFragment {
+                        capacity: Some(Quantity("0Mi".to_owned())), // "0Mi" is a marker for us, so we don't warn unnecessarily
+                        storage_class: None,
+                        selectors: None,
+                    },
+                },
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
