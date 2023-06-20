@@ -4,8 +4,8 @@ use stackable_hive_crd::{
     SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
 };
 use stackable_operator::commons::{
+    authentication::tls::{CaCert, Tls, TlsServerVerification, TlsVerification},
     s3::S3ConnectionSpec,
-    tls::{CaCert, Tls, TlsServerVerification, TlsVerification},
 };
 
 pub const S3_SECRET_DIR: &str = "/stackable/secrets";

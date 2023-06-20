@@ -221,6 +221,8 @@ pub enum Container {
     serde(rename_all = "camelCase")
 )]
 pub struct MetastoreStorageConfig {
+    /// This field is deprecated. It was never used by Hive and will be removed in a future
+    /// CRD version. The controller will warn if it's set to a non zero value
     #[fragment_attrs(serde(default))]
     pub data: PvcConfig,
 }
@@ -272,16 +274,16 @@ impl MetaStoreConfig {
             warehouse_dir: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("200m".to_owned())),
-                    max: Some(Quantity("4".to_owned())),
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1000m".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("2Gi".to_owned())),
+                    limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: MetastoreStorageConfigFragment {
                     data: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_owned())),
+                        capacity: Some(Quantity("0Mi".to_owned())), // "0Mi" is a marker for us, so we don't warn unnecessarily
                         storage_class: None,
                         selectors: None,
                     },

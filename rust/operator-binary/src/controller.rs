@@ -16,15 +16,16 @@ use stackable_hive_crd::{
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::{
     builder::{
-        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+        resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
+        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+        SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
+        authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
         rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
-        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
@@ -760,6 +761,16 @@ fn build_metastore_rolegroup_statefulset(
         })
         .build();
 
+    // TODO: refactor this when CRD versioning is in place
+    // Warn if the capacity field has been set to anything other than 0Mi
+    if let Some(Quantity(capacity)) = merged_config.resources.storage.data.capacity.as_ref() {
+        if capacity != &"0Mi".to_string() {
+            tracing::warn!(
+                "The 'storage' CRD property is set to [{capacity}]. This field is not used and will be removed in a future release."
+            );
+        }
+    }
+
     pod_builder
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
@@ -832,11 +843,19 @@ fn build_metastore_rolegroup_statefulset(
     }
 
     if merged_config.logging.enable_vector_agent {
+        let resources = ResourceRequirementsBuilder::new()
+            .with_cpu_request("250m")
+            .with_cpu_limit("1")
+            .with_memory_request("128Mi")
+            .with_memory_limit("128Mi")
+            .build();
+
         pod_builder.add_container(product_logging::framework::vector_container(
             resolved_product_image,
             STACKABLE_CONFIG_DIR_NAME,
             STACKABLE_LOG_DIR_NAME,
             merged_config.logging.containers.get(&Container::Vector),
+            resources,
         ));
     }
 
@@ -867,11 +886,6 @@ fn build_metastore_rolegroup_statefulset(
             },
             service_name: rolegroup_ref.object_name(),
             template: pod_builder.build_template(),
-            volume_claim_templates: Some(vec![merged_config
-                .resources
-                .storage
-                .data
-                .build_pvc("data", Some(vec!["ReadWriteOnce"]))]),
             ..StatefulSetSpec::default()
         }),
         status: None,
