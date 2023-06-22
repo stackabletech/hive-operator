@@ -843,19 +843,17 @@ fn build_metastore_rolegroup_statefulset(
     }
 
     if merged_config.logging.enable_vector_agent {
-        let resources = ResourceRequirementsBuilder::new()
-            .with_cpu_request("250m")
-            .with_cpu_limit("1")
-            .with_memory_request("128Mi")
-            .with_memory_limit("128Mi")
-            .build();
-
         pod_builder.add_container(product_logging::framework::vector_container(
             resolved_product_image,
             STACKABLE_CONFIG_DIR_NAME,
             STACKABLE_LOG_DIR_NAME,
             merged_config.logging.containers.get(&Container::Vector),
-            resources,
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("500m")
+                .with_memory_request("128Mi")
+                .with_memory_limit("128Mi")
+                .build(),
         ));
     }
 
