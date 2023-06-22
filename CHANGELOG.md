@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Generate OLM bundle for Release 23.4.0 ([#338]).
 - Missing CRD defaults for `status.conditions` field ([#340]).
-- Set explicit resources on all container ([#345])
+- Set explicit resources on all container ([#345], [#347])
 
 ### Changed
 
@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 [#338]: https://github.com/stackabletech/hive-operator/pull/338
 [#340]: https://github.com/stackabletech/hive-operator/pull/340
 [#345]: https://github.com/stackabletech/hive-operator/pull/345
+[#347]: https://github.com/stackabletech/hive-operator/pull/347
 
 ## [23.4.0] - 2023-04-17
 
