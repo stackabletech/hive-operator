@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
 - Use 0.0.0-dev product images for testing ([#337])
 - Use testing-tools 0.2.0 ([#337])
+- Added kuttl test suites ([#348])
 
 [#336]: https://github.com/stackabletech/hive-operator/pull/336
 [#337]: https://github.com/stackabletech/hive-operator/pull/337
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#340]: https://github.com/stackabletech/hive-operator/pull/340
 [#345]: https://github.com/stackabletech/hive-operator/pull/345
 [#347]: https://github.com/stackabletech/hive-operator/pull/347
+[#348]: https://github.com/stackabletech/hive-operator/pull/348
 
 ## [23.4.0] - 2023-04-17
 
