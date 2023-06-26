@@ -49,3 +49,18 @@ tests:
   - name: cluster-operation
     dimensions:
       - hive-latest
+suites:
+  - name: latest
+    patch:
+      - dimensions:
+          - expr: last
+  - name: smoke
+    select:
+      - smoke
+  - name: openshift
+    patch:
+      - dimensions:
+          - expr: last
+      - dimensions:
+          - name: openshift
+            expr: "true"
