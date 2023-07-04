@@ -35,6 +35,8 @@ mod tests {
             },
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
+        kube::runtime::reflector::ObjectRef,
+        role_utils::RoleGroupRef,
     };
 
     #[test]
@@ -60,7 +62,16 @@ mod tests {
                 replicas: 1
         "#;
         let hive: HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
-        let merged_config = hive.merged_config(&HiveRole::MetaStore, "default").unwrap();
+
+        let rolegroup_ref = RoleGroupRef {
+            cluster: ObjectRef::from_obj(&hive),
+            role: HiveRole::MetaStore.to_string(),
+            role_group: "default".to_string(),
+        };
+
+        let merged_config = hive
+            .merged_config(&HiveRole::MetaStore, &rolegroup_ref)
+            .unwrap();
 
         assert_eq!(
             merged_config.affinity,
@@ -131,7 +142,16 @@ mod tests {
                         - antarctica-west1
         "#;
         let hive: HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
-        let merged_config = hive.merged_config(&HiveRole::MetaStore, "default").unwrap();
+
+        let rolegroup_ref = RoleGroupRef {
+            cluster: ObjectRef::from_obj(&hive),
+            role: HiveRole::MetaStore.to_string(),
+            role_group: "default".to_string(),
+        };
+
+        let merged_config = hive
+            .merged_config(&HiveRole::MetaStore, &rolegroup_ref)
+            .unwrap();
 
         assert_eq!(
             merged_config.affinity,
