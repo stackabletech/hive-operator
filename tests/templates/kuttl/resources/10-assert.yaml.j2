@@ -48,3 +48,26 @@ spec:
 status:
   readyReplicas: 1
   replicas: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-metastore-resources-from-pod-overrides
+spec:
+  template:
+    spec:
+      containers:
+        - name: hive
+          resources:
+            requests:
+              cpu: 500m
+              memory: 4Gi
+            limits:
+              cpu: "3100m"
+              memory: 4Gi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
+status:
+  readyReplicas: 1
+  replicas: 1

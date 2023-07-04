@@ -38,3 +38,13 @@ spec:
               max: "3"
             memory:
               limit: 3Gi
+    resources-from-pod-overrides:
+        podOverrides:
+          spec:
+            containers:
+              - name: hive
+                resources:
+                  requests:
+                    cpu: 500m
+                  limits:
+                    cpu: 3100m
