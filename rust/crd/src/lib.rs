@@ -199,6 +199,19 @@ impl HiveRole {
         }
     }
 
+    /// Metadata about a rolegroup
+    pub fn rolegroup_ref(
+        &self,
+        hive: &HiveCluster,
+        group_name: impl Into<String>,
+    ) -> RoleGroupRef<HiveCluster> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(hive),
+            role: self.to_string(),
+            role_group: group_name.into(),
+        }
+    }
+
     pub fn roles() -> Vec<String> {
         let mut roles = vec![];
         for role in Self::iter() {

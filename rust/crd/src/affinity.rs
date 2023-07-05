@@ -23,6 +23,7 @@ pub fn get_affinity(cluster_name: &str, role: &HiveRole) -> StackableAffinityFra
 mod tests {
     use super::*;
 
+    use rstest::rstest;
     use std::collections::BTreeMap;
 
     use crate::HiveCluster;
@@ -35,12 +36,11 @@ mod tests {
             },
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
-        kube::runtime::reflector::ObjectRef,
-        role_utils::RoleGroupRef,
     };
 
-    #[test]
-    fn test_affinity_defaults() {
+    #[rstest]
+    #[case(HiveRole::MetaStore)]
+    fn test_affinity_defaults(#[case] role: HiveRole) {
         let input = r#"
         apiVersion: hive.stackable.tech/v1alpha1
         kind: HiveCluster
@@ -62,15 +62,8 @@ mod tests {
                 replicas: 1
         "#;
         let hive: HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
-
-        let rolegroup_ref = RoleGroupRef {
-            cluster: ObjectRef::from_obj(&hive),
-            role: HiveRole::MetaStore.to_string(),
-            role_group: "default".to_string(),
-        };
-
         let merged_config = hive
-            .merged_config(&HiveRole::MetaStore, &rolegroup_ref)
+            .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();
 
         assert_eq!(
@@ -110,8 +103,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_affinity_legacy_node_selector() {
+    #[rstest]
+    #[case(HiveRole::MetaStore)]
+    fn test_affinity_legacy_node_selector(#[case] role: HiveRole) {
         let input = r#"
         apiVersion: hive.stackable.tech/v1alpha1
         kind: HiveCluster
@@ -142,15 +136,8 @@ mod tests {
                         - antarctica-west1
         "#;
         let hive: HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
-
-        let rolegroup_ref = RoleGroupRef {
-            cluster: ObjectRef::from_obj(&hive),
-            role: HiveRole::MetaStore.to_string(),
-            role_group: "default".to_string(),
-        };
-
         let merged_config = hive
-            .merged_config(&HiveRole::MetaStore, &rolegroup_ref)
+            .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();
 
         assert_eq!(
