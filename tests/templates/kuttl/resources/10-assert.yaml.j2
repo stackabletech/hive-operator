@@ -63,7 +63,7 @@ spec:
               cpu: 500m
               memory: 4Gi
             limits:
-              cpu: "3100m"
+              cpu: 3100m
               memory: 4Gi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
         - name: vector
