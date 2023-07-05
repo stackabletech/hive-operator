@@ -13,6 +13,7 @@ use stackable_hive_crd::{
     STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
     STACKABLE_LOG_DIR_NAME,
 };
+use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::{
     builder::{
@@ -201,6 +202,9 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::error::Error,
     },
+
+    #[snafu(display("internal operator failure"))]
+    InternalOperatorError { source: stackable_hive_crd::Error },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -215,6 +219,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let client = &ctx.client;
     let resolved_product_image: ResolvedProductImage =
         hive.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+    let hive_role = HiveRole::MetaStore;
 
     let s3_connection_spec: Option<S3ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
@@ -303,7 +308,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         let config = hive
-            .merged_config(&HiveRole::MetaStore, &rolegroup.role_group)
+            .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
         let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
@@ -318,6 +323,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
+            &hive_role,
             &resolved_product_image,
             &rolegroup,
             rolegroup_config,
@@ -621,6 +627,7 @@ fn build_rolegroup_service(
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
 fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
+    hive_role: &HiveRole,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -628,13 +635,11 @@ fn build_metastore_rolegroup_statefulset(
     merged_config: &MetaStoreConfig,
     sa_name: &str,
 ) -> Result<StatefulSet> {
+    let role = hive.role(hive_role).context(InternalOperatorSnafu)?;
     let rolegroup = hive
-        .spec
-        .metastore
-        .as_ref()
-        .context(NoMetaStoreRoleSnafu)?
-        .role_groups
-        .get(&rolegroup_ref.role_group);
+        .rolegroup(rolegroup_ref)
+        .context(InternalOperatorSnafu)?;
+
     let mut db_type: Option<DbType> = None;
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
@@ -857,6 +862,10 @@ fn build_metastore_rolegroup_statefulset(
         ));
     }
 
+    let mut pod_template = pod_builder.build_template();
+    pod_template.merge_from(role.config.pod_overrides.clone());
+    pod_template.merge_from(rolegroup.config.pod_overrides.clone());
+
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
@@ -872,7 +881,7 @@ fn build_metastore_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: rolegroup.and_then(|rg| rg.replicas).map(i32::from),
+            replicas: rolegroup.replicas.map(i32::from),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
                     hive,
@@ -883,7 +892,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: pod_builder.build_template(),
+            template: pod_template,
             ..StatefulSetSpec::default()
         }),
         status: None,

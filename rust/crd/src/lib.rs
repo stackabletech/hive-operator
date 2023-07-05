@@ -24,8 +24,8 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
-use std::collections::BTreeMap;
-use strum::{Display, EnumIter, EnumString};
+use std::{collections::BTreeMap, str::FromStr};
+use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
 pub const APP_NAME: &str = "hive";
 // directories
@@ -62,8 +62,22 @@ pub const JVM_HEAP_FACTOR: f32 = 0.8;
 pub enum Error {
     #[snafu(display("no metastore role configuration provided"))]
     MissingMetaStoreRole,
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
+    #[snafu(display("the role {role} is not defined"))]
+    CannotRetrieveHiveRole { role: String },
+
+    #[snafu(display("the role group {role_group} is not defined"))]
+    CannotRetrieveHiveRoleGroup { role_group: String },
+
+    #[snafu(display("unknown role {role}. Should be one of {roles:?}"))]
+    UnknownHiveRole {
+        source: strum::ParseError,
+        role: String,
+        roles: Vec<String>,
+    },
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -154,7 +168,7 @@ pub struct HdfsConnection {
     pub config_map: String,
 }
 
-#[derive(Display)]
+#[derive(Display, EnumString, EnumIter)]
 #[strum(serialize_all = "camelCase")]
 pub enum HiveRole {
     #[strum(serialize = "metastore")]
@@ -183,6 +197,27 @@ impl HiveRole {
                 "metastore".to_string(),
             ]
         }
+    }
+
+    /// Metadata about a rolegroup
+    pub fn rolegroup_ref(
+        &self,
+        hive: &HiveCluster,
+        group_name: impl Into<String>,
+    ) -> RoleGroupRef<HiveCluster> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(hive),
+            role: self.to_string(),
+            role_group: group_name.into(),
+        }
+    }
+
+    pub fn roles() -> Vec<String> {
+        let mut roles = vec![];
+        for role in Self::iter() {
+            roles.push(role.to_string())
+        }
+        roles
     }
 }
 
@@ -516,42 +551,60 @@ impl HiveCluster {
             }))
     }
 
-    pub fn get_role(&self, role: &HiveRole) -> Option<&Role<MetaStoreConfigFragment>> {
-        match role {
+    pub fn role(&self, role_variant: &HiveRole) -> Result<&Role<MetaStoreConfigFragment>, Error> {
+        match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
         }
+        .with_context(|| CannotRetrieveHiveRoleSnafu {
+            role: role_variant.to_string(),
+        })
+    }
+
+    pub fn rolegroup(
+        &self,
+        rolegroup_ref: &RoleGroupRef<HiveCluster>,
+    ) -> Result<RoleGroup<MetaStoreConfigFragment>, Error> {
+        let role_variant =
+            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
+                role: rolegroup_ref.role.to_owned(),
+                roles: HiveRole::roles(),
+            })?;
+
+        let role = self.role(&role_variant)?;
+        role.role_groups
+            .get(&rolegroup_ref.role_group)
+            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
+                role_group: rolegroup_ref.role_group.to_owned(),
+            })
+            .cloned()
     }
 
     /// Retrieve and merge resource configs for role and role groups
     pub fn merged_config(
         &self,
         role: &HiveRole,
-        role_group: &str,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<MetaStoreConfig, Error> {
         // Initialize the result with all default values as baseline
         let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
 
-        let role = self.get_role(role).context(MissingMetaStoreRoleSnafu)?;
-
         // Retrieve role resource config
+        let role = self.role(role)?;
         let mut conf_role = role.config.config.to_owned();
 
         // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
+        let role_group = self.rolegroup(rolegroup_ref)?;
+        let mut conf_role_group = role_group.config.config;
 
         if let Some(RoleGroup {
             selector: Some(selector),
             ..
-        }) = role.role_groups.get(role_group)
+        }) = role.role_groups.get(&rolegroup_ref.role_group)
         {
             // Migrate old `selector` attribute, see ADR 26 affinities.
             // TODO Can be removed after support for the old `selector` field is dropped.
             #[allow(deprecated)]
-            conf_rolegroup.affinity.add_legacy_selector(selector);
+            conf_role_group.affinity.add_legacy_selector(selector);
         }
 
         // Merge more specific configs into default config
@@ -560,10 +613,10 @@ impl HiveCluster {
         // 2. Role
         // 3. Default
         conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
+        conf_role_group.merge(&conf_role);
 
-        tracing::debug!("Merged config: {:?}", conf_rolegroup);
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
+        tracing::debug!("Merged config: {:?}", conf_role_group);
+        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
     }
 }
 
