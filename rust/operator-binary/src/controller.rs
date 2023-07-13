@@ -75,11 +75,10 @@ pub const HIVE_UID: i64 = 1000;
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
-pub const MAX_HIVE_LOG_FILES_SIZE_IN_MIB: u32 = 10;
-
-const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
-const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    MAX_HIVE_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
+pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -625,6 +624,7 @@ fn build_rolegroup_service(
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
+#[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
     hive_role: &HiveRole,
@@ -803,14 +803,12 @@ fn build_metastore_rolegroup_statefulset(
             }),
             ..Default::default()
         })
-        .add_volume(Volume {
-            name: STACKABLE_LOG_DIR_NAME.to_string(),
-            empty_dir: Some(EmptyDirVolumeSource {
-                medium: None,
-                size_limit: Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
-            }),
-            ..Volume::default()
-        })
+        .add_empty_dir_volume(
+            STACKABLE_LOG_DIR_NAME,
+            Some(product_logging::framework::calculate_log_volume_size_limit(
+                &[MAX_HIVE_LOG_FILES_SIZE],
+            )),
+        )
         .affinity(&merged_config.affinity)
         .service_account_name(sa_name)
         .security_context(

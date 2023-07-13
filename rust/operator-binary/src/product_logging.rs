@@ -1,4 +1,4 @@
-use crate::controller::MAX_HIVE_LOG_FILES_SIZE_IN_MIB;
+use crate::controller::MAX_HIVE_LOG_FILES_SIZE;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{Container, HiveCluster, HIVE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR};
@@ -7,6 +7,7 @@ use stackable_operator::{
     client::Client,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::ResourceExt,
+    memory::BinaryMultiple,
     product_logging::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
@@ -94,7 +95,10 @@ pub fn extend_role_group_config_map(
                     container = Container::Hive
                 ),
                 HIVE_LOG_FILE,
-                MAX_HIVE_LOG_FILES_SIZE_IN_MIB,
+                MAX_HIVE_LOG_FILES_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,
             ),
