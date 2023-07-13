@@ -11,9 +11,13 @@ All notable changes to this project will be documented in this file.
 - Set explicit resources on all container ([#345], [#347])
 - Support podOverrides ([#352])
 
+### Fixed
+
+- Increase the size limit of the log volume ([#354]).
+
 ### Changed
 
-- Operator-rs: `0.40.2` -> `0.41.0` ([#336]).
+- Operator-rs: `0.40.2` -> `0.44.0` ([#336], [#354]).
 - Use 0.0.0-dev product images for testing ([#337])
 - Use testing-tools 0.2.0 ([#337])
 - Added kuttl test suites ([#348])
@@ -26,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#347]: https://github.com/stackabletech/hive-operator/pull/347
 [#348]: https://github.com/stackabletech/hive-operator/pull/348
 [#352]: https://github.com/stackabletech/hive-operator/pull/352
+[#354]: https://github.com/stackabletech/hive-operator/pull/354
 
 ## [23.4.0] - 2023-04-17
 
