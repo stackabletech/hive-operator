@@ -8,7 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - Default stackableVersion to operator version ([#360]).
 
+### Changed
+
+- `vector` `0.26.0` -> `0.31.0` ([#361]).
+- `operator-rs` `0.44.0` -> `0.45.1` ([#360]).
+
 [#360]: https://github.com/stackabletech/hive-operator/pull/360
+[#361]: https://github.com/stackabletech/hive-operator/pull/361
 
 ## [23.7.0] - 2023-07-14
 
