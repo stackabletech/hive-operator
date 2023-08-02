@@ -49,7 +49,6 @@ mod tests {
         spec:
           image:
             productVersion: 2.3.9
-            stackableVersion: 0.prerelease
           clusterConfig:
             database:
               connString: jdbc:derby:;databaseName=/tmp/hive;create=true
@@ -114,7 +113,6 @@ mod tests {
         spec:
           image:
             productVersion: 2.3.9
-            stackableVersion: 0.prerelease
           clusterConfig:
             database:
               connString: jdbc:derby:;databaseName=/tmp/hive;create=true
