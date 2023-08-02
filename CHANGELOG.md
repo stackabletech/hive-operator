@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Default stackableVersion to operator version ([#360]).
+
+[#360]: https://github.com/stackabletech/hive-operator/pull/360
+
 ## [23.7.0] - 2023-07-14
 
 ### Added

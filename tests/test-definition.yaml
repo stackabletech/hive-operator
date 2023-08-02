@@ -16,11 +16,11 @@ dimensions:
       - "12.5.6"
   - name: hive
     values:
-      - 2.3.9-stackable0.0.0-dev
-      - 3.1.3-stackable0.0.0-dev
+      - 2.3.9
+      - 3.1.3
   - name: hive-latest
     values:
-      - 3.1.3-stackable0.0.0-dev
+      - 3.1.3
   - name: openshift
     values:
       - "false"
