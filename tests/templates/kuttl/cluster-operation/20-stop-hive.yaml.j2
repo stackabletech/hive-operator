@@ -5,8 +5,7 @@ metadata:
   name: test-hive
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['hive-latest'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['hive-latest'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['hive-latest'] }}"
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
