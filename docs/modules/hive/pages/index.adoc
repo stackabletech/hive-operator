@@ -21,17 +21,10 @@ There are multiple tools that can use the HMS:
 ** Takes SQL or programmatic jobs and executes them against the tables, whose metadata are stored in HMS.
 * And others
 
-WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive[Stackable] repository
+== Required external component: An SQL database
 
 == Supported Versions
 
 The Stackable Operator for Apache Hive currently supports the following versions of Hive:
 
 include::partial$supported-versions.adoc[]
-
-== Docker
-
-[source]
-----
-docker pull docker.stackable.tech/stackable/hive:<version>
-----

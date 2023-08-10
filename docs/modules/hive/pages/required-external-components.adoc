@@ -1,0 +1,5 @@
+= Required external components
+
+SQL database
+
+S3? what is it required for? Is it completely required or semi-required (like with Druid)?
