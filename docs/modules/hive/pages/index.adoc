@@ -5,7 +5,7 @@ The Apache Hive metastore (HMS) stores information on the location of tables and
 
 Only the metastore is supported, not Hive itself.
 There are several reasons why running Hive on Kubernetes may not be an optimal solution.
-The most obvious reason being that Hive requires YARN as execution framework, which basically tries to do the same job as Kubernetes - i.e. assign resources. 
+The most obvious reason is that Hive requires YARN as an execution framework, and YARN assumes much of the same role as Kubernetes - i.e. assigning resources. 
 For this reason we provide xref:trino:index.adoc[Trino] as a query engine in the Stackable Data Platform instead of Hive. Trino still uses the Hive Metastore, hence the inclusion of this operator as well.
 There are multiple tools that can use the HMS:
 
