@@ -1,5 +1,10 @@
 = Required external components
 
-SQL database
+The Hive Metastore requires a backend SQL database. Supported databases and versions are:
 
-S3? what is it required for? Is it completely required or semi-required (like with Druid)?
+* MySQL 5.6.17 and above
+* Postgres 9.1.13 and above
+* Oracle 11g and above
+* MS SQL Server 2008 R2 and above
+
+Reference: https://cwiki.apache.org/confluence/display/Hive/AdminManual+Metastore+Administration#AdminManualMetastoreAdministration-SupportedBackendDatabasesforMetastore[Hive Metastore documentation]
