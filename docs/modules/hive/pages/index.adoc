@@ -1,11 +1,12 @@
 = Stackable Operator for Apache Hive
 
 This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores.
+The Apache Hive metastore (HMS) stores information on the location of tables and partitions in file and blob storages such as HDFS and S3.
 
-Currently it only supports running a Hive metastore service (HMS) that stores metadata about schemas and tables.
-
-Due to several reasons we do not feel that running Hive on Kubernetes makes much sense these days. The most obvious reason being that Hive requires YARN as execution framework, which basically tries to do the same job as Kubernetes - i.e. assign resources. 
-For this reason we decided to provide [Trino](https://github.com/stackabletech/trino-operator) as query engine in the Stackable Data Platform instead of Hive - which still uses the Hive Metastore, hence this operator exists.
+Only the metastore is supported, not Hive itself.
+There are several reasons why running Hive on Kubernetes may not be an optimal solution.
+The most obvious reason is that Hive requires YARN as an execution framework, and YARN assumes much of the same role as Kubernetes - i.e. assigning resources. 
+For this reason we provide xref:trino:index.adoc[Trino] as a query engine in the Stackable Data Platform instead of Hive. Trino still uses the Hive Metastore, hence the inclusion of this operator as well.
 There are multiple tools that can use the HMS:
 
 * HiveServer2
@@ -21,17 +22,13 @@ There are multiple tools that can use the HMS:
 ** Takes SQL or programmatic jobs and executes them against the tables, whose metadata are stored in HMS.
 * And others
 
-WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive[Stackable] repository
+== Required external component: An SQL database
+
+The Hive metastore requires a database to store metadata.
+Consult the xref:required-external-components.adoc[required external components page] for an overview of the supported databases and minimum supported versions.
 
 == Supported Versions
 
 The Stackable Operator for Apache Hive currently supports the following versions of Hive:
 
 include::partial$supported-versions.adoc[]
-
-== Docker
-
-[source]
-----
-docker pull docker.stackable.tech/stackable/hive:<version>
-----

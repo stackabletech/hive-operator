@@ -1,8 +1,9 @@
 * xref:hive:getting_started/index.adoc[]
 ** xref:hive:getting_started/installation.adoc[]
 ** xref:hive:getting_started/first_steps.adoc[]
-* xref:hive:configuration.adoc[]
-* xref:hive:usage.adoc[]
 * Concepts
 ** xref:hive:discovery.adoc[]
 ** xref:hive:cluster_operations.adoc[]
+* xref:hive:usage.adoc[]
+* xref:hive:required-external-components.adoc[]
+* xref:hive:configuration.adoc[]

@@ -6,12 +6,14 @@ The stackablectl command line tool is the recommended way to interact with opera
 
 == Dependencies
 
-First you need to install MinIO and PostgreSQL instances for the Hive metastore.
+First you need to install MinIO and PostgreSQL instances for the Hive metastore. PostgreSQL is required as a database for Hive's metadata, and MinIO will be used as a data store, which the Hive metastore also needs access to.
 
 There are two ways to install the dependencies:
 
 1. Using xref:stackablectl::index.adoc[stackablectl]
 2. Using Helm
+
+WARNING: The dependency installations in this guide are only intended for testing and not suitable for production!
 
 === stackablectl
 
