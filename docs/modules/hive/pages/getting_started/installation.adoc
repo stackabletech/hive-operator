@@ -13,6 +13,8 @@ There are two ways to install the dependencies:
 1. Using xref:stackablectl::index.adoc[stackablectl]
 2. Using Helm
 
+WARNING: The dependency installations in this guide are only intended for testing and not suitable for production!
+
 === stackablectl
 
 stackablectl was designed to install Stackable components, but its xref:stackablectl::commands/stack.adoc[Stacks] feature can also be used to install arbitrary Helm Charts. You can install MinIO and PostgreSQL using the Stacks feature as follows, but a simpler method via Helm is shown <<Helm, below>>.
