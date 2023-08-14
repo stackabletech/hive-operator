@@ -41,6 +41,8 @@ pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
 pub const HIVE_LOG4J2_PROPERTIES: &str = "hive-log4j2.properties";
+pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
+
 // default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
@@ -412,7 +414,8 @@ impl Configuration for MetaStoreConfigFragment {
                     -javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
                     -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
                     -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
-                    -Djavax.net.ssl.trustStoreType=pkcs12"}
+                    -Djavax.net.ssl.trustStoreType=pkcs12
+                    -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"}
                 )
             );
 
