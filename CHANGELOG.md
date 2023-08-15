@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Default stackableVersion to operator version ([#360]).
+- Configuration overrides for the JVM security properties, such as DNS caching ([#365]).
 
 ### Changed
 
@@ -15,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#360]: https://github.com/stackabletech/hive-operator/pull/360
 [#361]: https://github.com/stackabletech/hive-operator/pull/361
+[#365]: https://github.com/stackabletech/hive-operator/pull/365
 
 ## [23.7.0] - 2023-07-14
 

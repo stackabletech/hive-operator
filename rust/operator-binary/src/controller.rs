@@ -8,13 +8,14 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
     CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-    JVM_HEAP_FACTOR, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
-    STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
-    STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
-    STACKABLE_LOG_DIR_NAME,
+    JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
+    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
+    STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+    STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::memory::MemoryQuantity;
+use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -204,6 +205,14 @@ pub enum Error {
 
     #[snafu(display("internal operator failure"))]
     InternalOperatorError { source: stackable_hive_crd::Error },
+    #[snafu(display(
+        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
+        rolegroup
+    ))]
+    JvmSecurityPoperties {
+        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        rolegroup: String,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -248,6 +257,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
                         PropertyNameKind::Cli,
                         PropertyNameKind::File(HIVE_SITE_XML.to_string()),
                         PropertyNameKind::File(HIVE_ENV_SH.to_string()),
+                        PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                     ],
                     hive.spec.metastore.clone().context(NoMetaStoreRoleSnafu)?,
                 ),
@@ -545,6 +555,16 @@ fn build_metastore_rolegroup_config_map(
         }
     }
 
+    let jvm_sec_props: BTreeMap<String, Option<String>> = role_group_config
+        .get(&PropertyNameKind::File(
+            JVM_SECURITY_PROPERTIES_FILE.to_string(),
+        ))
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, v)| (k, Some(v)))
+        .collect();
+
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
@@ -563,7 +583,15 @@ fn build_metastore_rolegroup_config_map(
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
-        .add_data(HIVE_ENV_SH, hive_env_data);
+        .add_data(HIVE_ENV_SH, hive_env_data)
+        .add_data(
+            JVM_SECURITY_PROPERTIES_FILE,
+            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+                JvmSecurityPopertiesSnafu {
+                    rolegroup: rolegroup.role_group.clone(),
+                }
+            })?,
+        );
 
     extend_role_group_config_map(
         rolegroup,
