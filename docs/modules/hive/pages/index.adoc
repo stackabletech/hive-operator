@@ -1,4 +1,6 @@
 = Stackable Operator for Apache Hive
+:description: The Stackable Operator for Apache Hive is a Kubernetes operator that can manage Apache Hive metastores. Learn about its features, resources, dependencies and demos, and see the list of supported Hive versions.
+:keywords: Stackable Operator, Hadoop, Apache Hive, Kubernetes, k8s, operator, engineer, big data, metadata, storage, query
 
 This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores.
 The Apache Hive metastore (HMS) stores information on the location of tables and partitions in file and blob storages such as HDFS and S3.
