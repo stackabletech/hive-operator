@@ -1,0 +1,18 @@
+= S3 Support
+
+Hive supports creating tables in S3 compatible object stores.
+To use this feature you need to provide connection details for the object store using the xref:concepts:s3.adoc[S3Connection] in the top level `clusterConfig`.
+
+An example usage can look like this:
+
+[source,yaml]
+----
+clusterConfig:
+  s3:
+    inline:
+      host: minio
+      port: 9000
+      accessStyle: Path
+      credentials:
+        secretClass: simple-hive-s3-secret-class
+----

@@ -1,0 +1,4 @@
+= Monitoring
+
+The managed Hive instances are automatically configured to export Prometheus metrics. See
+xref:operators:monitoring.adoc[] for more details.

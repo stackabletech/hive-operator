@@ -1,0 +1,11 @@
+== Apache HDFS Support
+
+As well as S3, Hive also supports creating tables in HDFS.
+You can add the HDFS connection in the top level `clusterConfig` as follows:
+
+[source,yaml]
+----
+clusterConfig:
+  hdfs:
+    configMap: my-hdfs-cluster # Name of the HdfsCluster
+----
