@@ -1,4 +1,4 @@
-= Configuration & Environment Overrides
+= Configuration & environment overrides
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 

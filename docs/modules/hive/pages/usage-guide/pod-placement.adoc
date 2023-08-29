@@ -1,4 +1,4 @@
-= Pod Placement
+= Pod placement
 
 You can configure Pod placement for Hive metastores as described in xref:concepts:pod_placement.adoc[].
 
