@@ -31,7 +31,7 @@ spec:
 
 WARNING: You should not use the `Derby` database with more than one replica or in production. Derby stores data locally and therefore the data is not shared between different metastore Pods and lost after Pod restarts.
 
-To create a single node Apache Hive Metastore (v2.3.9) cluster with derby and S3 access, deploy a minio (or use any available S3 bucket):
+To create a single node Apache Hive Metastore (v3.1.3) cluster with derby and S3 access, deploy a minio (or use any available S3 bucket):
 [source,bash]
 ----
 helm install minio \
