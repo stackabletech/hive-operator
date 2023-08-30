@@ -18,7 +18,7 @@ For example, if you want to set the `datanucleus.connectionPool.maxPoolSize` for
 metastore:
   roleGroups:
     default:
-      config: [...]
+      config: {}
       configOverrides:
         hive-site.xml:
           datanucleus.connectionPool.maxPoolSize: "20"
@@ -35,7 +35,7 @@ metastore:
       datanucleus.connectionPool.maxPoolSize: "20"
   roleGroups:
     default:
-      config: [...]
+      config: {}
       replicas: 1
 ----
 
