@@ -72,4 +72,4 @@ For further testing we recommend to use e.g. the python https://github.com/quint
 
 == What's next
 
-Have a look at the xref:usage.adoc[] page to find out more about the features of the Operator.
+Have a look at the xref:usage-guide/index.adoc[usage guide] to find out more about the features of the Operator.

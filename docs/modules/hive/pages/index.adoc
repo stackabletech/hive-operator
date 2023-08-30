@@ -1,31 +1,52 @@
 = Stackable Operator for Apache Hive
+:description: The Stackable Operator for Apache Hive is a Kubernetes operator that can manage Apache Hive metastores. Learn about its features, resources, dependencies and demos, and see the list of supported Hive versions.
+:keywords: Stackable Operator, Hadoop, Apache Hive, Kubernetes, k8s, operator, engineer, big data, metadata, storage, query
 
-This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores.
-The Apache Hive metastore (HMS) stores information on the location of tables and partitions in file and blob storages such as HDFS and S3.
+This is an operator for Kubernetes that can manage https://hive.apache.org[Apache Hive] metastores. 
+The Apache Hive metastore (HMS) was originally developed as part of Apache Hive. It stores information on the location of tables and partitions in file and blob storages such as xref:hdfs:index.adoc[Apache HDFS] and S3 and is now used by other tools besides Hive as well to access tables in files.
+This Operator does not support deploying Hive itself, but xref:trino:index.adoc[Trino] is recommended as an alternative query engine.
 
-Only the metastore is supported, not Hive itself.
-There are several reasons why running Hive on Kubernetes may not be an optimal solution.
-The most obvious reason is that Hive requires YARN as an execution framework, and YARN assumes much of the same role as Kubernetes - i.e. assigning resources. 
-For this reason we provide xref:trino:index.adoc[Trino] as a query engine in the Stackable Data Platform instead of Hive. Trino still uses the Hive Metastore, hence the inclusion of this operator as well.
-There are multiple tools that can use the HMS:
+== Getting started
 
-* HiveServer2
-** This is the "original" tool using the HMS.
-** It offers an endpoint, where you can submit HiveQL (similar to SQL) queries.
-** It needs a execution engine, e.g. YARN or Spark.
-*** This operator does not support running the Hive server because of  the complexity needed to operate YARN on Kubernetes. YARN is a resource manager which is not meant to be running on Kubernetes as Kubernetes already manages its own resources.
-*** We offer Trino as a (often times drop-in) replacement (see below)
-* Trino
-** Takes SQL queries and executes them against the tables, whose metadata are stored in HMS.
-** It should offer all the capabilities Hive offers including a lot of additional functionality, such as connections to other data sources.
-* Spark
-** Takes SQL or programmatic jobs and executes them against the tables, whose metadata are stored in HMS.
-* And others
+Follow the xref:getting_started/index.adoc[Getting started guide] which will guide you through installing the Stackable Hive Operator and its dependencies. It walks you through setting up a Hive metastore and connecting it to a demo Postgres database and a Minio instance to store data in.
+
+Afterwards you can consult the xref:usage-guide/index.adoc[] to learn more about tailoring your Hive metastore configuration to your needs, or have a look at the <<demos, demos>> for some example setups with either xref:trino:index.adoc[Trino] or xref:spark-k8s:index.adoc[Spark].
+
+== Operator model
+
+The Operator manages the _HiveCluster_ custom resource. The cluster implements a single `metastore` xref:home:concepts:roles-and-role-groups.adoc[role].
+
+image::hive_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable Operator for Apache Hive]
+
+For every role group the Operator creates a ConfigMap and StatefulSet which can have multiple replicas (Pods). Every role group is accessible through its own Service, and there is a Service for the whole cluster.
+
+The Operator creates a xref:concepts:service_discovery.adoc[service discovery ConfigMap] for the Hive metastore instance. The discovery ConfigMap contains information on how to connect to the HMS.
+
+== Dependencies
+
+The Stackable Operator for Apache Hive depends on the Stackable xref:commons-operator:index.adoc[commons] and xref:secret-operator:index.adoc[secret] operators.
 
 == Required external component: An SQL database
 
 The Hive metastore requires a database to store metadata.
 Consult the xref:required-external-components.adoc[required external components page] for an overview of the supported databases and minimum supported versions.
+
+==  [[demos]]Demos
+
+Three demos make use of the Hive metastore.
+
+The xref:stackablectl::demos/spark-k8s-anomaly-detection-taxi-data.adoc[] and xref:stackablectl::demos/trino-taxi-data.adoc[] use the HMS to store metadata information about taxi data. The first demo then analyzes the data using xref:spark-k8s:index.adoc[Apache Spark] and the second one using xref:trino:index.adoc[Trino].
+
+The xref:stackablectl::demos/data-lakehouse-iceberg-trino-spark.adoc[] demo is the biggest demo available. It uses both Spark and Trino for analysis.
+
+== Why is the Hive query engine not supported?
+
+Only the metastore is supported, not Hive itself.
+There are several reasons why running Hive on Kubernetes may not be an optimal solution.
+The most obvious reason is that Hive requires YARN as an execution framework, and YARN assumes much of the same role as Kubernetes - i.e. assigning resources. 
+For this reason we provide xref:trino:index.adoc[Trino] as a query engine in the Stackable Data Platform instead of Hive. Trino still uses the Hive Metastore, hence the inclusion of this operator as well. Trino should offer all the capabilities Hive offers including a lot of additional functionality, such as connections to other data sources.
+
+Additionally, Tables in the HMS can also be accessed from xref:spark-k8s:index.adoc[Apache Spark].
 
 == Supported Versions
 

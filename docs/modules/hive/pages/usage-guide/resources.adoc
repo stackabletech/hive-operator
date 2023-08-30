@@ -1,0 +1,34 @@
+== Resource Requests
+
+include::home:concepts:stackable_resource_requests.adoc[]
+
+A minimal HA setup consisting of 2 Hive metastore instances has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
+
+* `100m` CPU request
+* `3000m` CPU limit
+* `1280m` memory request and limit
+
+Of course, additional services, require additional resources. For Stackable components, see the corresponding documentation on further resource requirements.
+
+Corresponding to the values above, the operator uses the following resource defaults:
+
+[source,yaml]
+----
+metastore:
+  roleGroups:
+    default:
+      config:
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "512Mi"
+----
+
+The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use xref:nightly@home:concepts:overrides.adoc#_pod_overrides[podOverrides] for this purpose.
+
+You can configure your own resource requests and limits by following the example above.
+
+For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/[Assign CPU Resources to Containers and Pods].
