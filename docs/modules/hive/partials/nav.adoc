@@ -7,6 +7,7 @@
 * xref:hive:usage-guide/index.adoc[]
 ** xref:hive:usage-guide/cluster-operations.adoc[]
 ** xref:hive:usage-guide/pod-placement.adoc[]
+** xref:hive:usage-guide/listenerclass.adoc[]
 ** xref:hive:usage-guide/data-storage.adoc[]
 ** xref:hive:usage-guide/derby-example.adoc[]
 ** xref:hive:usage-guide/logging.adoc[]
