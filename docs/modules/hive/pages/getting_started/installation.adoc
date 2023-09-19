@@ -1,23 +1,29 @@
 = Installation
 
-On this page you will install the Stackable Operator for Apache Hive and all required dependencies. For the installation of the dependencies and operators you can use Helm or stackablectl.
+On this page you will install the Stackable Operator for Apache Hive and all required dependencies. For the installation
+of the dependencies and operators you can use Helm or `stackablectl`.
 
-The stackablectl command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with stackablectl.
+The `stackablectl` command line tool is the recommended way to interact with operators and dependencies. Follow the
+xref:management:stackablectl:installation.adoc[installation steps] for your platform if you choose to work with
+`stackablectl`.
 
 == Dependencies
 
-First you need to install MinIO and PostgreSQL instances for the Hive metastore. PostgreSQL is required as a database for Hive's metadata, and MinIO will be used as a data store, which the Hive metastore also needs access to.
+First you need to install MinIO and PostgreSQL instances for the Hive metastore. PostgreSQL is required as a database
+for Hive's metadata, and MinIO will be used as a data store, which the Hive metastore also needs access to.
 
 There are two ways to install the dependencies:
 
-1. Using xref:stackablectl::index.adoc[stackablectl]
-2. Using Helm
+. Using xref:management:stackablectl:index.adoc[stackablectl]
+. Using Helm
 
 WARNING: The dependency installations in this guide are only intended for testing and not suitable for production!
 
 === stackablectl
 
-stackablectl was designed to install Stackable components, but its xref:stackablectl::commands/stack.adoc[Stacks] feature can also be used to install arbitrary Helm Charts. You can install MinIO and PostgreSQL using the Stacks feature as follows, but a simpler method via Helm is shown <<Helm, below>>.
+`stackablectl` was designed to install Stackable components, but its xref:management:stackablectl:commands/stack.adoc[Stacks]
+feature can also be used to install arbitrary Helm Charts. You can install MinIO and PostgreSQL using the Stacks feature
+as follows, but a simpler method via Helm is shown <<Helm, below>>.
 
 [source,bash]
 ----
@@ -54,16 +60,17 @@ include::example$getting_started/release.yaml[]
 
 The release definition already references the required operators for this Getting Started guide.
 
-Now call stackablectl and reference those two files:
+Now call `stackablectl` and reference those two files:
 
 [source,bash]
 ----
 include::example$getting_started/getting_started.sh[tag=stackablectl-install-minio-postgres-stack]
 ----
 
-This will install MinIO and PostgreSQL as defined in the Stacks, as well as the Operators. You can now skip the <<Stackable Operators>> step that follows next.
+This will install MinIO and PostgreSQL as defined in the Stacks, as well as the Operators. You can now skip the
+<<Stackable Operators>> step that follows next.
 
-TIP: Consult the xref:stackablectl::quickstart.adoc[Quickstart] to learn more about how to use stackablectl.
+TIP: Consult the xref:management:stackablectl:quickstart.adoc[Quickstart] to learn more about how to use `stackablectl`.
 
 === Helm
 
@@ -126,7 +133,8 @@ Then install the Stackable operators:
 include::example$getting_started/getting_started.sh[tag=helm-install-operators]
 ----
 
-Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the Apache Hive service (as well as the CRDs for the required operators). You are now ready to deploy the Apache Hive metastore in Kubernetes.
+Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the Apache Hive service (as well as the
+CRDs for the required operators). You are now ready to deploy the Apache Hive metastore in Kubernetes.
 
 == What's next
 
