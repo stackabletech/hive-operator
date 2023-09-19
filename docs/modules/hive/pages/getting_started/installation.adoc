@@ -96,8 +96,8 @@ After the dependencies are deployed, you can start to install the operators.
 
 There are 2 ways to run Stackable Operators:
 
-1. Using xref:stackablectl::index.adoc[stackablectl]
-2. Using Helm
+. Using xref:management:stackablectl:index.adoc[stackablectl]
+. Using Helm
 
 === stackablectl
 
