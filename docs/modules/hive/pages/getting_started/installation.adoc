@@ -13,12 +13,12 @@ First you need to install MinIO and PostgreSQL instances for the Hive metastore.
 
 There are 2 ways to install the dependencies:
 
-1. Using xref:stackablectl::index.adoc[stackablectl]
+1. Using xref:management:stackablectl:index.adoc[stackablectl]
 2. Using Helm
 
 === stackablectl
 
-In order to install MinIO and PostgreSQL, you can use the xref:stackablectl::commands/stack.adoc[Stacks] feature of stackablectl. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, below>>.
+In order to install MinIO and PostgreSQL, you can use the xref:management:stackablectl:commands/stack.adoc[Stacks] feature of stackablectl. This is for demonstration purposes, a simpler method via Helm is shown <<Helm, below>>.
 
 [source,bash]
 ----
