@@ -1,14 +1,16 @@
 = First steps
 
-After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you will now deploy a Hive metastore cluster and it's dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>>.
+After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you
+will now deploy a Hive metastore cluster and it's dependencies. Afterwards you can
+<<_verify_that_it_works, verify that it works>>.
 
 == Setup
 
 Several requirements should have already been installed in the xref:getting_started/installation.adoc[Installation guide]:
 
-* xref:commons-operator::index.adoc[Commons Operator]
-* xref:secret-operator::index.adoc[Secret Operator]
-* xref:hive::index.adoc[Hive Operator]
+* xref:commons-operator:index.adoc[Commons Operator]
+* xref:secret-operator:index.adoc[Secret Operator]
+* xref:hive:index.adoc[Hive Operator]
 * PostgreSQL
 * MinIO for S3
 
@@ -68,7 +70,8 @@ NAME                                 READY   AGE
 hive-postgres-s3-metastore-default   1/1     48s
 ----
 
-For further testing we recommend to use e.g. the python https://github.com/quintoandar/hive-metastore-client[hive-metastore-client] in order to e.g. create tables or connect a product like Trino via the xref:trino::index.adoc[Stackable Trino Operator].
+For further testing we recommend to use e.g. the python https://github.com/quintoandar/hive-metastore-client[hive-metastore-client]
+in order to e.g. create tables or connect a product like Trino via the xref:trino:index.adoc[Stackable Trino Operator].
 
 == What's next
 
