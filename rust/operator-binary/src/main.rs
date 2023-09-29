@@ -1,6 +1,7 @@
 mod command;
 mod controller;
 mod discovery;
+mod operations;
 mod product_logging;
 
 use crate::controller::HIVE_CONTROLLER_NAME;

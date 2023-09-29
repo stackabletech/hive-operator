@@ -1,5 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
 use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
+use crate::operations::pdb::add_pdbs;
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{discovery, OPERATOR_NAME};
 
@@ -16,6 +17,7 @@ use stackable_hive_crd::{
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::product_config::writer::to_java_properties_string;
+use stackable_operator::role_utils::RoleConfig;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -213,6 +215,10 @@ pub enum Error {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
+    #[snafu(display("failed to create PodDisruptionBudget"))]
+    FailedToCreatePdb {
+        source: crate::operations::pdb::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -365,6 +371,16 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
                     rolegroup: rolegroup.clone(),
                 })?,
         );
+    }
+
+    let role_config = hive.role_config(&hive_role);
+    if let Some(RoleConfig {
+        pod_disruption_budget: pdb,
+    }) = role_config
+    {
+        add_pdbs(pdb, &hive, &hive_role, client, &mut cluster_resources)
+            .await
+            .context(FailedToCreatePdbSnafu)?;
     }
 
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.

@@ -25,3 +25,12 @@ spec:
 status:
   readyReplicas: 1
   replicas: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hive-metastore
+status:
+  expectedPods: 1
+  currentHealthy: 1
+  disruptionsAllowed: 1
