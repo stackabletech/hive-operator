@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#361]).
-- `operator-rs` `0.44.0` -> `0.52.0` ([#360], [#376]).
+- `operator-rs` `0.44.0` -> `0.52.1` ([#360], [#376]).
 
 [#360]: https://github.com/stackabletech/hive-operator/pull/360
 [#361]: https://github.com/stackabletech/hive-operator/pull/361
