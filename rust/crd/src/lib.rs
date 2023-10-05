@@ -20,7 +20,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{Role, RoleConfig, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
@@ -582,7 +582,7 @@ impl HiveCluster {
             .cloned()
     }
 
-    pub fn role_config(&self, role: &HiveRole) -> Option<&RoleConfig> {
+    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
         }

@@ -17,7 +17,6 @@ use stackable_hive_crd::{
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::memory::MemoryQuantity;
 use stackable_operator::product_config::writer::to_java_properties_string;
-use stackable_operator::role_utils::RoleConfig;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -56,7 +55,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::RoleGroupRef,
+    role_utils::{GenericRoleConfig, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -374,7 +373,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     }
 
     let role_config = hive.role_config(&hive_role);
-    if let Some(RoleConfig {
+    if let Some(GenericRoleConfig {
         pod_disruption_budget: pdb,
     }) = role_config
     {
