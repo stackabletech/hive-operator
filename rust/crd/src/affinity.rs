@@ -48,7 +48,7 @@ mod tests {
           name: simple-hive
         spec:
           image:
-            productVersion: 2.3.9
+            productVersion: 3.1.3
           clusterConfig:
             database:
               connString: jdbc:derby:;databaseName=/tmp/hive;create=true
@@ -112,7 +112,7 @@ mod tests {
           name: simple-hive
         spec:
           image:
-            productVersion: 2.3.9
+            productVersion: 3.1.3
           clusterConfig:
             database:
               connString: jdbc:derby:;databaseName=/tmp/hive;create=true
