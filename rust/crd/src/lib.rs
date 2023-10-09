@@ -411,7 +411,7 @@ impl Configuration for MetaStoreConfigFragment {
         result.insert(
             HIVE_METASTORE_HADOOP_OPTS.to_string(),
             Some(formatdoc! {"
-                    -javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
+                    -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
                     -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
                     -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
                     -Djavax.net.ssl.trustStoreType=pkcs12
