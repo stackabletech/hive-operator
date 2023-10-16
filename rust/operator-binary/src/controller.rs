@@ -30,6 +30,7 @@ use stackable_operator::{
         rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
     },
+    duration::Duration,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -67,7 +68,6 @@ use std::{
     hash::Hasher,
     str::FromStr,
     sync::Arc,
-    time::Duration,
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
@@ -943,7 +943,7 @@ fn build_metastore_rolegroup_statefulset(
 }
 
 pub fn error_policy(_obj: Arc<HiveCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(Duration::from_secs(5))
+    Action::requeue(*Duration::from_secs(5))
 }
 
 pub fn service_ports() -> Vec<ServicePort> {
