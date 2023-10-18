@@ -12,13 +12,19 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `vector` `0.26.0` -> `0.31.0` ([#361]).
-- `operator-rs` `0.44.0` -> `0.52.1` ([#360], [#376]).
+- `vector` `0.26.0` -> `0.33.0` ([#361], [#377]).
+- `operator-rs` `0.44.0` -> `0.55.0` ([#360], [#376], [#377]).
+- jmx-exporter now referenced via soft link without version ([#377]).
+
+### Removed
+
+- Support for 2.3.9 ([#377]).
 
 [#360]: https://github.com/stackabletech/hive-operator/pull/360
 [#361]: https://github.com/stackabletech/hive-operator/pull/361
 [#365]: https://github.com/stackabletech/hive-operator/pull/365
 [#376]: https://github.com/stackabletech/hive-operator/pull/376
+[#377]: https://github.com/stackabletech/hive-operator/pull/377
 
 ## [23.7.0] - 2023-07-14
 
