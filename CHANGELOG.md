@@ -12,8 +12,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `vector` `0.26.0` -> `0.31.0` ([#361]).
-- `operator-rs` `0.44.0` -> `0.52.1` ([#360], [#376]).
+- `vector` `0.26.0` -> `0.33.0` ([#361], [#377]).
+- `operator-rs` `0.44.0` -> `0.55.0` ([#360], [#376], [#377]).
 - jmx-exporter now referenced via soft link without version ([#377]).
 
 ### Removed
