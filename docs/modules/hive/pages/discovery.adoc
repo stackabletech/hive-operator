@@ -5,7 +5,7 @@
 
 = Discovery
 
-The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#configmap-v1-core[`ConfigMap`], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
+The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#configmap-v1-core[`ConfigMap`], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
 
 The bundle includes an Apache Thrift connection string to access the Hive Metastore service. This string may be used by other operators or tools to configure their products with access to Hive. Access is limited to services within the same Kubernetes cluster.
 
@@ -21,10 +21,16 @@ metadata:
   name: {clusterName} # <1>
   namespace: {namespace} # <2>
 spec:
+  clusterConfig:
+    database:
+      connString: jdbc:postgresql://postgresql:5432/hive
+      user: hive
+      password: hive
+      dbType: postgres
   metastore:
     roleGroups:
       default: # <3>
-  [...]
+        replicas: 2
 ----
 <1> The name of the Hive cluster, which is also the name of the created discovery `ConfigMap`.
 <2> The namespace of the discovery `ConfigMap`.
@@ -34,20 +40,27 @@ The resulting discovery `ConfigMap` is `{namespace}/{clusterName}`.
 
 == Contents
 
+=== Internal access
+
 The `{namespace}/{clusterName}` discovery `ConfigMap` contains the following fields where `{clusterName}` represents the name, `{namespace}` the namespace of the cluster and `{roleGroup}` a role group of the `metastore` role:
 
 `HIVE`::
 ====
-Contains the thrift protocol connection string for the Hive metastore:
+Contains the thrift protocol connection string for the Hive metastore service:
 
 [subs="attributes"]
-  thrift://{clusterName}-metastore-{roleGroup}-0.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}.{namespace}.svc.cluster.local:{metastorePort}
+====
 
-or
+WARNING: Using the Hive metastore in high availability mode (replicas > 1) does not work with Derby but instead requires a proper configured database like PostgreSQL or MySQL.
 
-[subs="attributes"]
-  thrift://{clusterName}-metastore-{roleGroup}-0.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
-  thrift://{clusterName}-metastore-{roleGroup}-1.{clusterName}-metastore-{roleGroup}.{namespace}.svc.cluster.local:{metastorePort}
+=== External access
 
-for the role group `replicas` greater than one (two in this case), which should be avoided since the metastore instances do not sync between each other.
+If `spec.clusterConfig.listenerClass` is set to `external-unstable` an additional ConfigMap is generated to expose external access to the cluster. This discovery ConfigMap is reachable via `{namespace}/{clusterName}-nodeport`.
+
+====
+Contains the thrift protocol connection string for the Hive metastore NodePort service:
+
+  thrift://<node-ip>:<nodeport>
+  thrift://<other-node-ip>:<nodeport>
 ====
