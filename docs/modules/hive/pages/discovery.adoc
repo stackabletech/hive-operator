@@ -52,7 +52,7 @@ Contains the thrift protocol connection string for the Hive metastore service:
   thrift://{clusterName}.{namespace}.svc.cluster.local:{metastorePort}
 ====
 
-WARNING: Using the Hive metastore in high availability mode (replicas > 1) does not work with Derby but instead requires a proper configured database like PostgreSQL or MySQL.
+WARNING: Using the Hive metastore in high availability mode (replicas > 1) does not work with Derby but instead requires a properly configured database like PostgreSQL or MySQL.
 
 === External access
 

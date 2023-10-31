@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 - `vector` `0.26.0` -> `0.33.0` ([#361], [#377]).
 - `operator-rs` `0.44.0` -> `0.55.0` ([#360], [#376], [#377]).
 - jmx-exporter now referenced via soft link without version ([#377]).
-- Service discovery no exposes the cluster service to enable HA ([#382]).
+- Service discovery now exposes the cluster service to enable HA ([#382]).
 
 ### Removed
 
