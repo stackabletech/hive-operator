@@ -1,10 +1,18 @@
 //! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
-use crate::command::{self, build_container_command_args, S3_SECRET_DIR};
-use crate::operations::pdb::add_pdbs;
-use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
-use crate::{discovery, OPERATOR_NAME};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    hash::Hasher,
+    str::FromStr,
+    sync::Arc,
+};
 
 use fnv::FnvHasher;
+use product_config::{
+    types::PropertyNameKind,
+    writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
+    ProductConfigManager,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
@@ -14,9 +22,6 @@ use stackable_hive_crd::{
     STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
-use stackable_operator::k8s_openapi::DeepMerge;
-use stackable_operator::memory::MemoryQuantity;
-use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -41,12 +46,12 @@ use stackable_operator::{
         apimachinery::pkg::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
+        DeepMerge,
     },
     kube::{runtime::controller::Action, Resource, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
-    memory::BinaryMultiple,
-    product_config::{types::PropertyNameKind, ProductConfigManager},
+    memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
         self,
@@ -62,15 +67,16 @@ use stackable_operator::{
     },
     time::Duration,
 };
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    hash::Hasher,
-    str::FromStr,
-    sync::Arc,
-};
 use strum::EnumDiscriminants;
 use tracing::warn;
+
+use crate::{
+    command::{self, build_container_command_args, S3_SECRET_DIR},
+    discovery,
+    operations::pdb::add_pdbs,
+    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    OPERATOR_NAME,
+};
 
 /// Used as runAsUser in the pod security context. This is specified in the kafka image file
 pub const HIVE_UID: i64 = 1000;
@@ -93,112 +99,140 @@ pub struct Ctx {
 pub enum Error {
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
+
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
+
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
+
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
     RoleGroupServiceNameNotFound {
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+
     #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
     BuildRoleGroupConfig {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+
     #[snafu(display("failed to apply ConfigMap for {rolegroup}"))]
     ApplyRoleGroupConfig {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+
     #[snafu(display("failed to apply StatefulSet for {rolegroup}"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
+
     #[snafu(display("failed to generate product config"))]
     GenerateProductConfig {
         source: stackable_operator::product_config_utils::ConfigError,
     },
+
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to build discovery ConfigMap"))]
     BuildDiscoveryConfig { source: discovery::Error },
+
     #[snafu(display("failed to apply discovery ConfigMap"))]
     ApplyDiscoveryConfig {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to update status"))]
     ApplyStatus {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to parse db type {db_type}"))]
     InvalidDbType {
         source: strum::ParseError,
         db_type: String,
     },
+
     #[snafu(display("failed to resolve S3 connection"))]
     ResolveS3Connection {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display(
         "Hive does not support skipping the verification of the tls enabled S3 server"
     ))]
     S3TlsNoVerificationNotSupported,
+
     #[snafu(display("failed to resolve and merge resource config for role and role group"))]
     FailedToResolveResourceConfig { source: stackable_hive_crd::Error },
+
     #[snafu(display("invalid java heap config - missing default or value in crd?"))]
     InvalidJavaHeapConfig,
+
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
         source: stackable_operator::error::Error,
         unit: String,
     },
+
     #[snafu(display("failed to create hive container [{name}]"))]
     FailedToCreateHiveContainer {
         source: stackable_operator::error::Error,
         name: String,
     },
+
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress {
         source: crate::product_logging::Error,
     },
+
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
         source: stackable_operator::error::Error,
@@ -206,14 +240,16 @@ pub enum Error {
 
     #[snafu(display("internal operator failure"))]
     InternalOperatorError { source: stackable_hive_crd::Error },
+
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
         rolegroup
     ))]
     JvmSecurityPoperties {
-        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        source: PropertiesWriterError,
         rolegroup: String,
     },
+
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,
@@ -563,8 +599,7 @@ fn build_metastore_rolegroup_config_map(
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
                 }
 
-                hive_site_data =
-                    stackable_operator::product_config::writer::to_hadoop_xml(data.iter());
+                hive_site_data = to_hadoop_xml(data.iter());
             }
             _ => {}
         }
