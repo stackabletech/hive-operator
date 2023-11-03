@@ -25,10 +25,6 @@ pub enum Error {
     },
     #[snafu(display("chroot path {chroot} was relative (must be absolute)"))]
     RelativeChroot { chroot: String },
-    #[snafu(display("failed to list expected pods"))]
-    ExpectedPods {
-        source: stackable_hive_crd::NoNamespaceError,
-    },
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
     DiscoveryConfigMap {
         source: stackable_operator::error::Error,
@@ -69,13 +65,19 @@ pub async fn build_discovery_configmaps(
         .name
         .as_ref()
         .context(InvalidOwnerNameForDiscoveryConfigMapSnafu)?;
+    let namespace = owner
+        .meta()
+        .namespace
+        .as_deref()
+        .context(NoNamespaceSnafu)?;
     let mut discovery_configmaps = vec![build_discovery_configmap(
         name,
         owner,
         hive,
         resolved_product_image,
         chroot,
-        pod_hosts(hive)?,
+        // TODO: make domain configurable
+        vec![(format!("{name}.{namespace}.svc.cluster.local"), HIVE_PORT)],
     )?];
 
     // TODO: Temporary solution until listener-operator is finished
@@ -101,7 +103,7 @@ pub async fn build_discovery_configmaps(
 
 /// Build a discovery [`ConfigMap`] containing information about how to connect to a certain [`HiveCluster`]
 ///
-/// `hosts` will usually come from either [`pod_hosts`] or [`nodeport_hosts`].
+/// `hosts` will usually come from the cluster role service or [`nodeport_hosts`].
 fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
@@ -143,14 +145,6 @@ fn build_discovery_configmap(
         .with_context(|_| DiscoveryConfigMapSnafu {
             obj_ref: ObjectRef::from_obj(hive),
         })
-}
-
-/// Lists all Pods FQDNs expected to host the [`HiveCluster`]
-fn pod_hosts(hive: &HiveCluster) -> Result<impl IntoIterator<Item = (String, u16)> + '_, Error> {
-    Ok(hive
-        .pods()
-        .context(ExpectedPodsSnafu)?
-        .map(|pod_ref| (pod_ref.fqdn(), HIVE_PORT)))
 }
 
 /// Lists all nodes currently hosting Pods participating in the [`Service`]
