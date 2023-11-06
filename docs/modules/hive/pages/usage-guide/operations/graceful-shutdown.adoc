@@ -6,7 +6,7 @@ You can configure the graceful shutdown as described in xref:concepts:operations
 
 As a default, Hive metastores have `5 minutes` to shut down gracefully.
 
-The Hive metastores process will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
+The Hive metastore process will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
 After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes will issue a `SIGKILL` signal.
 
 However, there is no acknowledge message in the log indicating a graceful shutdown.
