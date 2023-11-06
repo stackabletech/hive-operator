@@ -1,7 +1,12 @@
 = Graceful shutdown
 
-Graceful shutdown of Zookeeper nodes is either not supported by the product itself
-or we have not implemented it yet.
+You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 
-Outstanding implementation work for the graceful shutdowns of all products where this functionality is relevant is tracked in
-https://github.com/stackabletech/issues/issues/357
+== Hive metastores
+
+As a default, Hive metastores have `5 minutes` to shut down gracefully.
+
+The Hive metastores process will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
+After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes will issue a `SIGKILL` signal.
+
+However, there is no acknowledge message in the log indicating a graceful shutdown.
