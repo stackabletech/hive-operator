@@ -18,10 +18,16 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{ConfigError, Configuration},
-    product_logging::{self, spec::Logging},
+    product_logging::{
+        self,
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
+        spec::Logging,
+    },
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
+    time::Duration,
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -61,6 +67,8 @@ pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
 // heap
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
+
+const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -181,25 +189,19 @@ pub enum HiveRole {
 
 impl HiveRole {
     /// Returns the container start command for the metastore service.
-    pub fn get_command(&self, auto_init_schema: bool, db_type: &str) -> Vec<String> {
-        if auto_init_schema {
-            vec![
-                "bin/start-metastore".to_string(),
-                "--config".to_string(),
-                STACKABLE_CONFIG_DIR.to_string(),
-                "--db-type".to_string(),
-                db_type.to_string(),
-                "--hive-bin-dir".to_string(),
-                "bin".to_string(),
-            ]
-        } else {
-            vec![
-                "/bin/hive".to_string(),
-                "--config".to_string(),
-                STACKABLE_CONFIG_DIR.to_string(),
-                "--service".to_string(),
-                "metastore".to_string(),
-            ]
+    pub fn get_command(&self, db_type: &str) -> String {
+        formatdoc! {"
+            {COMMON_BASH_TRAP_FUNCTIONS}
+            {remove_vector_shutdown_file_command}
+            prepare_signal_handlers
+            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
+            wait_for_termination $!
+            {create_vector_shutdown_file_command}
+            ",
+            remove_vector_shutdown_file_command =
+                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+            create_vector_shutdown_file_command =
+                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
         }
     }
 
@@ -284,12 +286,19 @@ pub struct MetaStoreConfig {
     /// The location of default database for the Hive warehouse.
     /// Maps to the `hive.metastore.warehouse.dir` setting.
     pub warehouse_dir: Option<String>,
+
     #[fragment_attrs(serde(default))]
     pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
+
     #[fragment_attrs(serde(default))]
     pub logging: Logging<Container>,
+
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
 }
 
 impl MetaStoreConfig {
@@ -330,6 +339,7 @@ impl MetaStoreConfig {
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
+            graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }
 }
