@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Default stackableVersion to operator version ([#360]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#365]).
 - Support PodDisruptionBudgets ([#376]).
+- Support graceful shutdown ([#385]).
 
 ### Changed
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 [#376]: https://github.com/stackabletech/hive-operator/pull/376
 [#377]: https://github.com/stackabletech/hive-operator/pull/377
 [#382]: https://github.com/stackabletech/hive-operator/pull/382
+[#385]: https://github.com/stackabletech/hive-operator/pull/385
 
 ## [23.7.0] - 2023-07-14
 

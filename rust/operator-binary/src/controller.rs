@@ -73,7 +73,7 @@ use tracing::warn;
 use crate::{
     command::{self, build_container_command_args, S3_SECRET_DIR},
     discovery,
-    operations::pdb::add_pdbs,
+    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -253,6 +253,11 @@ pub enum Error {
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,
+    },
+
+    #[snafu(display("failed to configure graceful shutdown"))]
+    GracefulShutdown {
+        source: crate::operations::graceful_shutdown::Error,
     },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -805,14 +810,13 @@ fn build_metastore_rolegroup_statefulset(
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
-            "-c".to_string(),
+            "-x".to_string(),
             "-euo".to_string(),
             "pipefail".to_string(),
+            "-c".to_string(),
         ])
         .args(build_container_command_args(
-            HiveRole::MetaStore
-                .get_command(true, &db_type.unwrap_or_default().to_string())
-                .join(" "),
+            HiveRole::MetaStore.get_command(&db_type.unwrap_or_default().to_string()),
             s3_connection,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
@@ -939,6 +943,8 @@ fn build_metastore_rolegroup_statefulset(
                 .build(),
         ));
     }
+
+    add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     let mut pod_template = pod_builder.build_template();
     pod_template.merge_from(role.config.pod_overrides.clone());

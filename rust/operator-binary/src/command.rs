@@ -50,8 +50,9 @@ pub fn build_container_command_args(
             args.push(format!("keytool -importcert -file /stackable/certificates/{secret_class}-tls-certificate/ca.crt -alias stackable-{secret_class} -keystore {STACKABLE_TRUST_STORE} -storepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt"));
         }
     }
+
     // metastore start command
     args.push(start_command);
 
-    vec![args.join(" && ")]
+    vec![args.join("\n")]
 }
