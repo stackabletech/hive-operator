@@ -10,6 +10,7 @@ Several requirements should have already been installed in the xref:getting_star
 
 * xref:commons-operator:index.adoc[Commons Operator]
 * xref:secret-operator:index.adoc[Secret Operator]
+* xref:listener-operator:index.adoc[Listener Operator]
 * xref:hive:index.adoc[Hive Operator]
 * PostgreSQL
 * MinIO for S3

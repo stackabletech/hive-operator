@@ -5,6 +5,7 @@ stacks:
     description: Stack for Hive getting started guide
     stackableOperators:
       - commons
+      - listener
       - secret
       - hive
     labels:
