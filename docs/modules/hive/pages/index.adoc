@@ -33,8 +33,8 @@ instance. The discovery ConfigMap contains information on how to connect to the 
 
 == Dependencies
 
-The Stackable Operator for Apache Hive depends on the Stackable xref:commons-operator:index.adoc[commons] and
-xref:secret-operator:index.adoc[secret] operators.
+The Stackable Operator for Apache Hive depends on the Stackable xref:commons-operator:index.adoc[commons],
+xref:secret-operator:index.adoc[secret] and xref:listener-operator:index.adoc[listener] operators.
 
 == Required external component: An SQL database
 
