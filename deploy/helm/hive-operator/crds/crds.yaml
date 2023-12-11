@@ -26,7 +26,7 @@ spec:
               description: A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/hive/).
               properties:
                 clusterConfig:
-                  description: Hive metastore settings that affect all roles and role groups. The settings in the cluster config settings are settings that do not need to be configurable at role level.
+                  description: Hive metastore settings that affect all roles and role groups. The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                   properties:
                     database:
                       description: Database connection specification for the metadata database.

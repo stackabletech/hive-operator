@@ -112,7 +112,8 @@ pub enum Error {
     )
 )]
 pub struct HiveClusterSpec {
-    // no doc - docs in HiveClusterConfig struct.
+    /// Hive metastore settings that affect all roles and role groups.
+    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
     pub cluster_config: HiveClusterConfig,
 
     // no doc - docs in ClusterOperation struct.
@@ -127,8 +128,6 @@ pub struct HiveClusterSpec {
     pub metastore: Option<Role<MetaStoreConfigFragment>>,
 }
 
-/// Hive metastore settings that affect all roles and role groups.
-/// The settings in the cluster config are cluster wide settings that do not need to be configurable at role or role group level.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterConfig {
