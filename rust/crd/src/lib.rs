@@ -128,8 +128,7 @@ pub struct HiveClusterSpec {
 }
 
 /// Hive metastore settings that affect all roles and role groups.
-/// This includes the metastore database connection details, the HDFS and S3 connection,
-/// log aggregation configuration and service exposition settings.
+/// The settings in the cluster config settings are settings that do not need to be configurable at role level.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterConfig {
