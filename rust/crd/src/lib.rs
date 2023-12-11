@@ -127,7 +127,7 @@ pub struct HiveClusterSpec {
     pub metastore: Option<Role<MetaStoreConfigFragment>>,
 }
 
-/// Hive metastore settings that affect all roles and roll groups.
+/// Hive metastore settings that affect all roles and role groups.
 /// This includes the metastore database connection details, the HDFS and S3 connection,
 /// log aggregation configuration and service exposition settings.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
