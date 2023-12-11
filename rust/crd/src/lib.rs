@@ -92,6 +92,9 @@ pub enum Error {
     },
 }
 
+/// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
+/// Find more information on how to use it and the resources that the operator generates in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[kube(
@@ -109,13 +112,18 @@ pub enum Error {
     )
 )]
 pub struct HiveClusterSpec {
-    /// General Hive metastore cluster settings
+    /// Hive metastore settings that affect all roles and role groups.
+    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
     pub cluster_config: HiveClusterConfig,
-    /// Cluster operations like pause reconciliation or cluster stop.
+
+    // no doc - docs in ClusterOperation struct.
     #[serde(default)]
     pub cluster_operation: ClusterOperation,
-    /// The Hive metastore image to use
+
+    // no doc - docs in ProductImage struct.
     pub image: ProductImage,
+
+    // no doc - docs in Role struct.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metastore: Option<Role<MetaStoreConfigFragment>>,
 }
@@ -123,18 +131,25 @@ pub struct HiveClusterSpec {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterConfig {
-    /// Database connection specification
+    // no doc - docs in DatabaseConnectionSpec struct.
     pub database: DatabaseConnectionSpec,
-    /// HDFS connection specification
+
+    /// HDFS connection specification.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hdfs: Option<HdfsConnection>,
-    /// S3 connection specification
+
+    /// S3 connection specification. This can be either `inline` or a `reference` to an
+    /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3ConnectionDef>,
-    /// Name of the Vector aggregator discovery ConfigMap.
+
+    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+    /// to learn how to configure log aggregation with Vector.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
+
     /// This field controls which type of Service the Operator creates for this HiveCluster:
     ///
     /// * cluster-internal: Use a ClusterIP service
@@ -144,7 +159,7 @@ pub struct HiveClusterConfig {
     /// * external-stable: Use a LoadBalancer service
     ///
     /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
@@ -176,7 +191,10 @@ impl CurrentlySupportedListenerClasses {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsConnection {
-    /// Name of the discovery-configmap providing information about the HDFS cluster
+    /// Name of the [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
+    /// providing information about the HDFS cluster.
+    /// See also the [Stackable Operator for HDFS](DOCS_BASE_URL_PLACEHOLDER/hdfs/) to learn
+    /// more about setting up an HDFS cluster.
     pub config_map: String,
 }
 
@@ -263,7 +281,7 @@ pub enum Container {
 )]
 pub struct MetastoreStorageConfig {
     /// This field is deprecated. It was never used by Hive and will be removed in a future
-    /// CRD version. The controller will warn if it's set to a non zero value
+    /// CRD version. The controller will warn if it's set to a non zero value.
     #[fragment_attrs(serde(default))]
     pub data: PvcConfig,
 }
@@ -401,12 +419,23 @@ impl DbType {
     }
 }
 
+/// Database connection specification for the metadata database.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseConnectionSpec {
+    /// A connection string for the database. For example:
+    /// `jdbc:postgresql://hivehdfs-postgresql:5432/hivehdfs`
     pub conn_string: String,
+
+    /// The database user.
     pub user: String,
+
+    /// The password for the database user.
     pub password: String,
+
+    /// The type of database to connect to. Supported are:
+    /// `postgres`, `mysql`, `oracle`, `mssql` and `derby`.
+    /// This value is used to configure the jdbc driver class.
     pub db_type: DbType,
 }
 

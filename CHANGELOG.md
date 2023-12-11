@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Various documentation of the CRD ([#394]).
+
+[#394]: https://github.com/stackabletech/hive-operator/pull/394
+
 ## [23.11.0] - 2023-11-24
 
 ### Added
