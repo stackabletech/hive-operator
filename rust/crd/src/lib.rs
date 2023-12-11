@@ -128,7 +128,7 @@ pub struct HiveClusterSpec {
 }
 
 /// Hive metastore settings that affect all roles and role groups.
-/// The settings in the cluster config settings are settings that do not need to be configurable at role level.
+/// The settings in the cluster config are cluster wide settings that do not need to be configurable at role or role group level.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterConfig {
