@@ -140,7 +140,8 @@ pub struct HiveClusterConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hdfs: Option<HdfsConnection>,
 
-    /// S3 connection specification.
+    /// S3 connection specification. This can be either `inline` or a `reference` to an
+    /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3ConnectionDef>,
 

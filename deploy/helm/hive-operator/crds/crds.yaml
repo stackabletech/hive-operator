@@ -83,7 +83,7 @@ spec:
                         - external-stable
                       type: string
                     s3:
-                      description: S3 connection specification.
+                      description: S3 connection specification. This can be either `inline` or a `reference` to an S3Connection object. Read the [S3 concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3) to learn more.
                       nullable: true
                       oneOf:
                         - required:
