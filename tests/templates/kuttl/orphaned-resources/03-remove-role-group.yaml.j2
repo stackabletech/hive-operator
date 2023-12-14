@@ -6,6 +6,7 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['hive-latest'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
