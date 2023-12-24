@@ -2,10 +2,11 @@
 :namespace: \{namespace\}
 :metastorePort: 9083
 :roleGroup: \{roleGroup\}
+:page-aliases: discovery.adoc
 
 = Discovery
 
-The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#configmap-v1-core[`ConfigMap`], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
+The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#configmap-v1-core[ConfigMap], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
 
 The bundle includes an Apache Thrift connection string to access the Hive Metastore service. This string may be used by other operators or tools to configure their products with access to Hive. Access is limited to services within the same Kubernetes cluster.
 
@@ -32,17 +33,17 @@ spec:
       default: # <3>
         replicas: 2
 ----
-<1> The name of the Hive cluster, which is also the name of the created discovery `ConfigMap`.
-<2> The namespace of the discovery `ConfigMap`.
+<1> The name of the Hive cluster, which is also the name of the created discovery ConfigMap.
+<2> The namespace of the discovery ConfigMap.
 <3> A role group name of the metastore role.
 
-The resulting discovery `ConfigMap` is `{namespace}/{clusterName}`.
+The resulting discovery ConfigMap is `{namespace}/{clusterName}`.
 
 == Contents
 
 === Internal access
 
-The `{namespace}/{clusterName}` discovery `ConfigMap` contains the following fields where `{clusterName}` represents the name, `{namespace}` the namespace of the cluster and `{roleGroup}` a role group of the `metastore` role:
+The `{namespace}/{clusterName}` discovery ConfigMap contains the following fields where `{clusterName}` represents the name, `{namespace}` the namespace of the cluster and `{roleGroup}` a role group of the `metastore` role:
 
 `HIVE`::
 ====
