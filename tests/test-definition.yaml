@@ -34,6 +34,11 @@ tests:
       - hive
       - s3-use-tls
       - openshift
+  - name: kerberos
+    dimensions:
+      - postgres
+      - hive
+      - openshift
   - name: resources
     dimensions:
       - hive
