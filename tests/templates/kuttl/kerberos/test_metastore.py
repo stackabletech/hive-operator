@@ -51,8 +51,7 @@ if __name__ == '__main__':
     port = args["port"]
     host = args["metastore"]
     local_test_table_name = "one_column_table"
-    s3_test_table_name = "s3_one_column_table"
-    s3_test_table_name_wrong_bucket = "s3_one_column_table_wrong_buckets"
+    hdfs_test_table_name = "hdfs_one_column_table"
     # Creating database object using builder
     database = DatabaseBuilder(database_name).build()
 
@@ -70,15 +69,15 @@ if __name__ == '__main__':
             print("[ERROR]: Received local schema " + str(schema) + " - expected schema: " + expected)
             exit(-1)
 
-        # S3 access
+        # HDFS access
         try:
-            hive_client.create_table(table(database_name, s3_test_table_name, "s3a://hive/"))
+            hive_client.create_table(table(database_name, hdfs_test_table_name, "hdfs://hdfs/hive"))
         except AlreadyExistsException:
-            print(f"[INFO]: Table {s3_test_table_name} already existed")
-        schema = hive_client.get_schema(db_name=database_name, table_name=s3_test_table_name)
+            print(f"[INFO]: Table {hdfs_test_table_name} already existed")
+        schema = hive_client.get_schema(db_name=database_name, table_name=hdfs_test_table_name)
         expected = [FieldSchema(name='id', type='string', comment='col comment')]
         if schema != expected:
-            print("[ERROR]: Received s3 schema " + str(schema) + " - expected schema: " + expected)
+            print("[ERROR]: Received HDFS schema " + str(schema) + " - expected schema: " + expected)
             exit(-1)
 
         print("[SUCCESS] Test finished successfully!")
