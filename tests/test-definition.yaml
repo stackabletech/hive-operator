@@ -27,6 +27,12 @@ dimensions:
     values:
       - "true"
       - "false"
+  - name: kerberos-realm
+    values:
+      - "PROD.MYCORP"
+  - name: kerberos-backend
+    values:
+      - mit
 tests:
   - name: smoke
     dimensions:
@@ -39,6 +45,8 @@ tests:
       - postgres
       - hive
       - openshift
+      - kerberos-realm
+      - kerberos-backend
   - name: resources
     dimensions:
       - hive

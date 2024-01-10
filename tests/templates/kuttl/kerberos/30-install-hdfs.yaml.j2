@@ -1,0 +1,40 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+        kubectl apply -n $NAMESPACE -f - <<EOF
+        ---
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+        spec:
+          image:
+            productVersion: 3.3.4
+          clusterConfig:
+            listenerClass: external-unstable
+            dfsReplication: 1
+            authentication:
+              tlsSecretClass: tls
+              kerberos:
+                secretClass: kerberos-$NAMESPACE
+            zookeeperConfigMapName: hdfs-znode
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 2
+            configOverrides: &configOverrides
+              core-site.xml:
+                hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+          dataNodes:
+            roleGroups:
+              default:
+                replicas: 1
+            configOverrides: *configOverrides
+          journalNodes:
+            roleGroups:
+              default:
+                replicas: 1
+            configOverrides: *configOverrides
+        EOF
