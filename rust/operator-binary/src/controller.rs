@@ -74,7 +74,7 @@ use stackable_operator::{
 use strum::EnumDiscriminants;
 use tracing::warn;
 
-use crate::kerberos::add_kerberos_pod_config;
+use crate::kerberos::{add_kerberos_pod_config, kerberos_config_properties};
 use crate::{
     command::{self, build_container_command_args, S3_SECRET_DIR},
     discovery,
@@ -277,7 +277,9 @@ impl ReconcilerError for Error {
 pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
+
     let hive_name = hive.name_any();
+    let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     let resolved_product_image: ResolvedProductImage = hive
         .spec
@@ -373,12 +375,14 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         let config = hive
-            .merged_config(&HiveRole::MetaStore, &rolegroup)
+            .merged_config(&hive_name, &HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
         let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             &hive,
+            &hive_name,
+            &hive_namespace,
             &resolved_product_image,
             &rolegroup,
             rolegroup_config,
@@ -516,8 +520,11 @@ pub fn build_metastore_role_service(
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
+#[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
+    hive_name: &str,
+    hive_namespace: &str,
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -606,6 +613,12 @@ fn build_metastore_rolegroup_config_map(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
                         Some((s3.access_style == Some(S3AccessStyle::Path)).to_string()),
                     );
+                }
+
+                for (property_name, property_value) in
+                    kerberos_config_properties(hive, hive_name, hive_namespace)
+                {
+                    data.insert(property_name.to_string(), Some(property_value.to_string()));
                 }
 
                 // overrides

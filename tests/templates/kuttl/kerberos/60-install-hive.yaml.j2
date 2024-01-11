@@ -24,35 +24,30 @@ commands:
             kerberos:
               tlsSecretClass: tls
               kerberosSecretClass: kerberos-$NAMESPACE
-        {% if lookup('env', 'VECTOR_AGGREGATOR') %}
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
             vectorAggregatorConfigMapName: vector-aggregator-discovery
-        {% endif %}
+{% endif %}
           metastore:
-            podOverrides:
-              spec:
-                volumes:
-                - name: kerberos-config
-                  configMap:
-                    name: krb5-kdc
-                - name: hdfs-config
-                  configMap:
-                    name: hdfs-kerberos # can be removed once https://github.com/stackabletech/hdfs-operator/pull/451/files is merged?
-                #- name: kerberos-keytab
-                #  secret:
-                #    secretName: hive-keytab
-                containers:
-                - name: hive
-                  volumeMounts:
-                  - name: kerberos-config
-                    mountPath: /etc/krb5.conf
-                    subPath: krb5.conf
-                  - name: hdfs-config
-                    mountPath: /etc/hadoop/conf
-                  #- name: kerberos-keytab
-                  #  mountPath: /stackable/kerberos
-                  - name: hdfs-config
-                    mountPath: /stackable/config/core-site.xml
-                    subPath: core-site.xml
+            #podOverrides:
+            #  spec:
+            #    volumes:
+            #    - name: kerberos-config
+            #      configMap:
+            #        name: krb5-kdc
+            #    - name: hdfs-config
+            #      configMap:
+            #        name: hdfs-kerberos
+            #    containers:
+            #    - name: hive
+            #      volumeMounts:
+            #      - name: kerberos-config
+            #        mountPath: /etc/krb5.conf
+            #        subPath: krb5.conf
+            #      - name: hdfs-config
+            #        mountPath: /etc/hadoop/conf
+            #      - name: hdfs-config
+            #        mountPath: /stackable/config/core-site.xml
+            #        subPath: core-site.xml
             config:
               logging:
                 enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -62,7 +57,7 @@ commands:
                 configOverrides:
                   hive-site.xml:
                     #hive.metastore.kerberos.keytab.file: /stackable/kerberos/hive.keytab
-                    hive.metastore.kerberos.principal: hive/_HOST@{{ test_scenario['values']['kerberos-realm'] }}
-                    hive.metastore.sasl.enabled: "true"
-                    hive.metastore.client.kerberos.principal: hive/_HOST@{{ test_scenario['values']['kerberos-realm'] }}
+                    #hive.metastore.kerberos.principal: hive/_HOST@{{ test_scenario['values']['kerberos-realm'] }}
+                    #hive.metastore.sasl.enabled: "true"
+                    #hive.metastore.client.kerberos.principal: hive/_HOST@{{ test_scenario['values']['kerberos-realm'] }}
         EOF

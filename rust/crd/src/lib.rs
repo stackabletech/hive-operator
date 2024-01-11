@@ -16,7 +16,7 @@ use stackable_operator::{
     },
     config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
@@ -678,11 +678,12 @@ impl HiveCluster {
     /// Retrieve and merge resource configs for role and role groups
     pub fn merged_config(
         &self,
+        hive_name: &str,
         role: &HiveRole,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<MetaStoreConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
+        let conf_defaults = MetaStoreConfig::default_config(hive_name, role);
 
         // Retrieve role resource config
         let role = self.role(role)?;
