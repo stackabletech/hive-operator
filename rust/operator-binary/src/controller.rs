@@ -8,6 +8,7 @@ use std::{
 };
 
 use fnv::FnvHasher;
+use indoc::formatdoc;
 use product_config::{
     types::PropertyNameKind,
     writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
@@ -22,6 +23,7 @@ use stackable_hive_crd::{
     STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
+
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -55,6 +57,7 @@ use stackable_operator::{
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
         self,
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -66,13 +69,16 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
 
+use crate::kerberos::add_kerberos_pod_config;
 use crate::{
     command::{self, build_container_command_args, S3_SECRET_DIR},
     discovery,
+    kerberos::kerberos_container_start_commands,
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
@@ -271,6 +277,8 @@ impl ReconcilerError for Error {
 pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
+    let hive_name = hive.name_any();
+
     let resolved_product_image: ResolvedProductImage = hive
         .spec
         .image
@@ -380,6 +388,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
+            &hive_name,
             &hive_role,
             &resolved_product_image,
             &rolegroup,
@@ -712,6 +721,7 @@ fn build_rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
+    hive_name: &str,
     hive_role: &HiveRole,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
@@ -806,7 +816,7 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
-    let container_hive = container_builder
+    let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
@@ -816,7 +826,23 @@ fn build_metastore_rolegroup_statefulset(
             "-c".to_string(),
         ])
         .args(build_container_command_args(
-            HiveRole::MetaStore.get_command(&db_type.unwrap_or_default().to_string()),
+              formatdoc! {"
+            {kerberos_container_start_commands}
+
+            {COMMON_BASH_TRAP_FUNCTIONS}
+            {remove_vector_shutdown_file_command}
+            prepare_signal_handlers
+            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
+            wait_for_termination $!
+            {create_vector_shutdown_file_command}
+            ",
+            kerberos_container_start_commands = kerberos_container_start_commands(hive),
+            remove_vector_shutdown_file_command =
+                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+            create_vector_shutdown_file_command =
+                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+                  db_type = &db_type.unwrap_or_default().to_string(),
+        },
             s3_connection,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
@@ -847,8 +873,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..TCPSocketAction::default()
             }),
             ..Probe::default()
-        })
-        .build();
+        });
 
     // TODO: refactor this when CRD versioning is in place
     // Warn if the capacity field has been set to anything other than 0Mi
@@ -870,7 +895,6 @@ fn build_metastore_rolegroup_statefulset(
             ))
         })
         .image_pull_secrets_from_product_image(resolved_product_image)
-        .add_container(container_hive)
         .add_volume(Volume {
             name: STACKABLE_CONFIG_DIR_NAME.to_string(),
             empty_dir: Some(EmptyDirVolumeSource {
@@ -945,6 +969,18 @@ fn build_metastore_rolegroup_statefulset(
     }
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
+
+    if hive.has_kerberos_enabled() {
+        add_kerberos_pod_config(
+            hive,
+            hive_name,
+            hive_role,
+            container_builder,
+            &mut pod_builder,
+        );
+    }
+
+    pod_builder.add_container(container_builder.build());
 
     let mut pod_template = pod_builder.build_template();
     pod_template.merge_from(role.config.pod_overrides.clone());

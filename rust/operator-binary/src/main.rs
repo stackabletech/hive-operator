@@ -1,6 +1,8 @@
 mod command;
 mod controller;
 mod discovery;
+
+mod kerberos;
 mod operations;
 mod product_logging;
 

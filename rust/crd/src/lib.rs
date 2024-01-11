@@ -18,16 +18,11 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{ConfigError, Configuration},
-    product_logging::{
-        self,
-        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
-        spec::Logging,
-    },
+    product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -67,6 +62,10 @@ pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
 // heap
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
+
+pub const TLS_STORE_DIR: &str = "/stackable/tls";
+pub const TLS_STORE_VOLUME_NAME: &str = "tls";
+pub const TLS_STORE_PASSWORD: &str = "changeit";
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
@@ -163,6 +162,34 @@ pub struct HiveClusterConfig {
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+
+    /// Configuration to set up a cluster secured using Kerberos.
+    pub kerberos: Option<KerberosConfig>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KerberosConfig {
+    /// Name of the SecretClass providing the keytab for the HDFS services.
+    #[serde(default = "default_kerberos_kerberos_secret_class")]
+    kerberos_secret_class: String,
+    /// Name of the SecretClass providing the tls certificates for the WebUIs.
+    #[serde(default = "default_kerberos_tls_secret_class")]
+    tls_secret_class: String,
+    /// Whether a principal including the Kubernetes node name should be requested.
+    /// The principal could e.g. be `HTTP/my-k8s-worker-0.mycorp.lan`.
+    /// This feature is disabled by default, as the resulting principals can already by existent
+    /// e.g. in Active Directory which can cause problems.
+    #[serde(default)]
+    request_node_principals: bool,
+}
+
+fn default_kerberos_tls_secret_class() -> String {
+    "tls".to_string()
+}
+
+fn default_kerberos_kerberos_secret_class() -> String {
+    "kerberos".to_string()
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -206,23 +233,6 @@ pub enum HiveRole {
 }
 
 impl HiveRole {
-    /// Returns the container start command for the metastore service.
-    pub fn get_command(&self, db_type: &str) -> String {
-        formatdoc! {"
-            {COMMON_BASH_TRAP_FUNCTIONS}
-            {remove_vector_shutdown_file_command}
-            prepare_signal_handlers
-            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
-            wait_for_termination $!
-            {create_vector_shutdown_file_command}
-            ",
-            remove_vector_shutdown_file_command =
-                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-            create_vector_shutdown_file_command =
-                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-        }
-    }
-
     /// Metadata about a rolegroup
     pub fn rolegroup_ref(
         &self,
@@ -242,6 +252,10 @@ impl HiveRole {
             roles.push(role.to_string())
         }
         roles
+    }
+
+    pub fn kerberos_service_name(&self) -> &'static str {
+        "hive"
     }
 }
 
@@ -627,6 +641,38 @@ impl HiveCluster {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
         }
+    }
+
+    pub fn kerberos_request_node_principals(&self) -> Option<bool> {
+        self.spec
+            .cluster_config
+            .kerberos
+            .as_ref()
+            .map(|k| k.request_node_principals)
+    }
+
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.kerberos_secret_class().is_some()
+    }
+
+    pub fn kerberos_secret_class(&self) -> Option<&str> {
+        self.spec
+            .cluster_config
+            .kerberos
+            .as_ref()
+            .map(|k| k.kerberos_secret_class.as_str())
+    }
+
+    pub fn has_https_enabled(&self) -> bool {
+        self.https_secret_class().is_some()
+    }
+
+    pub fn https_secret_class(&self) -> Option<&str> {
+        self.spec
+            .cluster_config
+            .kerberos
+            .as_ref()
+            .map(|k| k.tls_secret_class.as_str())
     }
 
     /// Retrieve and merge resource configs for role and role groups
