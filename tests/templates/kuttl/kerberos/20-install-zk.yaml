@@ -11,7 +11,7 @@ spec:
   servers:
     config:
       logging:
-        enableVectorAgent: False
+        enableVectorAgent: false
     roleGroups:
       default:
         replicas: 1
