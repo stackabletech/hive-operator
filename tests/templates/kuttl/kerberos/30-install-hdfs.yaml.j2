@@ -26,7 +26,9 @@ commands:
                 replicas: 2
             configOverrides: &configOverrides
               core-site.xml:
-                hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+                hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;hive=hive;"
+                hadoop.proxyuser.hive.users: "*"
+                hadoop.proxyuser.hive.hosts: "*"
           dataNodes:
             roleGroups:
               default:

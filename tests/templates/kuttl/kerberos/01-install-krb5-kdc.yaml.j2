@@ -1,4 +1,4 @@
-{% if test_scenario['values']['kerberos-backend'] == 'mit' %}
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -110,9 +110,6 @@ data:
     default = STDERR
     kdc = STDERR
     admin_server = STDERR
-    # default = FILE:/var/log/krb5libs.log
-    # kdc = FILE:/var/log/krb5kdc.log
-    # admin_server = FILE:/vaggr/log/kadmind.log
     [libdefaults]
     dns_lookup_realm = false
     ticket_lifetime = 24h
@@ -132,4 +129,3 @@ data:
   kadm5.acl: |
     root/admin *e
     stackable-secret-operator *e
-{% endif %}

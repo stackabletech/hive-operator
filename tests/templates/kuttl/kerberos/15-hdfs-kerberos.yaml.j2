@@ -1,0 +1,85 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+        kubectl apply -n $NAMESPACE -f - <<EOF
+        ---
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: hdfs-kerberos
+        data:
+          core-site.xml: |-
+            <?xml version="1.0"?>
+            <configuration>
+              <property>
+                <name>fs.defaultFS</name>
+                <value>hdfs://hdfs/</value>
+              </property>
+              <property>
+                <name>hadoop.rpc.protection</name>
+                <value>privacy</value>
+              </property>
+              <property>
+                <name>hadoop.security.authentication</name>
+                <value>kerberos</value>
+              </property>
+                <property>
+                <name>dfs.namenode.kerberos.principal</name>
+                <value>nn/hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}</value>
+              </property>
+              <property>
+                <name>dfs.datanode.kerberos.principal</name>
+                <value>dn/hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}</value>
+              </property>
+              <property>
+                <name>hadoop.proxyuser.hive.users</name>
+                <value>*</value>
+              </property>
+            </configuration>
+          hdfs-site.xml: |-
+            <?xml version="1.0"?>
+            <configuration>
+              <property>
+                <name>dfs.client.failover.proxy.provider.hdfs</name>
+                <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+              </property>
+              <property>
+                <name>dfs.data.transfer.protection</name>
+                <value>privacy</value>
+              </property>
+              <property>
+                <name>dfs.encrypt.data.transfer</name>
+                <value>true</value>
+              </property>
+              <property>
+                <name>dfs.ha.namenodes.hdfs</name>
+                <value>hdfs-namenode-default-0,hdfs-namenode-default-1</value>
+              </property>
+              <property>
+                <name>dfs.namenode.https-address.hdfs.hdfs-namenode-default-0</name>
+                <value>hdfs-namenode-default-0.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:9871</value>
+              </property>
+              <property>
+                <name>dfs.namenode.https-address.hdfs.hdfs-namenode-default-1</name>
+                <value>hdfs-namenode-default-1.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:9871</value>
+              </property>
+              <property>
+                <name>dfs.namenode.rpc-address.hdfs.hdfs-namenode-default-0</name>
+                <value>hdfs-namenode-default-0.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:8020</value>
+              </property>
+              <property>
+                <name>dfs.namenode.rpc-address.hdfs.hdfs-namenode-default-1</name>
+                <value>hdfs-namenode-default-1.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:8020</value>
+              </property>
+              <property>
+                <name>dfs.nameservices</name>
+                <value>hdfs</value>
+              </property>
+              <property>
+                <name>hadoop.kerberos.keytab.login.autorenewal.enabled</name>
+                <value>true</value>
+              </property>
+            </configuration>
+        EOF
