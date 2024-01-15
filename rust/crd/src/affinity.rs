@@ -28,12 +28,9 @@ mod tests {
 
     use crate::HiveCluster;
     use stackable_operator::{
-        commons::affinity::{StackableAffinity, StackableNodeSelector},
+        commons::affinity::StackableAffinity,
         k8s_openapi::{
-            api::core::v1::{
-                NodeAffinity, NodeSelector, NodeSelectorRequirement, NodeSelectorTerm,
-                PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm,
-            },
+            api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
     };
