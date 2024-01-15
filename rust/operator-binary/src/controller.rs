@@ -270,24 +270,24 @@ pub enum Error {
         source: stackable_operator::commons::secret_class::SecretClassVolumeError,
     },
 
-    #[snafu(display("failed to build labels"))]
+    #[snafu(display("failed to build Labels"))]
     LabelBuild {
         source: stackable_operator::kvp::LabelError,
     },
 
-    #[snafu(display("failed to build metadata"))]
+    #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
         source: stackable_operator::builder::ObjectMetaBuilderError,
     },
 
-    #[snafu(display("failed to get required labels"))]
+    #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
         source:
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display(
-        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and containers"
+        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and Containers"
     ))]
     AddLdapVolumes {
         source: stackable_operator::commons::authentication::ldap::Error,
