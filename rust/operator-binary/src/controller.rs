@@ -49,7 +49,7 @@ use stackable_operator::{
         DeepMerge,
     },
     kube::{runtime::controller::Action, Resource, ResourceExt},
-    labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
+    kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
@@ -65,7 +65,7 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    time::Duration, kvp::Label,
+    time::Duration,
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
@@ -535,7 +535,11 @@ pub fn build_metastore_role_service(
         spec: Some(ServiceSpec {
             type_: Some(hive.spec.cluster_config.listener_class.k8s_service_type()),
             ports: Some(service_ports()),
-            selector: Some(role_selector_labels(hive, APP_NAME, &role_name)),
+            selector: Some(
+                Labels::role_selector(hive, APP_NAME, &role_name)
+                    .context(LabelBuildSnafu)?
+                    .into(),
+            ),
             ..ServiceSpec::default()
         }),
         status: None,
@@ -730,12 +734,11 @@ fn build_rolegroup_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(service_ports()),
-            selector: Some(role_group_selector_labels(
-                hive,
-                APP_NAME,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            )),
+            selector: Some(
+                Labels::role_group_selector(hive, APP_NAME, &rolegroup.role, &rolegroup.role_group)
+                    .context(LabelBuildSnafu)?
+                    .into(),
+            ),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
@@ -814,7 +817,11 @@ fn build_metastore_rolegroup_statefulset(
 
     if let Some(s3_conn) = s3_connection {
         if let Some(credentials) = &s3_conn.credentials {
-            pod_builder.add_volume(credentials.to_volume("s3-credentials").context(S3CredentialsSecretClassVolumeBuildSnafu)?);
+            pod_builder.add_volume(
+                credentials
+                    .to_volume("s3-credentials")
+                    .context(S3CredentialsSecretClassVolumeBuildSnafu)?,
+            );
             container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
         }
 
@@ -829,7 +836,9 @@ fn build_metastore_rolegroup_statefulset(
 
                             let volume = VolumeBuilder::new(&volume_name)
                                 .ephemeral(
-                                    SecretOperatorVolumeSourceBuilder::new(secret_class).build().context(TlsCertSecretClassVolumeBuildSnafu)?,
+                                    SecretOperatorVolumeSourceBuilder::new(secret_class)
+                                        .build()
+                                        .context(TlsCertSecretClassVolumeBuildSnafu)?,
                                 )
                                 .build();
                             pod_builder.add_volume(volume);
@@ -1009,12 +1018,16 @@ fn build_metastore_rolegroup_statefulset(
             pod_management_policy: Some("Parallel".to_string()),
             replicas: rolegroup.replicas.map(i32::from),
             selector: LabelSelector {
-                match_labels: Some(role_group_selector_labels(
-                    hive,
-                    APP_NAME,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                )),
+                match_labels: Some(
+                    Labels::role_group_selector(
+                        hive,
+                        APP_NAME,
+                        &rolegroup_ref.role,
+                        &rolegroup_ref.role_group,
+                    )
+                    .context(LabelBuildSnafu)?
+                    .into(),
+                ),
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
