@@ -50,7 +50,7 @@ pub enum Error {
     #[snafu(display("invalid owner name for discovery ConfigMap"))]
     InvalidOwnerNameForDiscoveryConfigMap,
 
-    #[snafu(display("failed to build metadata"))]
+    #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
         source: stackable_operator::builder::ObjectMetaBuilderError,
     },
