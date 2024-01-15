@@ -1,6 +1,6 @@
 use indoc::formatdoc;
 use stackable_hive_crd::{
-    HiveCluster, HiveRole, STACKABLE_CONFIG_DIR, TLS_STORE_DIR, TLS_STORE_PASSWORD,
+    HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR, TLS_STORE_DIR, TLS_STORE_PASSWORD,
     TLS_STORE_VOLUME_NAME,
 };
 use stackable_operator::builder::{
@@ -101,7 +101,9 @@ pub fn kerberos_container_start_commands(hive: &HiveCluster) -> String {
 
     formatdoc! {"
         export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)
-        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/hive-site.xml",
+        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}
+        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/core-site.xml
+        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/hdfs-site.xml",
     }
 }
 fn principal_host_part(hive_name: &str, hive_namespace: &str) -> String {

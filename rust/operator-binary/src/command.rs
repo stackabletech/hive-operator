@@ -23,6 +23,9 @@ pub fn build_container_command_args(
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
         format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
 
+        format!("echo copying /stackable/mount/hdfs-config to {STACKABLE_CONFIG_DIR}"),
+        format!("cp -RL /stackable/mount/hdfs-config/* {STACKABLE_CONFIG_DIR}"),
+
         // Copy log4j2 properties
         format!("echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/{HIVE_LOG4J2_PROPERTIES}"),
         format!("cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} {STACKABLE_CONFIG_DIR}/{HIVE_LOG4J2_PROPERTIES}"),

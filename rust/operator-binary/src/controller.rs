@@ -785,16 +785,11 @@ fn build_metastore_rolegroup_statefulset(
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
         pod_builder.add_volume(
-            VolumeBuilder::new("hdfs-site")
+            VolumeBuilder::new("hdfs-discovery")
                 .with_config_map(&hdfs.config_map)
                 .build(),
         );
-        container_builder.add_volume_mounts(vec![VolumeMount {
-            name: "hdfs-site".to_string(),
-            mount_path: format!("{STACKABLE_CONFIG_DIR}/hdfs-site.xml"),
-            sub_path: Some("hdfs-site.xml".to_string()),
-            ..VolumeMount::default()
-        }]);
+        container_builder.add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config");
     }
 
     if let Some(s3_conn) = s3_connection {
