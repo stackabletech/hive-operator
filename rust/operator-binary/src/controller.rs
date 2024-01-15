@@ -65,7 +65,7 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    time::Duration,
+    time::Duration, kvp::Label,
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
@@ -259,6 +259,39 @@ pub enum Error {
     GracefulShutdown {
         source: crate::operations::graceful_shutdown::Error,
     },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to build S3 credentials SecretClass Volume"))]
+    S3CredentialsSecretClassVolumeBuild {
+        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
+    },
+
+    #[snafu(display("failed to build labels"))]
+    LabelBuild {
+        source: stackable_operator::kvp::LabelError,
+    },
+
+    #[snafu(display("failed to build metadata"))]
+    MetadataBuild {
+        source: stackable_operator::builder::ObjectMetaBuilderError,
+    },
+
+    #[snafu(display("failed to get required labels"))]
+    GetRequiredLabels {
+        source:
+            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
+    },
+
+    #[snafu(display(
+        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and containers"
+    ))]
+    AddLdapVolumes {
+        source: stackable_operator::commons::authentication::ldap::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -334,7 +367,9 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         hive.as_ref(),
         APP_NAME,
-        cluster_resources.get_required_labels(),
+        cluster_resources
+            .get_required_labels()
+            .context(GetRequiredLabelsSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
 
@@ -495,6 +530,7 @@ pub fn build_metastore_role_service(
                 &role_name,
                 "global",
             ))
+            .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(ServiceSpec {
             type_: Some(hive.spec.cluster_config.listener_class.k8s_service_type()),
@@ -635,6 +671,7 @@ fn build_metastore_rolegroup_config_map(
                     &rolegroup.role,
                     &rolegroup.role_group,
                 ))
+                .context(MetadataBuildSnafu)?
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
@@ -685,7 +722,8 @@ fn build_rolegroup_service(
                 &rolegroup.role,
                 &rolegroup.role_group,
             ))
-            .with_label("prometheus.io/scrape", "true")
+            .context(MetadataBuildSnafu)?
+            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
@@ -776,7 +814,7 @@ fn build_metastore_rolegroup_statefulset(
 
     if let Some(s3_conn) = s3_connection {
         if let Some(credentials) = &s3_conn.credentials {
-            pod_builder.add_volume(credentials.to_volume("s3-credentials"));
+            pod_builder.add_volume(credentials.to_volume("s3-credentials").context(S3CredentialsSecretClassVolumeBuildSnafu)?);
             container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
         }
 
@@ -791,7 +829,7 @@ fn build_metastore_rolegroup_statefulset(
 
                             let volume = VolumeBuilder::new(&volume_name)
                                 .ephemeral(
-                                    SecretOperatorVolumeSourceBuilder::new(secret_class).build(),
+                                    SecretOperatorVolumeSourceBuilder::new(secret_class).build().context(TlsCertSecretClassVolumeBuildSnafu)?,
                                 )
                                 .build();
                             pod_builder.add_volume(volume);
@@ -860,15 +898,18 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    let metadata = ObjectMetaBuilder::new()
+        .with_recommended_labels(build_recommended_labels(
+            hive,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(MetadataBuildSnafu)?
+        .build();
+
     pod_builder
-        .metadata_builder(|m| {
-            m.with_recommended_labels(build_recommended_labels(
-                hive,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-        })
+        .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_container(container_hive)
         .add_volume(Volume {
@@ -962,6 +1003,7 @@ fn build_metastore_rolegroup_statefulset(
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             ))
+            .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
