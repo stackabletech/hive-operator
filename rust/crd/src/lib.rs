@@ -458,21 +458,20 @@ impl Configuration for MetaStoreConfigFragment {
 
     fn compute_env(
         &self,
-        _hive: &Self::Configurable,
+        hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        result.insert(
-            HIVE_METASTORE_HADOOP_OPTS.to_string(),
-            Some(formatdoc! {"
+        let mut env = formatdoc! {"
                     -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
                     -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
                     -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
                     -Djavax.net.ssl.trustStoreType=pkcs12
-                    -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"}
-                )
-            );
+                    -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}
+                    {java_security_krb5_conf}", java_security_krb5_conf = java_security_krb5_conf(hive)};
+
+        result.insert(HIVE_METASTORE_HADOOP_OPTS.to_string(), Some(env));
 
         Ok(result)
     }
@@ -540,6 +539,16 @@ impl Configuration for MetaStoreConfigFragment {
         }
 
         Ok(result)
+    }
+}
+
+fn java_security_krb5_conf(hive: &HiveCluster) -> String {
+    if !hive.has_kerberos_enabled() {
+        return String::new();
+    }
+
+    formatdoc! {
+        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
     }
 }
 
