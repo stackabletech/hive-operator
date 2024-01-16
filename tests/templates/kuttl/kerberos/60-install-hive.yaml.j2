@@ -28,18 +28,6 @@ commands:
             vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
           metastore:
-            podOverrides:
-              spec:
-                volumes:
-                - name: hdfs-config
-                  configMap:
-                    name: hdfs-kerberos
-                containers:
-                - name: hive
-                  volumeMounts:
-                  - name: hdfs-config
-                    mountPath: /stackable/config/core-site.xml
-                    subPath: core-site.xml
             config:
               logging:
                 enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
