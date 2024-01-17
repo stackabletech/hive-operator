@@ -42,7 +42,7 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
-                ServicePort, ServiceSpec, TCPSocketAction, Volume, VolumeMount,
+                ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -834,6 +834,7 @@ fn build_metastore_rolegroup_statefulset(
             "-c".to_string(),
         ])
         .args(build_container_command_args(
+            hive,
               formatdoc! {"
             {kerberos_container_start_commands}
 

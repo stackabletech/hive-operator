@@ -254,6 +254,8 @@ impl HiveRole {
         roles
     }
 
+    /// A Kerberos principal has three parts, with the form username/fully.qualified.domain.name@YOUR-REALM.COM.
+    /// We only have one role and will use "hive" everywhere (which e.g. differs from the current hdfs implementation).
     pub fn kerberos_service_name(&self) -> &'static str {
         "hive"
     }
@@ -463,7 +465,7 @@ impl Configuration for MetaStoreConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        let mut env = formatdoc! {"
+        let env = formatdoc! {"
                     -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
                     -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
                     -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}

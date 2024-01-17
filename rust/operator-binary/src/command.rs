@@ -1,7 +1,7 @@
 use stackable_hive_crd::{
-    HIVE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR,
-    STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-    SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
+    HiveCluster, HIVE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR,
+    STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE,
+    STACKABLE_TRUST_STORE_PASSWORD, SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
 };
 use stackable_operator::commons::{
     authentication::tls::{CaCert, Tls, TlsServerVerification, TlsVerification},
@@ -15,6 +15,7 @@ pub const ACCESS_KEY_PLACEHOLDER: &str = "xxx_access_key_xxx";
 pub const SECRET_KEY_PLACEHOLDER: &str = "xxx_secret_key_xxx";
 
 pub fn build_container_command_args(
+    hive: &HiveCluster,
     start_command: String,
     s3_connection_spec: Option<&S3ConnectionSpec>,
 ) -> Vec<String> {
@@ -23,9 +24,6 @@ pub fn build_container_command_args(
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
         format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
 
-        format!("echo copying /stackable/mount/hdfs-config to {STACKABLE_CONFIG_DIR}"),
-        format!("cp -RL /stackable/mount/hdfs-config/* {STACKABLE_CONFIG_DIR}"),
-
         // Copy log4j2 properties
         format!("echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/{HIVE_LOG4J2_PROPERTIES}"),
         format!("cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_LOG4J2_PROPERTIES} {STACKABLE_CONFIG_DIR}/{HIVE_LOG4J2_PROPERTIES}"),
@@ -33,6 +31,13 @@ pub fn build_container_command_args(
         // Copy system truststore to stackable truststore
         format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE} -deststoretype pkcs12 -deststorepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt")
     ];
+
+    if hive.spec.cluster_config.hdfs.is_some() {
+        args.extend([
+            format!("echo copying /stackable/mount/hdfs-config to {STACKABLE_CONFIG_DIR}"),
+            format!("cp -RL /stackable/mount/hdfs-config/* {STACKABLE_CONFIG_DIR}"),
+        ]);
+    }
 
     if let Some(s3) = s3_connection_spec {
         if s3.credentials.is_some() {

@@ -2,4 +2,5 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - script: kubectl cp -n $NAMESPACE ./test_metastore.py  test-metastore-0:/tmp
+  - script: kubectl cp -n $NAMESPACE ./test_metastore.py  access-hive-0:/tmp/test_metastore.py
+  - script: kubectl cp -n $NAMESPACE ./test_script.sh  access-hive-0:/tmp/test_script.sh

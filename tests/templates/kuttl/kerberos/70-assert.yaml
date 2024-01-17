@@ -6,7 +6,7 @@ timeout: 300
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-metastore
+  name: access-hive
 status:
   readyReplicas: 1
   replicas: 1

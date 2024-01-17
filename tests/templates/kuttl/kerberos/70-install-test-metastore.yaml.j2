@@ -1,0 +1,81 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: access-hive
+        labels:
+          app: access-hive
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: access-hive
+        template:
+          metadata:
+            labels:
+              app: access-hive
+          spec:
+            containers:
+              - name: access-hive
+                image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
+                imagePullPolicy: IfNotPresent
+                stdin: true
+                tty: true
+                resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "512m"
+                  limits:
+                    memory: "128Mi"
+                    cpu: "1"
+                env:
+                  - name: KRB5_CONFIG
+                    value: /stackable/kerberos/krb5.conf
+                  - name: HBASE_OPTS
+                    value: -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
+                  - name: NAMESPACE
+                    value: $NAMESPACE
+                volumeMounts:
+                  - name: hive-config
+                    mountPath: /stackable/conf/hive_mount
+                  - name: hdfs-config
+                    mountPath: /stackable/conf/hdfs_mount
+                  - name: config-emptydir
+                    mountPath: /stackable/conf/hive
+                  - name: kerberos
+                    mountPath: /stackable/kerberos
+            volumes:
+              - name: hive-config
+                configMap:
+                  name: hive
+              - name: hdfs-config
+                configMap:
+                  name: hdfs
+              - name: config-emptydir
+                emptyDir: {}
+              - name: kerberos
+                ephemeral:
+                  volumeClaimTemplate:
+                    metadata:
+                      annotations:
+                        secrets.stackable.tech/class: kerberos-$NAMESPACE
+                        secrets.stackable.tech/scope: service=access-hive
+                        secrets.stackable.tech/kerberos.service.names: hive
+                    spec:
+                      storageClassName: secrets.stackable.tech
+                      accessModes:
+                        - ReadWriteOnce
+                      resources:
+                        requests:
+                          storage: "1"
+            securityContext:
+              fsGroup: 1000
+              runAsGroup: 1000
+              runAsUser: 1000
+      EOF
