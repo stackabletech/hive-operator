@@ -37,7 +37,7 @@ commands:
                 env:
                   - name: KRB5_CONFIG
                     value: /stackable/kerberos/krb5.conf
-                  - name: HBASE_OPTS
+                  - name: HIVE_METASTORE_HADOOP_OPTS
                     value: -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
                   - name: NAMESPACE
                     value: $NAMESPACE
