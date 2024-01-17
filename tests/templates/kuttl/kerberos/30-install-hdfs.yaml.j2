@@ -27,7 +27,9 @@ commands:
                 replicas: 2
             configOverrides: &configOverrides
               core-site.xml:
-                hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;hive=hive;"
+                # The idea is that the user "hive" can't do anything in hdfs, *but* in can impersonate other users
+                # (such as access-hive), that have admin permissions.
+                hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;hive=hive;access-hive=;"
                 hadoop.proxyuser.hive.users: "*"
                 hadoop.proxyuser.hive.hosts: "*"
           dataNodes:

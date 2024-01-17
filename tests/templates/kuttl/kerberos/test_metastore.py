@@ -11,8 +11,24 @@ from thrift_files.libraries.thrift_hive_metastore_client.ttypes import (
     FieldSchema,
     AlreadyExistsException,
 )
+from thrift.protocol import TBinaryProtocol
+from thrift.transport import TSocket, TTransport
 import argparse
 
+class KerberosHiveMetastoreClient(HiveMetastoreClient):
+    @staticmethod
+    def _init_protocol(host: str, port: int) -> TBinaryProtocol:
+        transport = TSocket.TSocket(host, int(port))
+        # host is something like "hive-metastore-default-0.hive-metastore-default.kuttl-test-brave-caribou.svc.cluster.local"
+        # We need to change it to the host part of the HMS principal e.g. "hive.kuttl-test-brave-caribou.svc.cluster.local"
+        host = host.replace("hive-metastore-default-0.hive-metastore-default", "hive")
+        transport = TTransport.TSaslClientTransport(transport,
+                                                    # host part of the HMS principal (not the HMS client)
+                                                    host=host,
+                                                    # first part of the HMS principal (not the HMS client)
+                                                    service="hive")
+        transport = TTransport.TBufferedTransport(transport)
+        return TBinaryProtocol.TBinaryProtocol(transport)
 
 def table(db_name, table_name, location):
     columns = [
@@ -55,7 +71,7 @@ if __name__ == '__main__':
     # Creating database object using builder
     database = DatabaseBuilder(database_name).build()
 
-    with HiveMetastoreClient(host, port) as hive_client:
+    with KerberosHiveMetastoreClient(host, port) as hive_client:
         hive_client.create_database_if_not_exists(database)
 
         # Local access
