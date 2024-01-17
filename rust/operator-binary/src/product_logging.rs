@@ -44,16 +44,16 @@ const HIVE_LOG_FILE: &str = "hive.log4j2.xml";
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
 pub async fn resolve_vector_aggregator_address(
-    hbase: &HiveCluster,
+    hive: &HiveCluster,
     client: &Client,
 ) -> Result<Option<String>> {
     let vector_aggregator_address = if let Some(vector_aggregator_config_map_name) =
-        &hbase.spec.cluster_config.vector_aggregator_config_map_name
+        &hive.spec.cluster_config.vector_aggregator_config_map_name
     {
         let vector_aggregator_address = client
             .get::<ConfigMap>(
                 vector_aggregator_config_map_name,
-                hbase
+                hive
                     .namespace()
                     .as_deref()
                     .context(ObjectHasNoNamespaceSnafu)?,

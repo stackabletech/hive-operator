@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 pub fn add_kerberos_pod_config(
     hive: &HiveCluster,
-    hbase_name: &str,
+    hive_name: &str,
     role: &HiveRole,
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
@@ -20,7 +20,7 @@ pub fn add_kerberos_pod_config(
         let mut kerberos_secret_operator_volume_builder =
             SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class);
         kerberos_secret_operator_volume_builder
-            .with_service_scope(hbase_name)
+            .with_service_scope(hive_name)
             .with_kerberos_service_name(role.kerberos_service_name())
             .with_kerberos_service_name("HTTP");
         if let Some(true) = hive.kerberos_request_node_principals() {
