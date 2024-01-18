@@ -28,6 +28,26 @@ spec:
                 clusterConfig:
                   description: Hive metastore settings that affect all roles and role groups. The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                   properties:
+                    authentication:
+                      description: Settings related to user [authentication](https://docs.stackable.tech/home/nightly/usage-guide/security).
+                      nullable: true
+                      properties:
+                        kerberos:
+                          description: Kerberos configuration.
+                          properties:
+                            secretClass:
+                              description: Name of the SecretClass providing the keytab for the HBase services.
+                              type: string
+                          required:
+                            - secretClass
+                          type: object
+                        tlsSecretClass:
+                          default: tls
+                          description: Name of the SecretClass providing the tls certificates for the WebUIs.
+                          type: string
+                      required:
+                        - kerberos
+                      type: object
                     database:
                       description: Database connection specification for the metadata database.
                       properties:
@@ -64,23 +84,6 @@ spec:
                           type: string
                       required:
                         - configMap
-                      type: object
-                    kerberos:
-                      description: Configuration to set up a cluster secured using Kerberos.
-                      nullable: true
-                      properties:
-                        kerberosSecretClass:
-                          default: kerberos
-                          description: Name of the SecretClass providing the keytab for the HDFS services.
-                          type: string
-                        requestNodePrincipals:
-                          default: false
-                          description: Whether a principal including the Kubernetes node name should be requested. The principal could e.g. be `HTTP/my-k8s-worker-0.mycorp.lan`. This feature is disabled by default, as the resulting principals can already by existent e.g. in Active Directory which can cause problems.
-                          type: boolean
-                        tlsSecretClass:
-                          default: tls
-                          description: Name of the SecretClass providing the tls certificates for the WebUIs.
-                          type: string
                       type: object
                     listenerClass:
                       default: cluster-internal
