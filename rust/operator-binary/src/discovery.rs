@@ -49,6 +49,11 @@ pub enum Error {
     InvalidNodePort { source: TryFromIntError },
     #[snafu(display("invalid owner name for discovery ConfigMap"))]
     InvalidOwnerNameForDiscoveryConfigMap,
+
+    #[snafu(display("failed to build Metadata"))]
+    MetadataBuild {
+        source: stackable_operator::builder::ObjectMetaBuilderError,
+    },
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`HiveCluster`] for all expected scenarios
@@ -138,6 +143,7 @@ fn build_discovery_configmap(
                     &HiveRole::MetaStore.to_string(),
                     "discovery",
                 ))
+                .context(MetadataBuildSnafu)?
                 .build(),
         )
         .add_data("HIVE", conn_str)
