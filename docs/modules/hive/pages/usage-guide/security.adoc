@@ -17,7 +17,7 @@ The next step is to configure your HdfsCluster to use the newly created SecretCl
 Please make sure to use the SecretClass named `kerberos`.
 
 === 4. Configure Hive to use SecretClass
-The last step is to configure the same SecretClass for Hive, which is done in a similar way to to HDFS.
+The last step is to configure the same SecretClass for Hive, which is done similarly to HDFS.
 
 IMPORTANT: HDFS and Hive need to use the same SecretClass (or at least use the same underlying Kerberos server).
 
@@ -39,5 +39,5 @@ In case you want to access Hive it is recommended to start up a client Pod that 
 We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos/70-install-access-hive.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
 
 == Wire encryption
-In case Kerberos is enabled, `Privacy` mode is used for best security.
+`Privacy` mode is recommended if Kerberos is enabled.
 Wire encryption without Kerberos as well as other wire encryption modes are *not* supported.
