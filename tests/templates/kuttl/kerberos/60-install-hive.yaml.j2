@@ -21,9 +21,10 @@ commands:
               dbType: postgres
             hdfs:
               configMap: hdfs
-            kerberos:
+            authentication:
               tlsSecretClass: tls
-              kerberosSecretClass: kerberos-$NAMESPACE
+              kerberos:
+                secretClass: kerberos-$NAMESPACE
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
             vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

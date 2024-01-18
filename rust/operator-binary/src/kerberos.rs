@@ -6,29 +6,26 @@ use stackable_hive_crd::{
 use stackable_operator::builder::{
     ContainerBuilder, PodBuilder, SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
 };
+use stackable_operator::kube::ResourceExt;
 use std::collections::BTreeMap;
 
 pub fn add_kerberos_pod_config(
     hive: &HiveCluster,
-    hive_name: &str,
     role: &HiveRole,
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
 ) {
     if let Some(kerberos_secret_class) = hive.kerberos_secret_class() {
-        // Keytab
-        let mut kerberos_secret_operator_volume_builder =
-            SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class);
-        kerberos_secret_operator_volume_builder
-            .with_service_scope(hive_name)
-            .with_kerberos_service_name(role.kerberos_service_name())
-            .with_kerberos_service_name("HTTP");
-        if let Some(true) = hive.kerberos_request_node_principals() {
-            kerberos_secret_operator_volume_builder.with_node_scope();
-        }
+        // Mount keytab
+        let kerberos_secret_operator_volume =
+            SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
+                .with_service_scope(hive.name_any())
+                .with_kerberos_service_name(role.kerberos_service_name())
+                .with_kerberos_service_name("HTTP")
+                .build();
         pb.add_volume(
             VolumeBuilder::new("kerberos")
-                .ephemeral(kerberos_secret_operator_volume_builder.build())
+                .ephemeral(kerberos_secret_operator_volume)
                 .build(),
         );
         cb.add_volume_mount("kerberos", "/stackable/kerberos");

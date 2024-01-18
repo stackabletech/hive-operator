@@ -392,7 +392,6 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             &hive,
-            &hive_name,
             &hive_role,
             &resolved_product_image,
             &rolegroup,
@@ -734,7 +733,6 @@ fn build_rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
     hive: &HiveCluster,
-    hive_name: &str,
     hive_role: &HiveRole,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<HiveCluster>,
@@ -980,13 +978,7 @@ fn build_metastore_rolegroup_statefulset(
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     if hive.has_kerberos_enabled() {
-        add_kerberos_pod_config(
-            hive,
-            hive_name,
-            hive_role,
-            container_builder,
-            &mut pod_builder,
-        );
+        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder);
     }
 
     pod_builder.add_container(container_builder.build());

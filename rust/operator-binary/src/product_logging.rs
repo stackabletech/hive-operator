@@ -53,8 +53,7 @@ pub async fn resolve_vector_aggregator_address(
         let vector_aggregator_address = client
             .get::<ConfigMap>(
                 vector_aggregator_config_map_name,
-                hive
-                    .namespace()
+                hive.namespace()
                     .as_deref()
                     .context(ObjectHasNoNamespaceSnafu)?,
             )
