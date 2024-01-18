@@ -15,6 +15,7 @@ from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
 import argparse
 
+
 class KerberosHiveMetastoreClient(HiveMetastoreClient):
     @staticmethod
     def _init_protocol(host: str, port: int) -> TBinaryProtocol:
@@ -29,6 +30,7 @@ class KerberosHiveMetastoreClient(HiveMetastoreClient):
                                                     service="hive")
         transport = TTransport.TBufferedTransport(transport)
         return TBinaryProtocol.TBinaryProtocol(transport)
+
 
 def table(db_name, table_name, location):
     columns = [
