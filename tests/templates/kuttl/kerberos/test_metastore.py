@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
         # HDFS access
         try:
-            hive_client.create_table(table(database_name, hdfs_test_table_name, "hdfs://hdfs/hive"))
+            hive_client.create_table(table(database_name, hdfs_test_table_name, "hdfs://hdfs/access-hive/hive"))
         except AlreadyExistsException:
             print(f"[INFO]: Table {hdfs_test_table_name} already existed")
         schema = hive_client.get_schema(db_name=database_name, table_name=hdfs_test_table_name)
