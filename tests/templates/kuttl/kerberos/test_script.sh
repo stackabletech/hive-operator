@@ -2,7 +2,7 @@
 
 set -ex
 klist -k /stackable/kerberos/keytab
-kinit -kt /stackable/kerberos/keytab access-hive/access-hive.$NAMESPACE.svc.cluster.local
+kinit -kt /stackable/kerberos/keytab access-hive/access-hive."$NAMESPACE".svc.cluster.local
 klist
 
 export KERBEROS_REALM=$(grep -oP 'default_realm = \K.*' /stackable/kerberos/krb5.conf)
