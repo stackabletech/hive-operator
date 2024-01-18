@@ -1,20 +1,34 @@
 use indoc::formatdoc;
+use snafu::{ResultExt, Snafu};
 use stackable_hive_crd::{
     HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR, TLS_STORE_DIR, TLS_STORE_PASSWORD,
     TLS_STORE_VOLUME_NAME,
 };
 use stackable_operator::builder::{
-    ContainerBuilder, PodBuilder, SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+    ContainerBuilder, PodBuilder, SecretFormat, SecretOperatorVolumeSourceBuilder,
+    SecretOperatorVolumeSourceBuilderError, VolumeBuilder,
 };
 use stackable_operator::kube::ResourceExt;
 use std::collections::BTreeMap;
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to add Kerberos secret volume"))]
+    AddKerberosSecretVolume {
+        source: SecretOperatorVolumeSourceBuilderError,
+    },
+    #[snafu(display("failed to add TLS secret volume"))]
+    AddTlsSecretVolume {
+        source: SecretOperatorVolumeSourceBuilderError,
+    },
+}
 
 pub fn add_kerberos_pod_config(
     hive: &HiveCluster,
     role: &HiveRole,
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
-) {
+) -> Result<(), Error> {
     if let Some(kerberos_secret_class) = hive.kerberos_secret_class() {
         // Mount keytab
         let kerberos_secret_operator_volume =
@@ -22,7 +36,8 @@ pub fn add_kerberos_pod_config(
                 .with_service_scope(hive.name_any())
                 .with_kerberos_service_name(role.kerberos_service_name())
                 .with_kerberos_service_name("HTTP")
-                .build();
+                .build()
+                .context(AddKerberosSecretVolumeSnafu)?;
         pb.add_volume(
             VolumeBuilder::new("kerberos")
                 .ephemeral(kerberos_secret_operator_volume)
@@ -44,12 +59,14 @@ pub fn add_kerberos_pod_config(
                         .with_node_scope()
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
-                        .build(),
+                        .build()
+                        .context(AddTlsSecretVolumeSnafu)?,
                 )
                 .build(),
         );
         cb.add_volume_mount(TLS_STORE_VOLUME_NAME, TLS_STORE_DIR);
     }
+    Ok(())
 }
 
 pub fn kerberos_config_properties(

@@ -77,7 +77,7 @@ use tracing::warn;
 use crate::kerberos::{add_kerberos_pod_config, kerberos_config_properties};
 use crate::{
     command::{self, build_container_command_args, S3_SECRET_DIR},
-    discovery,
+    discovery, kerberos,
     kerberos::kerberos_container_start_commands,
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
@@ -298,6 +298,9 @@ pub enum Error {
     AddLdapVolumes {
         source: stackable_operator::commons::authentication::ldap::Error,
     },
+
+    #[snafu(display("failed to add kerberos config"))]
+    AddKerberosConfig { source: kerberos::Error },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -1028,7 +1031,8 @@ fn build_metastore_rolegroup_statefulset(
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     if hive.has_kerberos_enabled() {
-        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder);
+        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder)
+            .context(AddKerberosConfigSnafu)?;
     }
 
     pod_builder.add_container(container_builder.build());
