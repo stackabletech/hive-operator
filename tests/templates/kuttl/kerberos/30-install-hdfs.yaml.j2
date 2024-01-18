@@ -11,7 +11,7 @@ commands:
           name: hdfs
         spec:
           image:
-            productVersion: 3.3.4
+            productVersion: "{{ test_scenario['values']['hdfs-latest'] }}"
             pullPolicy: IfNotPresent
           clusterConfig:
             listenerClass: external-unstable

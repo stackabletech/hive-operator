@@ -5,7 +5,7 @@ metadata:
   name: hdfs-zk
 spec:
   image:
-    productVersion: 3.8.3
+    productVersion: "{{ test_scenario['values']['zookeeper-latest'] }}"
     pullPolicy: IfNotPresent
   clusterConfig:
   servers:
