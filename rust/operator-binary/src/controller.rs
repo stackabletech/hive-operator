@@ -1013,10 +1013,22 @@ fn build_metastore_rolegroup_statefulset(
         });
     }
 
+    add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
+
+    if hive.has_kerberos_enabled() {
+        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder)
+            .context(AddKerberosConfigSnafu)?;
+    }
+
+    // this is the main container
+    pod_builder.add_container(container_builder.build());
+
+    // N.B. the vector container should *follow* the hive container so that the hive one is the
+    // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
         pod_builder.add_container(product_logging::framework::vector_container(
             resolved_product_image,
-            STACKABLE_CONFIG_DIR_NAME,
+            STACKABLE_CONFIG_MOUNT_DIR_NAME,
             STACKABLE_LOG_DIR_NAME,
             merged_config.logging.containers.get(&Container::Vector),
             ResourceRequirementsBuilder::new()
@@ -1027,15 +1039,6 @@ fn build_metastore_rolegroup_statefulset(
                 .build(),
         ));
     }
-
-    add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
-
-    if hive.has_kerberos_enabled() {
-        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder)
-            .context(AddKerberosConfigSnafu)?;
-    }
-
-    pod_builder.add_container(container_builder.build());
 
     let mut pod_template = pod_builder.build_template();
     pod_template.merge_from(role.config.pod_overrides.clone());
