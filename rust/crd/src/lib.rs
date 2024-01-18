@@ -678,8 +678,7 @@ impl HiveCluster {
             .cluster_config
             .authentication
             .as_ref()
-            .map(|a| &a.kerberos)
-            .map(|k| k.secret_class.clone())
+            .map(|a| a.tls_secret_class.clone())
     }
 
     /// Retrieve and merge resource configs for role and role groups
