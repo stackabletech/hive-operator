@@ -36,7 +36,7 @@ The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the We
 
 === 5. Access Hive
 In case you want to access Hive it is recommended to start up a client Pod that connects to Hive, rather than shelling into the master.
-We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos/70-install-access-hive.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
+We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos/70-install-access-hive.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
 
 == Wire encryption
 `Privacy` mode is recommended if Kerberos is enabled.

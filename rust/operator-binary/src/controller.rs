@@ -313,8 +313,6 @@ impl ReconcilerError for Error {
 pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
-
-    let hive_name = hive.name_any();
     let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     let resolved_product_image: ResolvedProductImage = hive
@@ -413,13 +411,12 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
         let config = hive
-            .merged_config(&hive_name, &HiveRole::MetaStore, &rolegroup)
+            .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
         let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             &hive,
-            &hive_name,
             &hive_namespace,
             &resolved_product_image,
             &rolegroup,
@@ -565,7 +562,6 @@ pub fn build_metastore_role_service(
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
-    hive_name: &str,
     hive_namespace: &str,
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<HiveCluster>,
@@ -658,7 +654,7 @@ fn build_metastore_rolegroup_config_map(
                 }
 
                 for (property_name, property_value) in
-                    kerberos_config_properties(hive, hive_name, hive_namespace)
+                    kerberos_config_properties(hive, hive_namespace)
                 {
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
                 }

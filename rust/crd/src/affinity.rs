@@ -59,7 +59,7 @@ mod tests {
         "#;
         let hive: HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
         let merged_config = hive
-            .merged_config("simple-hive", &role, &role.rolegroup_ref(&hive, "default"))
+            .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();
 
         assert_eq!(

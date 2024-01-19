@@ -71,14 +71,14 @@ pub fn add_kerberos_pod_config(
 
 pub fn kerberos_config_properties(
     hive: &HiveCluster,
-    hive_name: &str,
     hive_namespace: &str,
 ) -> BTreeMap<String, String> {
     if !hive.has_kerberos_enabled() {
         return BTreeMap::new();
     }
-
-    let principal_host_part = principal_host_part(hive_name, hive_namespace);
+    let hive_name = hive.name_any();
+    let principal_host_part =
+        format!("{hive_name}.{hive_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}");
 
     BTreeMap::from([
         // Kerberos settings
@@ -119,7 +119,4 @@ pub fn kerberos_container_start_commands(hive: &HiveCluster) -> String {
         sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/core-site.xml
         sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/hdfs-site.xml",
     }
-}
-fn principal_host_part(hive_name: &str, hive_namespace: &str) -> String {
-    format!("{hive_name}.{hive_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}")
 }

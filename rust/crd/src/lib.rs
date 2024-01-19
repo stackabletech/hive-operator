@@ -4,6 +4,7 @@ use indoc::formatdoc;
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -167,31 +168,6 @@ pub struct HiveClusterConfig {
 
     /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KerberosConfig {
-    /// Name of the SecretClass providing the keytab for the HDFS services.
-    #[serde(default = "default_kerberos_kerberos_secret_class")]
-    kerberos_secret_class: String,
-    /// Name of the SecretClass providing the tls certificates for the WebUIs.
-    #[serde(default = "default_kerberos_tls_secret_class")]
-    tls_secret_class: String,
-    /// Whether a principal including the Kubernetes node name should be requested.
-    /// The principal could e.g. be `HTTP/my-k8s-worker-0.mycorp.lan`.
-    /// This feature is disabled by default, as the resulting principals can already by existent
-    /// e.g. in Active Directory which can cause problems.
-    #[serde(default)]
-    request_node_principals: bool,
-}
-
-fn default_kerberos_tls_secret_class() -> String {
-    "tls".to_string()
-}
-
-fn default_kerberos_kerberos_secret_class() -> String {
-    "kerberos".to_string()
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -684,12 +660,11 @@ impl HiveCluster {
     /// Retrieve and merge resource configs for role and role groups
     pub fn merged_config(
         &self,
-        hive_name: &str,
         role: &HiveRole,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<MetaStoreConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config(hive_name, role);
+        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
 
         // Retrieve role resource config
         let role = self.role(role)?;
