@@ -11,7 +11,7 @@ commands:
           name: hive
         spec:
           image:
-            productVersion: "{{ test_scenario['values']['hive'] }}"
+            productVersion: "{{ test_scenario['values']['hive-latest'] }}"
             pullPolicy: IfNotPresent
           clusterConfig:
             database:
@@ -22,7 +22,6 @@ commands:
             hdfs:
               configMap: hdfs
             authentication:
-              tlsSecretClass: tls
               kerberos:
                 secretClass: kerberos-$NAMESPACE
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
