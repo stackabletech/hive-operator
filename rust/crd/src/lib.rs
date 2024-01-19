@@ -645,18 +645,6 @@ impl HiveCluster {
             .map(|k| k.secret_class.clone())
     }
 
-    pub fn has_https_enabled(&self) -> bool {
-        self.https_secret_class().is_some()
-    }
-
-    pub fn https_secret_class(&self) -> Option<String> {
-        self.spec
-            .cluster_config
-            .authentication
-            .as_ref()
-            .map(|a| a.tls_secret_class.clone())
-    }
-
     /// Retrieve and merge resource configs for role and role groups
     pub fn merged_config(
         &self,

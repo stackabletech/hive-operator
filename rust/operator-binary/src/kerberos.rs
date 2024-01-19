@@ -1,11 +1,8 @@
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
-use stackable_hive_crd::{
-    HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR, TLS_STORE_DIR, TLS_STORE_PASSWORD,
-    TLS_STORE_VOLUME_NAME,
-};
+use stackable_hive_crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
 use stackable_operator::builder::{
-    ContainerBuilder, PodBuilder, SecretFormat, SecretOperatorVolumeSourceBuilder,
+    ContainerBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder,
     SecretOperatorVolumeSourceBuilderError, VolumeBuilder,
 };
 use stackable_operator::kube::ResourceExt;
@@ -48,23 +45,6 @@ pub fn add_kerberos_pod_config(
         cb.add_env_var("KRB5_CONFIG", "/stackable/kerberos/krb5.conf");
     }
 
-    if let Some(https_secret_class) = hive.https_secret_class() {
-        // TLS certs
-        pb.add_volume(
-            VolumeBuilder::new(TLS_STORE_VOLUME_NAME)
-                .ephemeral(
-                    SecretOperatorVolumeSourceBuilder::new(https_secret_class)
-                        .with_pod_scope()
-                        .with_node_scope()
-                        .with_format(SecretFormat::TlsPkcs12)
-                        .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
-                        .build()
-                        .context(AddTlsSecretVolumeSnafu)?,
-                )
-                .build(),
-        );
-        cb.add_volume_mount(TLS_STORE_VOLUME_NAME, TLS_STORE_DIR);
-    }
     Ok(())
 }
 
