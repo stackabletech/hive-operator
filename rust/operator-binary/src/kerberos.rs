@@ -35,7 +35,6 @@ pub fn add_kerberos_pod_config(
             SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
                 .with_service_scope(hive.name_any())
                 .with_kerberos_service_name(role.kerberos_service_name())
-                .with_kerberos_service_name("HTTP")
                 .build()
                 .context(AddKerberosSecretVolumeSnafu)?;
         pb.add_volume(
