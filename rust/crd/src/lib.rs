@@ -523,13 +523,13 @@ impl Configuration for MetaStoreConfigFragment {
 }
 
 fn java_security_krb5_conf(hive: &HiveCluster) -> String {
-    if !hive.has_kerberos_enabled() {
-        return String::new();
+    if hive.has_kerberos_enabled() {
+        return formatdoc! {
+            "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+        };
     }
 
-    formatdoc! {
-        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
-    }
+    String::new()
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

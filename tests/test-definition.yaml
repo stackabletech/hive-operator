@@ -46,7 +46,7 @@ tests:
       - hive
       - s3-use-tls
       - openshift
-  - name: kerberos
+  - name: kerberos-hdfs
     dimensions:
       - postgres
       - hive-latest
@@ -55,6 +55,14 @@ tests:
       - openshift
       - kerberos-realm
       - kerberos-backend
+  - name: kerberos-s3
+    dimensions:
+      - postgres
+      - hive-latest
+      - openshift
+      - kerberos-realm
+      - kerberos-backend
+      - s3-use-tls
   - name: resources
     dimensions:
       - hive

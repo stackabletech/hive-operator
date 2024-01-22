@@ -92,10 +92,19 @@ pub fn kerberos_container_start_commands(hive: &HiveCluster) -> String {
         return String::new();
     }
 
-    formatdoc! {"
+    let mut args = vec![formatdoc! {"
         export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)
-        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}
+        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}",
+    }];
+
+    if hive.spec.cluster_config.hdfs.is_some() {
+        args.extend([
+            formatdoc! {"
         sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/core-site.xml
         sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/hdfs-site.xml",
     }
+        ]);
+    }
+
+    args.join("\n")
 }
