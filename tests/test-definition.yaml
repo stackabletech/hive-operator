@@ -49,7 +49,7 @@ tests:
   - name: kerberos-hdfs
     dimensions:
       - postgres
-      - hive-latest
+      - hive
       - hdfs-latest
       - zookeeper-latest
       - openshift
@@ -58,7 +58,7 @@ tests:
   - name: kerberos-s3
     dimensions:
       - postgres
-      - hive-latest
+      - hive
       - openshift
       - kerberos-realm
       - kerberos-backend
