@@ -17,8 +17,8 @@ use product_config::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-    JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
+    CERTS_DIR, CORE_SITE_XML, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
+    HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
     STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
@@ -708,6 +708,17 @@ fn build_metastore_rolegroup_config_map(
                 }
             })?,
         );
+
+    if hive.has_kerberos_enabled() && hive.spec.cluster_config.hdfs.is_none() {
+        // if kerberos is activated but we have no HDFS as backend (i.e. S3) then a core-site.xml is
+        // needed to set "hadoop.security.authentication"
+        let mut data = BTreeMap::new();
+        data.insert(
+            "hadoop.security.authentication".to_string(),
+            Some("kerberos".to_string()),
+        );
+        cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(data.iter()));
+    }
 
     extend_role_group_config_map(
         rolegroup,
