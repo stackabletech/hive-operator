@@ -33,26 +33,12 @@ commands:
                   - name: scripts
                     mountPath: /tmp/scripts/metastore.py
                     subPath: metastore.py
-                  - name: hive-config
-                    mountPath: /stackable/conf/hive_mount
-                  - name: hdfs-config
-                    mountPath: /stackable/conf/hdfs_mount
-                  - name: config-emptydir
-                    mountPath: /stackable/conf/hive
                   - name: kerberos
                     mountPath: /stackable/kerberos
             volumes:
               - name: scripts
                 configMap:
                   name: access-hive-scripts
-              - name: hive-config
-                configMap:
-                  name: hive
-              - name: hdfs-config
-                configMap:
-                  name: hdfs
-              - name: config-emptydir
-                emptyDir: {}
               - name: kerberos
                 ephemeral:
                   volumeClaimTemplate:
@@ -86,12 +72,7 @@ data:
     kinit -kt /stackable/kerberos/keytab access-hive/access-hive."$NAMESPACE".svc.cluster.local
     klist
 
-    export KERBEROS_REALM=$(grep -oP 'default_realm = \K.*' /stackable/kerberos/krb5.conf)
-    cat /stackable/conf/hdfs_mount/core-site.xml | sed -e 's/${env.KERBEROS_REALM}/'"$KERBEROS_REALM/g" > /stackable/conf/hive/core-site.xml
-    cat /stackable/conf/hdfs_mount/hdfs-site.xml | sed -e 's/${env.KERBEROS_REALM}/'"$KERBEROS_REALM/g" > /stackable/conf/hive/hdfs-site.xml
-
     python /tmp/scripts/metastore.py -m hive-metastore-default-0.hive-metastore-default.$NAMESPACE.svc.cluster.local
-
   metastore.py: |
     from hive_metastore_client import HiveMetastoreClient
     from hive_metastore_client.builders import (

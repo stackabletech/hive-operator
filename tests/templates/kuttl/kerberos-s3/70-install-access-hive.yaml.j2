@@ -33,21 +33,12 @@ commands:
                   - name: scripts
                     mountPath: /tmp/scripts/metastore.py
                     subPath: metastore.py
-                  - name: hive-config
-                    mountPath: /stackable/conf/hive_mount
-                  - name: config-emptydir
-                    mountPath: /stackable/conf/hive
                   - name: kerberos
                     mountPath: /stackable/kerberos
             volumes:
               - name: scripts
                 configMap:
                   name: access-hive-scripts
-              - name: hive-config
-                configMap:
-                  name: hive-metastore-default
-              - name: config-emptydir
-                emptyDir: {}
               - name: kerberos
                 ephemeral:
                   volumeClaimTemplate:
@@ -81,11 +72,7 @@ data:
     kinit -kt /stackable/kerberos/keytab access-hive/access-hive."$NAMESPACE".svc.cluster.local
     klist
 
-    export KERBEROS_REALM=$(grep -oP 'default_realm = \K.*' /stackable/kerberos/krb5.conf)
-    cat /stackable/conf/hive_mount/core-site.xml | sed -e 's/${env.KERBEROS_REALM}/'"$KERBEROS_REALM/g" > /stackable/conf/hive/core-site.xml
-
     python /tmp/scripts/metastore.py -m hive-metastore-default-0.hive-metastore-default.$NAMESPACE.svc.cluster.local
-
   metastore.py: |
     from hive_metastore_client import HiveMetastoreClient
     from hive_metastore_client.builders import (
@@ -158,11 +145,10 @@ data:
         host = args["metastore"]
         local_test_table_name = "one_column_table"
         s3_test_table_name = "s3_one_column_table"
-        s3_test_table_name_wrong_bucket = "s3_one_column_table_wrong_buckets"
         # Creating database object using builder
         database = DatabaseBuilder(database_name).build()
 
-        with HiveMetastoreClient(host, port) as hive_client:
+        with KerberosHiveMetastoreClient(host, port) as hive_client:
             hive_client.create_database_if_not_exists(database)
 
             # Local access
