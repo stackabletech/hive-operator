@@ -19,8 +19,6 @@ commands:
                 env:
                   - name: KRB5_CONFIG
                     value: /stackable/kerberos/krb5.conf
-                  - name: HIVE_METASTORE_HADOOP_OPTS
-                    value: -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
                   - name: NAMESPACE
                     value: $NAMESPACE
                 command:
@@ -30,6 +28,9 @@ commands:
                   - name: scripts
                     mountPath: /tmp/scripts/metastore.sh
                     subPath: metastore.sh
+                  - name: scripts
+                    mountPath: /tmp/scripts/metastore.py
+                    subPath: metastore.py
                   - name: kerberos
                     mountPath: /stackable/kerberos
             volumes:
