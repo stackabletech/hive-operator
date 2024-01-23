@@ -28,7 +28,6 @@ IMPORTANT: HDFS and Hive need to use the same SecretClass (or at least use the s
 spec:
   clusterConfig:
     authentication:
-      tlsSecretClass: tls # Optional, defaults to "tls"
       kerberos:
         secretClass: kerberos # Put your SecretClass name in here
 ----
