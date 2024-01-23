@@ -14,7 +14,12 @@ The next step is to enter all the necessary information into a SecretClass, as d
 
 === 3. Configure HDFS to use SecretClass
 The next step is to configure your HdfsCluster to use the newly created SecretClass. Please follow the xref:hdfs:usage-guide/security.adoc[HDFS security guide] to set up and test this.
-Please make sure to use the SecretClass named `kerberos`.
+Please make sure to use the SecretClass named `kerberos`. It is also necessary to configure 2 additional things in HDFS:
+
+* define group mappings for user permissions with `hadoop.user.group.static.mapping.overrides`
+* tell HDFS that Hive will be "passing through" users: i.e. Hive does not need any _direct_ access permissions for itself, but should be able to impersonate Hive users when accessing HDFS. This is done by setting `hadoop.proxyuser.hive.users` and `hadoop.proxyuser.hive.hosts`.
+
+An example of the above can be found in this https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos-hdfs/30-install-hdfs.yaml.j2[integration test].
 
 NOTE: This is only relevant if HDFS is used with the Hive metastore (many installations will use the metastore with an S3 backend instead of HDFS).
 
