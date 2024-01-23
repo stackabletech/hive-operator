@@ -79,7 +79,6 @@ pub fn kerberos_config_properties(
             "hive.metastore.kerberos.keytab.file".to_string(),
             "/stackable/kerberos/keytab".to_string(),
         ),
-        // Enabled https as well
         (
             "hive.metastore.sasl.enabled".to_string(),
             "true".to_string(),
