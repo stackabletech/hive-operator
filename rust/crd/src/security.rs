@@ -8,10 +8,6 @@ pub struct AuthenticationConfig {
     pub kerberos: KerberosConfig,
 }
 
-fn default_tls_secret_class() -> String {
-    "tls".to_string()
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KerberosConfig {
