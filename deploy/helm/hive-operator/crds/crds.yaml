@@ -41,10 +41,6 @@ spec:
                           required:
                             - secretClass
                           type: object
-                        tlsSecretClass:
-                          default: tls
-                          description: Name of the SecretClass providing the tls certificates for the WebUIs.
-                          type: string
                       required:
                         - kerberos
                       type: object
