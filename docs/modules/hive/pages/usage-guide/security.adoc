@@ -34,7 +34,6 @@ spec:
 ----
 
 The `kerberos.secretClass` is used to give Hive the possibility to request keytabs from the secret-operator.
-The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
 
 === 5. Access Hive
 In case you want to access Hive it is recommended to start up a client Pod that connects to Hive, rather than shelling into the master.
