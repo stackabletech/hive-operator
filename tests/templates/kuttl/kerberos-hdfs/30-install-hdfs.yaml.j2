@@ -1,0 +1,45 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+        kubectl apply -n $NAMESPACE -f - <<EOF
+        ---
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+        spec:
+          image:
+            productVersion: "{{ test_scenario['values']['hdfs-latest'] }}"
+            pullPolicy: IfNotPresent
+          clusterConfig:
+            listenerClass: external-unstable
+            dfsReplication: 1
+            authentication:
+              tlsSecretClass: tls
+              kerberos:
+                secretClass: kerberos-$NAMESPACE
+            zookeeperConfigMapName: hdfs-znode
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 2
+            configOverrides: &configOverrides
+              core-site.xml:
+                # The idea is that the user "hive" can't do anything in hdfs, *but* it can impersonate other users
+                # (such as access-hive), that have the needed permissions.
+                hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;hive=hive;access-hive=;"
+                hadoop.proxyuser.hive.users: "*"
+                hadoop.proxyuser.hive.hosts: "*"
+          dataNodes:
+            roleGroups:
+              default:
+                replicas: 1
+            configOverrides: *configOverrides
+          journalNodes:
+            roleGroups:
+              default:
+                replicas: 1
+            configOverrides: *configOverrides
+        EOF

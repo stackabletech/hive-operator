@@ -20,6 +20,12 @@ dimensions:
   - name: hive-latest
     values:
       - 3.1.3
+  - name: hdfs-latest
+    values:
+      - 3.3.6
+  - name: zookeeper-latest
+    values:
+      - 3.8.3
   - name: openshift
     values:
       - "false"
@@ -27,6 +33,12 @@ dimensions:
     values:
       - "true"
       - "false"
+  - name: kerberos-realm
+    values:
+      - "PROD.MYCORP"
+  - name: kerberos-backend
+    values:
+      - mit
 tests:
   - name: smoke
     dimensions:
@@ -34,6 +46,23 @@ tests:
       - hive
       - s3-use-tls
       - openshift
+  - name: kerberos-hdfs
+    dimensions:
+      - postgres
+      - hive
+      - hdfs-latest
+      - zookeeper-latest
+      - openshift
+      - kerberos-realm
+      - kerberos-backend
+  - name: kerberos-s3
+    dimensions:
+      - postgres
+      - hive
+      - openshift
+      - kerberos-realm
+      - kerberos-backend
+      - s3-use-tls
   - name: resources
     dimensions:
       - hive

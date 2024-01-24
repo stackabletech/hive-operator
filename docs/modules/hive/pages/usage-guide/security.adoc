@@ -1,0 +1,44 @@
+= Security
+
+== Authentication
+Currently, the only supported authentication mechanism is Kerberos, which is disabled by default.
+For Kerberos to work a Kerberos KDC is needed, which the users need to provide.
+The xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
+
+=== 1. Prepare Kerberos server
+To configure HDFS to use Kerberos you first need to collect information about your Kerberos server, e.g. hostname and port.
+Additionally, you need a service-user which the secret-operator uses to create principals for the HDFS services.
+
+=== 2. Create Kerberos SecretClass
+The next step is to enter all the necessary information into a SecretClass, as described in xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation]. The following guide assumes you have named your SecretClass `kerberos`.
+
+=== 3. Configure HDFS to use SecretClass
+The next step is to configure your HdfsCluster to use the newly created SecretClass. Please follow the xref:hdfs:usage-guide/security.adoc[HDFS security guide] to set up and test this.
+Please make sure to use the SecretClass named `kerberos`. It is also necessary to configure 2 additional things in HDFS:
+
+* Define group mappings for users with `hadoop.user.group.static.mapping.overrides`
+* Tell HDFS that Hive is allowed to impersonate other users, i.e. Hive does not need any _direct_ access permissions for itself, but should be able to impersonate Hive users when accessing HDFS. This can be done by e.g. setting `hadoop.proxyuser.hive.users=*` and `hadoop.proxyuser.hive.hosts=*` to allow the user `hive`´to impersonate all other users.
+
+An example of the above can be found in this https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos-hdfs/30-install-hdfs.yaml.j2[integration test].
+
+NOTE: This is only relevant if HDFS is used with the Hive metastore (many installations will use the metastore with an S3 backend instead of HDFS).
+
+=== 4. Configure Hive to use SecretClass
+The last step is to configure the same SecretClass for Hive, which is done similarly to HDFS.
+
+IMPORTANT: HDFS and Hive need to use the same SecretClass (or at least use the same underlying Kerberos server).
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    authentication:
+      kerberos:
+        secretClass: kerberos # Put your SecretClass name in here
+----
+
+The `kerberos.secretClass` is used to give Hive the possibility to request keytabs from the secret-operator.
+
+=== 5. Access Hive
+In case you want to access Hive it is recommended to start up a client Pod that connects to Hive, rather than shelling into the master.
+We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos/70-install-access-hive.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.

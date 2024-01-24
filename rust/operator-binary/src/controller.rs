@@ -8,6 +8,7 @@ use std::{
 };
 
 use fnv::FnvHasher;
+use indoc::formatdoc;
 use product_config::{
     types::PropertyNameKind,
     writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
@@ -16,12 +17,13 @@ use product_config::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-    JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
+    CERTS_DIR, CORE_SITE_XML, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
+    HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
     STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
     STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
+
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -40,7 +42,7 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
-                ServicePort, ServiceSpec, TCPSocketAction, Volume, VolumeMount,
+                ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -55,6 +57,7 @@ use stackable_operator::{
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
         self,
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -66,13 +69,16 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
 
+use crate::kerberos::{add_kerberos_pod_config, kerberos_config_properties};
 use crate::{
     command::{self, build_container_command_args, S3_SECRET_DIR},
-    discovery,
+    discovery, kerberos,
+    kerberos::kerberos_container_start_commands,
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
@@ -292,6 +298,9 @@ pub enum Error {
     AddLdapVolumes {
         source: stackable_operator::commons::authentication::ldap::Error,
     },
+
+    #[snafu(display("failed to add kerberos config"))]
+    AddKerberosConfig { source: kerberos::Error },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -304,6 +313,8 @@ impl ReconcilerError for Error {
 pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
+    let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
+
     let resolved_product_image: ResolvedProductImage = hive
         .spec
         .image
@@ -406,6 +417,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             &hive,
+            &hive_namespace,
             &resolved_product_image,
             &rolegroup,
             rolegroup_config,
@@ -547,8 +559,10 @@ pub fn build_metastore_role_service(
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
+#[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_config_map(
     hive: &HiveCluster,
+    hive_namespace: &str,
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -639,6 +653,12 @@ fn build_metastore_rolegroup_config_map(
                     );
                 }
 
+                for (property_name, property_value) in
+                    kerberos_config_properties(hive, hive_namespace)
+                {
+                    data.insert(property_name.to_string(), Some(property_value.to_string()));
+                }
+
                 // overrides
                 for (property_name, property_value) in config {
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
@@ -688,6 +708,17 @@ fn build_metastore_rolegroup_config_map(
                 }
             })?,
         );
+
+    if hive.has_kerberos_enabled() && hive.spec.cluster_config.hdfs.is_none() {
+        // if kerberos is activated but we have no HDFS as backend (i.e. S3) then a core-site.xml is
+        // needed to set "hadoop.security.authentication"
+        let mut data = BTreeMap::new();
+        data.insert(
+            "hadoop.security.authentication".to_string(),
+            Some("kerberos".to_string()),
+        );
+        cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(data.iter()));
+    }
 
     extend_role_group_config_map(
         rolegroup,
@@ -803,16 +834,11 @@ fn build_metastore_rolegroup_statefulset(
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
         pod_builder.add_volume(
-            VolumeBuilder::new("hdfs-site")
+            VolumeBuilder::new("hdfs-discovery")
                 .with_config_map(&hdfs.config_map)
                 .build(),
         );
-        container_builder.add_volume_mounts(vec![VolumeMount {
-            name: "hdfs-site".to_string(),
-            mount_path: format!("{STACKABLE_CONFIG_DIR}/hdfs-site.xml"),
-            sub_path: Some("hdfs-site.xml".to_string()),
-            ..VolumeMount::default()
-        }]);
+        container_builder.add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config");
     }
 
     if let Some(s3_conn) = s3_connection {
@@ -853,7 +879,7 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
-    let container_hive = container_builder
+    let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
@@ -863,7 +889,24 @@ fn build_metastore_rolegroup_statefulset(
             "-c".to_string(),
         ])
         .args(build_container_command_args(
-            HiveRole::MetaStore.get_command(&db_type.unwrap_or_default().to_string()),
+            hive,
+              formatdoc! {"
+            {kerberos_container_start_commands}
+
+            {COMMON_BASH_TRAP_FUNCTIONS}
+            {remove_vector_shutdown_file_command}
+            prepare_signal_handlers
+            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
+            wait_for_termination $!
+            {create_vector_shutdown_file_command}
+            ",
+            kerberos_container_start_commands = kerberos_container_start_commands(hive),
+            remove_vector_shutdown_file_command =
+                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+            create_vector_shutdown_file_command =
+                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+                  db_type = &db_type.unwrap_or_default().to_string(),
+        },
             s3_connection,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
@@ -894,8 +937,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..TCPSocketAction::default()
             }),
             ..Probe::default()
-        })
-        .build();
+        });
 
     // TODO: refactor this when CRD versioning is in place
     // Warn if the capacity field has been set to anything other than 0Mi
@@ -920,7 +962,6 @@ fn build_metastore_rolegroup_statefulset(
     pod_builder
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
-        .add_container(container_hive)
         .add_volume(Volume {
             name: STACKABLE_CONFIG_DIR_NAME.to_string(),
             empty_dir: Some(EmptyDirVolumeSource {
@@ -979,10 +1020,22 @@ fn build_metastore_rolegroup_statefulset(
         });
     }
 
+    add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
+
+    if hive.has_kerberos_enabled() {
+        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder)
+            .context(AddKerberosConfigSnafu)?;
+    }
+
+    // this is the main container
+    pod_builder.add_container(container_builder.build());
+
+    // N.B. the vector container should *follow* the hive container so that the hive one is the
+    // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
         pod_builder.add_container(product_logging::framework::vector_container(
             resolved_product_image,
-            STACKABLE_CONFIG_DIR_NAME,
+            STACKABLE_CONFIG_MOUNT_DIR_NAME,
             STACKABLE_LOG_DIR_NAME,
             merged_config.logging.containers.get(&Container::Vector),
             ResourceRequirementsBuilder::new()
@@ -993,8 +1046,6 @@ fn build_metastore_rolegroup_statefulset(
                 .build(),
         ));
     }
-
-    add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     let mut pod_template = pod_builder.build_template();
     pod_template.merge_from(role.config.pod_overrides.clone());

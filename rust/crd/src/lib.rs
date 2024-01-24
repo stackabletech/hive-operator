@@ -1,8 +1,10 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
+use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -16,24 +18,20 @@ use stackable_operator::{
     },
     config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
-    product_logging::{
-        self,
-        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
-        spec::Logging,
-    },
+    product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
 use crate::affinity::get_affinity;
 
 pub mod affinity;
+pub mod security;
 
 pub const APP_NAME: &str = "hive";
 // directories
@@ -46,6 +44,7 @@ pub const STACKABLE_LOG_DIR_NAME: &str = "log";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 // config file names
+pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
 pub const HIVE_LOG4J2_PROPERTIES: &str = "hive-log4j2.properties";
@@ -163,6 +162,9 @@ pub struct HiveClusterConfig {
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+
+    /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
+    pub authentication: Option<AuthenticationConfig>,
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -206,23 +208,6 @@ pub enum HiveRole {
 }
 
 impl HiveRole {
-    /// Returns the container start command for the metastore service.
-    pub fn get_command(&self, db_type: &str) -> String {
-        formatdoc! {"
-            {COMMON_BASH_TRAP_FUNCTIONS}
-            {remove_vector_shutdown_file_command}
-            prepare_signal_handlers
-            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
-            wait_for_termination $!
-            {create_vector_shutdown_file_command}
-            ",
-            remove_vector_shutdown_file_command =
-                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-            create_vector_shutdown_file_command =
-                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-        }
-    }
-
     /// Metadata about a rolegroup
     pub fn rolegroup_ref(
         &self,
@@ -242,6 +227,12 @@ impl HiveRole {
             roles.push(role.to_string())
         }
         roles
+    }
+
+    /// A Kerberos principal has three parts, with the form username/fully.qualified.domain.name@YOUR-REALM.COM.
+    /// We only have one role and will use "hive" everywhere (which e.g. differs from the current hdfs implementation).
+    pub fn kerberos_service_name(&self) -> &'static str {
+        "hive"
     }
 }
 
@@ -444,21 +435,20 @@ impl Configuration for MetaStoreConfigFragment {
 
     fn compute_env(
         &self,
-        _hive: &Self::Configurable,
+        hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        result.insert(
-            HIVE_METASTORE_HADOOP_OPTS.to_string(),
-            Some(formatdoc! {"
+        let env = formatdoc! {"
                     -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
                     -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
                     -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
                     -Djavax.net.ssl.trustStoreType=pkcs12
-                    -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"}
-                )
-            );
+                    -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}
+                    {java_security_krb5_conf}", java_security_krb5_conf = java_security_krb5_conf(hive)};
+
+        result.insert(HIVE_METASTORE_HADOOP_OPTS.to_string(), Some(env));
 
         Ok(result)
     }
@@ -527,6 +517,16 @@ impl Configuration for MetaStoreConfigFragment {
 
         Ok(result)
     }
+}
+
+fn java_security_krb5_conf(hive: &HiveCluster) -> String {
+    if hive.has_kerberos_enabled() {
+        return formatdoc! {
+            "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+        };
+    }
+
+    String::new()
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -627,6 +627,19 @@ impl HiveCluster {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
         }
+    }
+
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.kerberos_secret_class().is_some()
+    }
+
+    pub fn kerberos_secret_class(&self) -> Option<String> {
+        self.spec
+            .cluster_config
+            .authentication
+            .as_ref()
+            .map(|a| &a.kerberos)
+            .map(|k| k.secret_class.clone())
     }
 
     /// Retrieve and merge resource configs for role and role groups
