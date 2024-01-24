@@ -14,10 +14,6 @@ pub enum Error {
     AddKerberosSecretVolume {
         source: SecretOperatorVolumeSourceBuilderError,
     },
-    #[snafu(display("failed to add TLS secret volume"))]
-    AddTlsSecretVolume {
-        source: SecretOperatorVolumeSourceBuilderError,
-    },
 }
 
 pub fn add_kerberos_pod_config(

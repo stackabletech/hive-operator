@@ -67,10 +67,6 @@ pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
-pub const TLS_STORE_DIR: &str = "/stackable/tls";
-pub const TLS_STORE_VOLUME_NAME: &str = "tls";
-pub const TLS_STORE_PASSWORD: &str = "changeit";
-
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
 #[derive(Snafu, Debug)]
