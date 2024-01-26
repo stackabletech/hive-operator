@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Various documentation of the CRD ([#394]).
 - Support user authentication using Kerberos ([#402]).
+- Helm: support labels in values.yaml ([#406]).
 
 [#394]: https://github.com/stackabletech/hive-operator/pull/394
 [#402]: https://github.com/stackabletech/hive-operator/pull/402
+[#406]: https://github.com/stackabletech/hive-operator/pull/406
 
 ## [23.11.0] - 2023-11-24
 
