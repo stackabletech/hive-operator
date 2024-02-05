@@ -14,7 +14,6 @@ commands:
             productVersion: "{{ test_scenario['values']['hdfs-latest'] }}"
             pullPolicy: IfNotPresent
           clusterConfig:
-            listenerClass: external-unstable
             dfsReplication: 1
             authentication:
               tlsSecretClass: tls
