@@ -11,7 +11,12 @@ commands:
           name: hive
         spec:
           image:
+{% if test_scenario['values']['hive'].find(",") > 0 %}
+            custom: "{{ test_scenario['values']['hive'].split(',')[1] }}"
+            productVersion: "{{ test_scenario['values']['hive'].split(',')[0] }}"
+{% else %}
             productVersion: "{{ test_scenario['values']['hive'] }}"
+{% endif %}
             pullPolicy: IfNotPresent
           clusterConfig:
             database:
