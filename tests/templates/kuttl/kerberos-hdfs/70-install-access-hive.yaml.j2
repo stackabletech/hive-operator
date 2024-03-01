@@ -12,6 +12,7 @@ commands:
       spec:
         template:
           spec:
+            serviceAccountName: test-sa
             containers:
               - name: access-hive
                 image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
