@@ -5,7 +5,12 @@ metadata:
   name: test-hive
 spec:
   image:
+{% if test_scenario['values']['hive-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hive-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hive-latest'].split(',')[0] }}"
+{% else %}
     productVersion: "{{ test_scenario['values']['hive-latest'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
     database:
