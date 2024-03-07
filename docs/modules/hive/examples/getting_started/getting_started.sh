@@ -82,8 +82,8 @@ fi
 echo "Installing MinIO and PostgreSQL with stackablectl"
 # tag::stackablectl-install-minio-postgres-stack[]
 stackablectl \
---additional-stacks-file stackablectl-hive-postgres-minio-stack.yaml \
---additional-releases-file release.yaml \
+--stack-file stackablectl-hive-postgres-minio-stack.yaml \
+--release-file release.yaml \
 stack install hive-minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
