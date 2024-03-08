@@ -31,7 +31,7 @@ dimensions:
       - 3.3.6
   - name: zookeeper-latest
     values:
-      - 3.8.3
+      - 3.9.1
   - name: openshift
     values:
       - "false"
