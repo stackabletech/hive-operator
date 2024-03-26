@@ -63,8 +63,10 @@ such as connections to other data sources.
 
 Additionally, Tables in the HMS can also be accessed from xref:spark-k8s:index.adoc[Apache Spark].
 
-== Supported Versions
+== Supported versions
 
-The Stackable Operator for Apache Hive currently supports the following versions of Hive:
+The Stackable Operator for Apache Hive currently supports the Hive versions listed below.
+To use a specific Hive version in your HiveCluster, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
+The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
