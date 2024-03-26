@@ -21,7 +21,7 @@ xref:trino:index.adoc[Trino] or xref:spark-k8s:index.adoc[Spark].
 == Operator model
 
 The Operator manages the _HiveCluster_ custom resource. The cluster implements a single `metastore`
-xref:home:concepts:roles-and-role-groups.adoc[role].
+xref:concepts:roles-and-role-groups.adoc[role].
 
 image::hive_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable Operator for Apache Hive]
 
