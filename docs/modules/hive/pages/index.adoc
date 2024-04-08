@@ -2,6 +2,14 @@
 :description: The Stackable Operator for Apache Hive is a Kubernetes operator that can manage Apache Hive metastores. Learn about its features, resources, dependencies and demos, and see the list of supported Hive versions.
 :keywords: Stackable Operator, Hadoop, Apache Hive, Kubernetes, k8s, operator, engineer, big data, metadata, storage, query
 :hive: https://hive.apache.org
+:github: https://github.com/stackabletech/hive-operator/
+:crd: {crd-docs}/hive.stackable.tech/hivecluster/v1alpha1/
+:feature-tracker: https://features.stackable.tech/unified
+
+[.link-bar]
+* {github}[GitHub {external-link-icon}^]
+* {feature-tracker}[Feature Tracker {external-link-icon}^]
+* {crd}[CRD documentation {external-link-icon}^]
 
 This is an operator for Kubernetes that can manage {hive}[Apache Hive] metastores.
 The Apache Hive metastore (HMS) was originally developed as part of Apache Hive.
@@ -65,3 +73,9 @@ To use a specific Hive version in your HiveCluster, you have to specify an image
 The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
+
+== Useful links
+
+* The {github}[hive-operator {external-link-icon}^] GitHub repository
+* The operator feature overview in the {feature-tracker}[feature tracker {external-link-icon}^]
+* The {crd-docs}/hive.stackable.tech/hivecluster/v1alpha1/[HiveCluster {external-link-icon}^] CRD documentation
