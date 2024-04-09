@@ -4,7 +4,7 @@
 :hive: https://hive.apache.org
 :github: https://github.com/stackabletech/hive-operator/
 :crd: {crd-docs-base-url}/hive-operator/{crd-docs-version}/
-:crd-hivecluster: {crd}/hive.stackable.tech/hivecluster/v1alpha1/
+:crd-hivecluster: {crd-docs}/hive.stackable.tech/hivecluster/v1alpha1/
 :feature-tracker: https://features.stackable.tech/unified
 
 [.link-bar]
