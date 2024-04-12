@@ -47,7 +47,7 @@ pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
-pub const HIVE_LOG4J2_PROPERTIES: &str = "hive-log4j2.properties";
+pub const HIVE_METASTORE_LOG4J2_PROPERTIES: &str = "metastore-log4j2.properties";
 pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
 // default ports
