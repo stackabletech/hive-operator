@@ -66,7 +66,7 @@ pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 // Metastore opts
-pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
+pub const HADOOP_OPTS: &str = "HADOOP_OPTS";
 
 // Heap
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
@@ -455,7 +455,7 @@ impl Configuration for MetaStoreConfigFragment {
             java_security_krb5_conf = java_security_krb5_conf(hive)
         };
 
-        result.insert(HIVE_METASTORE_HADOOP_OPTS.to_string(), Some(env));
+        result.insert(HADOOP_OPTS.to_string(), Some(env));
 
         Ok(result)
     }
