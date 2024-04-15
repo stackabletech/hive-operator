@@ -66,11 +66,7 @@ pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 // Metastore opts
-// In the upstream metastore.sh the options from HIVE_METASTORE_HADOOP_OPTS are included in HADOOP_OPTS
-// (see https://github.com/apache/hive/blob/32400264ae3c0d9859f6644d818b204f6a4e555a/bin/ext/metastore.sh#L30C52-L30C63)
-// However, we have our own custom entrypoint script which does not add those, so write the options to HADOOP_OPTS
-// directly.
-pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HADOOP_OPTS";
+pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
 
 // Heap
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
