@@ -1,7 +1,9 @@
 use crate::controller::MAX_HIVE_LOG_FILES_SIZE;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{Container, HiveCluster, HIVE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR};
+use stackable_hive_crd::{
+    Container, HiveCluster, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR,
+};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
@@ -87,7 +89,7 @@ pub fn extend_role_group_config_map(
     }) = logging.containers.get(&Container::Hive)
     {
         cm_builder.add_data(
-            HIVE_LOG4J2_PROPERTIES,
+            HIVE_METASTORE_LOG4J2_PROPERTIES,
             product_logging::framework::create_log4j2_config(
                 &format!(
                     "{STACKABLE_LOG_DIR}/{container}",

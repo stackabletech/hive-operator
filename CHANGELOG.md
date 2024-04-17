@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- BREAKING: Switch to new image that only contains HMS.
+  For most of the users this is an internal change, but this is breaking for users of custom logging configurations as
+  the key `hive-log4j2.properties` in the ConfigMap containing the logging configuration must now be called
+  `metastore-log4j2.properties` ([#447]).
+
+[#447]: https://github.com/stackabletech/hive-operator/pull/447
+
 ## [24.3.0] - 2024-03-20
 
 ### Added

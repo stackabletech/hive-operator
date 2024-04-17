@@ -4,7 +4,7 @@ kind: ConfigMap
 metadata:
   name: hive-log-config
 data:
-  hive-log4j2.properties: |
+  metastore-log4j2.properties: |
     appenders = FILE, CONSOLE
 
     appender.CONSOLE.type = Console
@@ -63,6 +63,8 @@ spec:
             containers:
               hive:
                 console:
+                  # FIXME: If we set this to DEBUG (for all occorences below), we get invalid log events in Vector
+                  # aggregator
                   level: INFO
                 file:
                   level: INFO

@@ -34,7 +34,8 @@ pub mod affinity;
 pub mod security;
 
 pub const APP_NAME: &str = "hive";
-// directories
+
+// Directories
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
 pub const STACKABLE_CONFIG_DIR_NAME: &str = "config";
 pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
@@ -43,27 +44,31 @@ pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_DIR_NAME: &str = "log";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
-// config file names
+
+// Config file names
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
 pub const HIVE_ENV_SH: &str = "hive-env.sh";
-pub const HIVE_LOG4J2_PROPERTIES: &str = "hive-log4j2.properties";
+pub const HIVE_METASTORE_LOG4J2_PROPERTIES: &str = "metastore-log4j2.properties";
 pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
-// default ports
+// Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
-// certificates and trust stores
+
+// Certificates and trust stores
 pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const CERTS_DIR: &str = "/stackable/certificates/";
-// metastore opts
-pub const HIVE_METASTORE_HADOOP_OPTS: &str = "HIVE_METASTORE_HADOOP_OPTS";
-// heap
+
+// Metastore opts
+pub const HADOOP_OPTS: &str = "HADOOP_OPTS";
+
+// Heap
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
@@ -441,14 +446,16 @@ impl Configuration for MetaStoreConfigFragment {
         let mut result = BTreeMap::new();
 
         let env = formatdoc! {"
-                    -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml
-                    -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}
-                    -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}
-                    -Djavax.net.ssl.trustStoreType=pkcs12
-                    -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}
-                    {java_security_krb5_conf}", java_security_krb5_conf = java_security_krb5_conf(hive)};
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml \
+            -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE} \
+            -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD} \
+            -Djavax.net.ssl.trustStoreType=pkcs12 \
+            -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE} \
+            {java_security_krb5_conf}",
+            java_security_krb5_conf = java_security_krb5_conf(hive)
+        };
 
-        result.insert(HIVE_METASTORE_HADOOP_OPTS.to_string(), Some(env));
+        result.insert(HADOOP_OPTS.to_string(), Some(env));
 
         Ok(result)
     }

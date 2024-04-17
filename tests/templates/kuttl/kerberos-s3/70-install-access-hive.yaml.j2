@@ -155,22 +155,26 @@ data:
                 hive_client.create_table(table(database_name, local_test_table_name, f"/stackable/warehouse/location_{database_name}_{local_test_table_name}"))
             except AlreadyExistsException:
                 print(f"[INFO]: Table {local_test_table_name} already existed")
+            print("[DEBUG]: Fetching schema")
             schema = hive_client.get_schema(db_name=database_name, table_name=local_test_table_name)
             expected = [FieldSchema(name='id', type='string', comment='col comment')]
             if schema != expected:
                 print("[ERROR]: Received local schema " + str(schema) + " - expected schema: " + expected)
                 exit(-1)
+            print("[INFO]: Passed local access test")
 
             # S3 access
             try:
                 hive_client.create_table(table(database_name, s3_test_table_name, "s3a://hive/"))
             except AlreadyExistsException:
                 print(f"[INFO]: Table {s3_test_table_name} already existed")
+            print("[DEBUG]: Fetching schema")
             schema = hive_client.get_schema(db_name=database_name, table_name=s3_test_table_name)
             expected = [FieldSchema(name='id', type='string', comment='col comment')]
             if schema != expected:
                 print("[ERROR]: Received s3 schema " + str(schema) + " - expected schema: " + expected)
                 exit(-1)
+            print("[INFO]: Passed S3 access test")
 
             print("[SUCCESS] Test finished successfully!")
             exit(0)
