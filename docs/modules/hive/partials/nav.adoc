@@ -6,6 +6,7 @@
 ** xref:hive:usage-guide/listenerclass.adoc[]
 ** xref:hive:usage-guide/data-storage.adoc[]
 ** xref:hive:usage-guide/derby-example.adoc[]
+** xref:hive:usage-guide/database-driver-example.adoc[]
 ** xref:hive:usage-guide/logging.adoc[]
 ** xref:hive:usage-guide/monitoring.adoc[]
 ** xref:hive:usage-guide/resources.adoc[]
