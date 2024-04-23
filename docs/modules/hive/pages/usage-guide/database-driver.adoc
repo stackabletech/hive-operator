@@ -169,7 +169,7 @@ spec:
         replicas: 1
 ----
 
-<1> The database connection details matching those given when deploying the MySQL helm chart
+<1> The database connection details matching those given when deploying the MySQL Helm chart
 <2> Plain-text Hive credentials will be replaced in an upcoming release!
 <3> A reference to the file store using S3 (this has been omitted from this article for the sake of brevity, but is described in e.g. the xref:getting_started/first_steps.adoc[] guide)
 <4> Use `envOverrides` to set the driver path
