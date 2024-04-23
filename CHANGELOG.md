@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added documentation/tutorial on using external database drivers ([#449]).
+
 ### Changed
 
 - BREAKING: Switch to new image that only contains HMS.
@@ -12,6 +16,7 @@ All notable changes to this project will be documented in this file.
   `metastore-log4j2.properties` ([#447]).
 
 [#447]: https://github.com/stackabletech/hive-operator/pull/447
+[#449]: https://github.com/stackabletech/hive-operator/pull/449
 
 ## [24.3.0] - 2024-03-20
 
