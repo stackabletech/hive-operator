@@ -51,7 +51,7 @@ spec:
             claimName: pvc-hive-drivers
       initContainers:
         - name: dest-dir
-          image: docker.stackable.tech/stackable/tools:0.2.0-stackable24.3.0
+          image: docker.stackable.tech/stackable/tools:1.0.0-stackable24.3.0
           env:
             - name: DEST_DIR
               value: "/stackable/externals"
@@ -69,7 +69,7 @@ spec:
               mountPath: /stackable/externals
       containers:
         - name: hive-driver
-          image: docker.stackable.tech/stackable/tools:0.2.0-stackable24.3.0
+          image: docker.stackable.tech/stackable/tools:1.0.0-stackable24.3.0
           env:
             - name: DEST_DIR
               value: "/stackable/externals"
@@ -107,7 +107,7 @@ spec:
             claimName: pvc-hive-drivers
       containers:
         - name: hive-driver
-          image: docker.stackable.tech/stackable/tools:0.2.0-stackable24.3.0
+          image: docker.stackable.tech/stackable/tools:1.0.0-stackable24.3.0
           env:
             - name: DEST_DIR
               value: "/stackable/externals"
@@ -174,7 +174,3 @@ spec:
 
 [sidebar]
 This has been tested on Azure AKS and Amazon EKS, both running Kubernetes 1.29. The example shows a PVC mounted with the access mode `ReadWriteOnce` as we have a single metastore instance that is deployed only once the jobs have completed, and, so long as these all run after each other, they can be deployed to different nodes. Different scenarios may require a different access mode, the availability of which is dependent on the type of cluster in use.
-
-
-
-
