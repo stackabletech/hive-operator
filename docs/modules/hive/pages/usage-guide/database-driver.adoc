@@ -175,5 +175,6 @@ spec:
 <4> Use `envOverrides` to set the driver path
 <5> Use `podOverrides` to mount the driver
 
-[sidebar]
-This has been tested on Azure AKS and Amazon EKS, both running Kubernetes 1.29. The example shows a PVC mounted with the access mode `ReadWriteOnce` as we have a single metastore instance that is deployed only once the jobs have completed, and, so long as these all run after each other, they can be deployed to different nodes. Different scenarios may require a different access mode, the availability of which is dependent on the type of cluster in use.
+NOTE: This has been tested on Azure AKS and Amazon EKS, both running Kubernetes 1.29.
+The example shows a PVC mounted with the access mode `ReadWriteOnce` as we have a single metastore instance that is deployed only once the jobs have completed, and, so long as these all run after each other, they can be deployed to different nodes.
+Different scenarios may require a different access mode, the availability of which is dependent on the type of cluster in use.
