@@ -9,4 +9,5 @@ The Hive Metastore requires a backend SQL database. Supported databases and vers
 
 Reference: https://cwiki.apache.org/confluence/display/Hive/AdminManual+Metastore+Administration#AdminManualMetastoreAdministration-SupportedBackendDatabasesforMetastore[Hive Metastore documentation]
 
-The Stackable product images for Apache Hive come with built-in support for Postgresql. See xref:usage-guide/database-driver-example.adoc[] for details on how to make drivers for other databases (supported by Hive) available.
+The Stackable product images for Apache Hive come with built-in support for PostgreSQL.
+See xref:usage-guide/database-driver.adoc[] for details on how to make drivers for other databases (supported by Hive) available.
