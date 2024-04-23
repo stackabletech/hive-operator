@@ -1,7 +1,7 @@
 
 = Database drivers
 
-The Stackable Apache Hive product images come with built-in support for using PostgreSQL as the metastore  database. To use another supported database it is necessary to make the relevant drivers available to Hive: this tutorial shows how this is done for MySql.
+The Stackable Apache Hive product images come with built-in support for using PostgreSQL as the metastore  database. To use another supported database it is necessary to make the relevant drivers available to Hive: this tutorial shows how this is done for MySQL.
 
 == Install the MySQL helm chart
 
