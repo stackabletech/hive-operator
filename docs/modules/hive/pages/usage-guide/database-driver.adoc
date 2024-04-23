@@ -129,9 +129,7 @@ spec:
 == Create a Hive Cluster
 
 The MySQL connection details can then be used in the definition of the Hive Metastore resource.
-
 Note that it is also necessary to "tell" Hive where to find the driver.
-
 This is done by setting the value of the environment variable `METASTORE_AUX_JARS_PATH` to the path of the mounted driver:
 
 [source,yaml]
