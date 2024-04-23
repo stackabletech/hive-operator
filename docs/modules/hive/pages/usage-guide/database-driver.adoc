@@ -1,4 +1,3 @@
-
 = Database drivers
 
 The Stackable product images for Apache Hive come with built-in support for using PostgreSQL as the metastore  database.
