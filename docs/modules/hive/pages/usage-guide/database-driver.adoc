@@ -14,7 +14,7 @@ helm install mysql oci://registry-1.docker.io/bitnamicharts/mysql \
 --set auth.password=hive
 ----
 
-== Download the driver to a `PersistentVolumeClaim`
+== Download the driver to a PersistentVolumeClaim
 
 .Create a PersistentVolumeClaim
 [source,yaml]
