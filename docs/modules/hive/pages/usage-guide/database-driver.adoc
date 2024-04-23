@@ -126,7 +126,7 @@ spec:
               mountPath: /stackable/externals
 ----
 
-== Create a Hive Cluster
+== Create a Hive cluster
 
 The MySQL connection details can then be used in the definition of the Hive Metastore resource.
 Note that it is also necessary to "tell" Hive where to find the driver.
