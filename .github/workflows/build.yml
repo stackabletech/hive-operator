@@ -381,4 +381,4 @@ jobs:
           ARCH_FOR_PREFLIGHT="$(arch | sed -e 's#x86_64#amd64#' | sed -e 's#aarch64#arm64#')"
           ./preflight-linux-amd64 check container "$IMAGE_TAG" --platform "${ARCH_FOR_PREFLIGHT}" > preflight.out
       - name: "Passed?"
-        run: '[ "$(cat preflight.out | jq -r .passed)" == true ]'
+        run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" --platform "${ARCH_FOR_PREFLIGHT}" | jq -r .passed)" == true ]'
