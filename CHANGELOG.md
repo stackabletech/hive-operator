@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Added documentation/tutorial on using external database drivers ([#449]).
 
+### Fixed
+
+- Move the metastore DB credentials out fo the CRD into a secret ([#452]).
+
 ### Changed
 
 - BREAKING: Switch to new image that only contains HMS.
@@ -17,6 +21,7 @@ All notable changes to this project will be documented in this file.
 
 [#447]: https://github.com/stackabletech/hive-operator/pull/447
 [#449]: https://github.com/stackabletech/hive-operator/pull/449
+[#452]: https://github.com/stackabletech/hive-operator/pull/452
 
 ## [24.3.0] - 2024-03-20
 
