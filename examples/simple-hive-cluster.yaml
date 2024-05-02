@@ -10,8 +10,7 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-      user: APP
-      password: mine
+      credentialsSecret: hive-credentials
       dbType: derby
   metastore:
     roleGroups:
@@ -24,3 +23,12 @@ spec:
               max: "2"
             memory:
               limit: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: APP
+  password: mine

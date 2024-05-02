@@ -22,8 +22,7 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-      user: APP
-      password: mine
+      credentialsSecret: hive-credentials
       dbType: derby
     s3:
       inline:
@@ -56,3 +55,12 @@ metadata:
 stringData:
   accessKey: minio-access-key
   secretKey: minio-secret-key
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: APP
+  password: mine

@@ -145,8 +145,7 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:mysql://mysql:3306/hive  # <1>
-      user: hive  # <2>
-      password: hive
+      credentialsSecret: hive-credentials  # <2>
       dbType: mysql
     s3:
       reference: minio  # <3>
@@ -167,10 +166,19 @@ spec:
                 persistentVolumeClaim:
                   claimName: pvc-hive-drivers
         replicas: 1
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials  # <2>
+type: Opaque
+stringData:
+  username: hive
+  password: hive
 ----
 
 <1> The database connection details matching those given when deploying the MySQL Helm chart
-<2> Plain-text Hive credentials will be replaced in an upcoming release!
+<2> Hive credentials are retrieved from a Secret
 <3> A reference to the file store using S3 (this has been omitted from this article for the sake of brevity, but is described in e.g. the xref:getting_started/first_steps.adoc[] guide)
 <4> Use `envOverrides` to set the driver path
 <5> Use `podOverrides` to mount the driver
