@@ -72,6 +72,12 @@ pub const HADOOP_OPTS: &str = "HADOOP_OPTS";
 pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
 pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
+// DB credentials
+pub const DB_USERNAME_PLACEHOLDER: &str = "xxx_db_username_xxx";
+pub const DB_PASSWORD_PLACEHOLDER: &str = "xxx_db_password_xxx";
+pub const DB_USERNAME_ENV: &str = "DB_USERNAME_ENV";
+pub const DB_PASSWORD_ENV: &str = "DB_PASSWORD_ENV";
+
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
 #[derive(Snafu, Debug)]
@@ -423,16 +429,14 @@ pub struct DatabaseConnectionSpec {
     /// `jdbc:postgresql://hivehdfs-postgresql:5432/hivehdfs`
     pub conn_string: String,
 
-    /// The database user.
-    pub user: String,
-
-    /// The password for the database user.
-    pub password: String,
-
     /// The type of database to connect to. Supported are:
     /// `postgres`, `mysql`, `oracle`, `mssql` and `derby`.
     /// This value is used to configure the jdbc driver class.
     pub db_type: DbType,
+
+    /// A reference to a Secret containing the database credentials.
+    /// The Secret needs to contain the keys `username` and `password`.
+    pub credentials_secret: String,
 }
 
 impl Configuration for MetaStoreConfigFragment {
@@ -493,13 +497,14 @@ impl Configuration for MetaStoreConfigFragment {
                     MetaStoreConfig::CONNECTION_URL.to_string(),
                     Some(hive.spec.cluster_config.database.conn_string.clone()),
                 );
+                // use a placeholder that will be replaced in the start command (also for the password)
                 result.insert(
                     MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-                    Some(hive.spec.cluster_config.database.user.clone()),
+                    Some(DB_USERNAME_PLACEHOLDER.into()),
                 );
                 result.insert(
                     MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-                    Some(hive.spec.cluster_config.database.password.clone()),
+                    Some(DB_PASSWORD_PLACEHOLDER.into()),
                 );
                 result.insert(
                     MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),

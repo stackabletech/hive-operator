@@ -15,9 +15,8 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:postgresql://postgresql:5432/hive
-      user: hive
-      password: hive
       dbType: postgres
+      credentialsSecret: hive-credentials
     s3:
       reference: minio
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
@@ -68,3 +67,12 @@ metadata:
 stringData:
   accessKey: hive
   secretKey: hivehive
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive

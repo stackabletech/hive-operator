@@ -52,6 +52,7 @@ mod tests {
               user: APP
               password: mine
               dbType: derby
+              credentialsSecret: mySecret
           metastore:
             roleGroups:
               default:

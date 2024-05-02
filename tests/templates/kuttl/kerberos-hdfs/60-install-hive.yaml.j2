@@ -21,8 +21,7 @@ commands:
           clusterConfig:
             database:
               connString: jdbc:postgresql://postgresql:5432/hive
-              user: hive
-              password: hive
+              credentialsSecret: hive-credentials
               dbType: postgres
             hdfs:
               configMap: hdfs
@@ -40,3 +39,12 @@ commands:
               default:
                 replicas: 1
         EOF
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive

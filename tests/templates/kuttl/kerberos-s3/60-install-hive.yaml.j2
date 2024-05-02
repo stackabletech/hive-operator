@@ -21,8 +21,7 @@ commands:
           clusterConfig:
             database:
               connString: jdbc:postgresql://postgresql:5432/hive
-              user: hive
-              password: hive
+              credentialsSecret: hive-credentials
               dbType: postgres
             s3:
               reference: minio
@@ -78,3 +77,12 @@ metadata:
 stringData:
   accessKey: hive
   secretKey: hivehive
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive

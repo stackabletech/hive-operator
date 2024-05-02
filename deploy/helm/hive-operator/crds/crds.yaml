@@ -50,6 +50,9 @@ spec:
                         connString:
                           description: 'A connection string for the database. For example: `jdbc:postgresql://hivehdfs-postgresql:5432/hivehdfs`'
                           type: string
+                        credentialsSecret:
+                          description: A reference to a Secret containing the database credentials. The Secret needs to contain the keys `username` and `password`.
+                          type: string
                         dbType:
                           description: 'The type of database to connect to. Supported are: `postgres`, `mysql`, `oracle`, `mssql` and `derby`. This value is used to configure the jdbc driver class.'
                           enum:
@@ -59,17 +62,10 @@ spec:
                             - oracle
                             - mssql
                           type: string
-                        password:
-                          description: The password for the database user.
-                          type: string
-                        user:
-                          description: The database user.
-                          type: string
                       required:
                         - connString
+                        - credentialsSecret
                         - dbType
-                        - password
-                        - user
                       type: object
                     hdfs:
                       description: HDFS connection specification.
