@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Move the metastore DB credentials out fo the CRD into a secret ([#452]).
+- [BREAKING] Move the metastore DB credentials out fo the CRD into a secret ([#452]).
 
 ### Changed
 
