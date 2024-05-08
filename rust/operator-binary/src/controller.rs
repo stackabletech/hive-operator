@@ -324,7 +324,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let resolved_product_image: ResolvedProductImage = hive
         .spec
         .image
-        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
     let hive_role = HiveRole::MetaStore;
 
     let s3_connection_spec: Option<S3ConnectionSpec> =
