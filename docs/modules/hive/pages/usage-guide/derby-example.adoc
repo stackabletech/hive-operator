@@ -139,4 +139,3 @@ spec:
       default:
         replicas: 1
 ----
-
