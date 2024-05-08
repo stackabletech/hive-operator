@@ -26,9 +26,15 @@ use stackable_hive_crd::{
 
 use stackable_operator::{
     builder::{
-        resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
-        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
-        SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+        configmap::ConfigMapBuilder,
+        meta::ObjectMetaBuilder,
+        pod::{
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder,
+            volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+            PodBuilder,
+        },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
@@ -119,46 +125,46 @@ pub enum Error {
 
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
 
     #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
     BuildRoleGroupConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::configmap::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
 
     #[snafu(display("failed to apply ConfigMap for {rolegroup}"))]
     ApplyRoleGroupConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
 
     #[snafu(display("failed to apply StatefulSet for {rolegroup}"))]
     ApplyRoleGroupStatefulSet {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<HiveCluster>,
     },
 
     #[snafu(display("failed to generate product config"))]
     GenerateProductConfig {
-        source: stackable_operator::product_config_utils::ConfigError,
+        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to build discovery ConfigMap"))]
@@ -166,12 +172,12 @@ pub enum Error {
 
     #[snafu(display("failed to apply discovery ConfigMap"))]
     ApplyDiscoveryConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to update status"))]
     ApplyStatus {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
 
     #[snafu(display("failed to parse db type {db_type}"))]
@@ -182,7 +188,7 @@ pub enum Error {
 
     #[snafu(display("failed to resolve S3 connection"))]
     ResolveS3Connection {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::s3::Error,
     },
 
     #[snafu(display(
@@ -198,24 +204,24 @@ pub enum Error {
 
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::memory::Error,
         unit: String,
     },
 
     #[snafu(display("failed to create hive container [{name}]"))]
     FailedToCreateHiveContainer {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::pod::container::Error,
         name: String,
     },
 
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
@@ -231,17 +237,17 @@ pub enum Error {
 
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::rbac::Error,
     },
 
     #[snafu(display("internal operator failure"))]
@@ -268,7 +274,7 @@ pub enum Error {
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
     },
 
     #[snafu(display("failed to build S3 credentials SecretClass Volume"))]
@@ -283,7 +289,7 @@ pub enum Error {
 
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to get required Labels"))]
