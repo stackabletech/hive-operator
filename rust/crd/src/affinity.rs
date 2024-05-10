@@ -71,7 +71,6 @@ mod tests {
                         WeightedPodAffinityTerm {
                             pod_affinity_term: PodAffinityTerm {
                                 label_selector: Some(LabelSelector {
-                                    match_expressions: None,
                                     match_labels: Some(BTreeMap::from([
                                         ("app.kubernetes.io/name".to_string(), "hive".to_string(),),
                                         (
@@ -82,13 +81,11 @@ mod tests {
                                             "app.kubernetes.io/component".to_string(),
                                             "metastore".to_string(),
                                         )
-                                    ]))
+                                    ])),
+                                    ..LabelSelector::default()
                                 }),
-                                match_label_keys: None,
-                                mismatch_label_keys: None,
-                                namespace_selector: None,
-                                namespaces: None,
                                 topology_key: "kubernetes.io/hostname".to_string(),
+                                ..PodAffinityTerm::default()
                             },
                             weight: 70
                         }
