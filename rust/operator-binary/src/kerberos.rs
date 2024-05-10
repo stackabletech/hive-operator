@@ -1,9 +1,12 @@
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
-use stackable_operator::builder::{
-    ContainerBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder,
-    SecretOperatorVolumeSourceBuilderError, VolumeBuilder,
+use stackable_operator::builder::pod::{
+    container::ContainerBuilder,
+    volume::{
+        SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError, VolumeBuilder,
+    },
+    PodBuilder,
 };
 use stackable_operator::kube::ResourceExt;
 use std::collections::BTreeMap;
