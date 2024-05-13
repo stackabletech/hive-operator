@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- [BREAKING] Move the metastore DB credentials out fo the CRD into a secret ([#452]).
+- [BREAKING] Move the metastore `user` and `password` DB credentials out of the CRD into a Secret containing the keys `username` and `password` ([#452]).
 
 ### Changed
 
