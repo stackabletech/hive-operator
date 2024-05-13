@@ -4,7 +4,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ObjectMetaBuilder},
+    builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     k8s_openapi::api::core::v1::{Endpoints, Service, ServiceSpec},
     kube::{runtime::reflector::ObjectRef, Resource},
@@ -20,14 +20,14 @@ pub enum Error {
     NoNamespace,
     #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
         hive: ObjectRef<HiveCluster>,
     },
     #[snafu(display("chroot path {chroot} was relative (must be absolute)"))]
     RelativeChroot { chroot: String },
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
     DiscoveryConfigMap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::configmap::Error,
         obj_ref: ObjectRef<HiveCluster>,
     },
     #[snafu(display("could not find service [{obj_ref}] port [{port_name}]"))]
@@ -42,7 +42,7 @@ pub enum Error {
     },
     #[snafu(display("could not find Endpoints for {svc}"))]
     FindEndpoints {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         svc: ObjectRef<Service>,
     },
     #[snafu(display("nodePort was out of range"))]
@@ -52,7 +52,7 @@ pub enum Error {
 
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
+        source: stackable_operator::builder::meta::Error,
     },
 }
 

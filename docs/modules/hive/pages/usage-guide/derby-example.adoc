@@ -163,4 +163,3 @@ stringData:
   username: hive
   password: hive
 ----
-

@@ -206,8 +206,8 @@ spec:
                   type: object
                 clusterOperation:
                   default:
-                    stopped: false
                     reconciliationPaused: false
+                    stopped: false
                   description: '[Cluster operations](https://docs.stackable.tech/home/nightly/concepts/operations/cluster_operations) properties, allow stopping the product instance as well as pausing reconciliation.'
                   properties:
                     reconciliationPaused:
@@ -279,10 +279,10 @@ spec:
                       properties:
                         affinity:
                           default:
-                            podAffinity: null
-                            podAntiAffinity: null
                             nodeAffinity: null
                             nodeSelector: null
+                            podAffinity: null
+                            podAntiAffinity: null
                           description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
@@ -406,6 +406,8 @@ spec:
                                   type: object
                               type: object
                             nodeSelector:
+                              additionalProperties:
+                                type: string
                               nullable: true
                               type: object
                             podAffinity:
@@ -421,7 +423,7 @@ spec:
                                         description: Required. A pod affinity term, associated with the corresponding weight.
                                         properties:
                                           labelSelector:
-                                            description: A label query over a set of resources, in this case pods.
+                                            description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                             properties:
                                               matchExpressions:
                                                 description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -450,6 +452,16 @@ spec:
                                                 description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                                 type: object
                                             type: object
+                                          matchLabelKeys:
+                                            description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                            items:
+                                              type: string
+                                            type: array
+                                          mismatchLabelKeys:
+                                            description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                            items:
+                                              type: string
+                                            type: array
                                           namespaceSelector:
                                             description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                             properties:
@@ -506,7 +518,7 @@ spec:
                                     description: Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running
                                     properties:
                                       labelSelector:
-                                        description: A label query over a set of resources, in this case pods.
+                                        description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                         properties:
                                           matchExpressions:
                                             description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -535,6 +547,16 @@ spec:
                                             description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                             type: object
                                         type: object
+                                      matchLabelKeys:
+                                        description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        items:
+                                          type: string
+                                        type: array
+                                      mismatchLabelKeys:
+                                        description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        items:
+                                          type: string
+                                        type: array
                                       namespaceSelector:
                                         description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                         properties:
@@ -591,7 +613,7 @@ spec:
                                         description: Required. A pod affinity term, associated with the corresponding weight.
                                         properties:
                                           labelSelector:
-                                            description: A label query over a set of resources, in this case pods.
+                                            description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                             properties:
                                               matchExpressions:
                                                 description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -620,6 +642,16 @@ spec:
                                                 description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                                 type: object
                                             type: object
+                                          matchLabelKeys:
+                                            description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                            items:
+                                              type: string
+                                            type: array
+                                          mismatchLabelKeys:
+                                            description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                            items:
+                                              type: string
+                                            type: array
                                           namespaceSelector:
                                             description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                             properties:
@@ -676,7 +708,7 @@ spec:
                                     description: Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running
                                     properties:
                                       labelSelector:
-                                        description: A label query over a set of resources, in this case pods.
+                                        description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                         properties:
                                           matchExpressions:
                                             description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -705,6 +737,16 @@ spec:
                                             description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                             type: object
                                         type: object
+                                      matchLabelKeys:
+                                        description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        items:
+                                          type: string
+                                        type: array
+                                      mismatchLabelKeys:
+                                        description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        items:
+                                          type: string
+                                        type: array
                                       namespaceSelector:
                                         description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                         properties:
@@ -755,8 +797,8 @@ spec:
                           type: string
                         logging:
                           default:
-                            enableVectorAgent: null
                             containers: {}
+                            enableVectorAgent: null
                           description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
                           properties:
                             containers:
@@ -839,12 +881,12 @@ spec:
                           type: object
                         resources:
                           default:
+                            cpu:
+                              max: null
+                              min: null
                             memory:
                               limit: null
                               runtimeLimits: {}
-                            cpu:
-                              min: null
-                              max: null
                             storage:
                               data:
                                 capacity: null
@@ -852,8 +894,8 @@ spec:
                           properties:
                             cpu:
                               default:
-                                min: null
                                 max: null
+                                min: null
                               properties:
                                 max:
                                   description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.
@@ -1129,6 +1171,14 @@ spec:
                                                       type: string
                                                     type: object
                                                 type: object
+                                              matchLabelKeys:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              mismatchLabelKeys:
+                                                items:
+                                                  type: string
+                                                type: array
                                               namespaceSelector:
                                                 properties:
                                                   matchExpressions:
@@ -1184,6 +1234,14 @@ spec:
                                                   type: string
                                                 type: object
                                             type: object
+                                          matchLabelKeys:
+                                            items:
+                                              type: string
+                                            type: array
+                                          mismatchLabelKeys:
+                                            items:
+                                              type: string
+                                            type: array
                                           namespaceSelector:
                                             properties:
                                               matchExpressions:
@@ -1240,6 +1298,14 @@ spec:
                                                       type: string
                                                     type: object
                                                 type: object
+                                              matchLabelKeys:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              mismatchLabelKeys:
+                                                items:
+                                                  type: string
+                                                type: array
                                               namespaceSelector:
                                                 properties:
                                                   matchExpressions:
@@ -1295,6 +1361,14 @@ spec:
                                                   type: string
                                                 type: object
                                             type: object
+                                          matchLabelKeys:
+                                            items:
+                                              type: string
+                                            type: array
+                                          mismatchLabelKeys:
+                                            items:
+                                              type: string
+                                            type: array
                                           namespaceSelector:
                                             properties:
                                               matchExpressions:
@@ -1436,18 +1510,22 @@ spec:
                                               path:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                               scheme:
                                                 type: string
+                                            type: object
+                                          sleep:
+                                            properties:
+                                              seconds:
+                                                format: int64
+                                                type: integer
                                             type: object
                                           tcpSocket:
                                             properties:
                                               host:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                             type: object
                                         type: object
                                       preStop:
@@ -1475,18 +1553,22 @@ spec:
                                               path:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                               scheme:
                                                 type: string
+                                            type: object
+                                          sleep:
+                                            properties:
+                                              seconds:
+                                                format: int64
+                                                type: integer
                                             type: object
                                           tcpSocket:
                                             properties:
                                               host:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                             type: object
                                         type: object
                                     type: object
@@ -1526,8 +1608,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -1545,8 +1626,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -1610,8 +1690,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -1629,8 +1708,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -1672,6 +1750,13 @@ spec:
                                     properties:
                                       allowPrivilegeEscalation:
                                         type: boolean
+                                      appArmorProfile:
+                                        properties:
+                                          localhostProfile:
+                                            type: string
+                                          type:
+                                            type: string
+                                        type: object
                                       capabilities:
                                         properties:
                                           add:
@@ -1763,8 +1848,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -1782,8 +1866,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -1822,6 +1905,8 @@ spec:
                                           type: string
                                         readOnly:
                                           type: boolean
+                                        recursiveReadOnly:
+                                          type: string
                                         subPath:
                                           type: string
                                         subPathExpr:
@@ -1965,18 +2050,22 @@ spec:
                                               path:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                               scheme:
                                                 type: string
+                                            type: object
+                                          sleep:
+                                            properties:
+                                              seconds:
+                                                format: int64
+                                                type: integer
                                             type: object
                                           tcpSocket:
                                             properties:
                                               host:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                             type: object
                                         type: object
                                       preStop:
@@ -2004,18 +2093,22 @@ spec:
                                               path:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                               scheme:
                                                 type: string
+                                            type: object
+                                          sleep:
+                                            properties:
+                                              seconds:
+                                                format: int64
+                                                type: integer
                                             type: object
                                           tcpSocket:
                                             properties:
                                               host:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                             type: object
                                         type: object
                                     type: object
@@ -2055,8 +2148,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -2074,8 +2166,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -2139,8 +2230,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -2158,8 +2248,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -2201,6 +2290,13 @@ spec:
                                     properties:
                                       allowPrivilegeEscalation:
                                         type: boolean
+                                      appArmorProfile:
+                                        properties:
+                                          localhostProfile:
+                                            type: string
+                                          type:
+                                            type: string
+                                        type: object
                                       capabilities:
                                         properties:
                                           add:
@@ -2292,8 +2388,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -2311,8 +2406,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -2353,6 +2447,8 @@ spec:
                                           type: string
                                         readOnly:
                                           type: boolean
+                                        recursiveReadOnly:
+                                          type: string
                                         subPath:
                                           type: string
                                         subPathExpr:
@@ -2500,18 +2596,22 @@ spec:
                                               path:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                               scheme:
                                                 type: string
+                                            type: object
+                                          sleep:
+                                            properties:
+                                              seconds:
+                                                format: int64
+                                                type: integer
                                             type: object
                                           tcpSocket:
                                             properties:
                                               host:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                             type: object
                                         type: object
                                       preStop:
@@ -2539,18 +2639,22 @@ spec:
                                               path:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                               scheme:
                                                 type: string
+                                            type: object
+                                          sleep:
+                                            properties:
+                                              seconds:
+                                                format: int64
+                                                type: integer
                                             type: object
                                           tcpSocket:
                                             properties:
                                               host:
                                                 type: string
                                               port:
-                                                format: int-or-string
-                                                type: string
+                                                x-kubernetes-int-or-string: true
                                             type: object
                                         type: object
                                     type: object
@@ -2590,8 +2694,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -2609,8 +2712,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -2674,8 +2776,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -2693,8 +2794,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -2736,6 +2836,13 @@ spec:
                                     properties:
                                       allowPrivilegeEscalation:
                                         type: boolean
+                                      appArmorProfile:
+                                        properties:
+                                          localhostProfile:
+                                            type: string
+                                          type:
+                                            type: string
+                                        type: object
                                       capabilities:
                                         properties:
                                           add:
@@ -2827,8 +2934,7 @@ spec:
                                           path:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             type: string
                                         type: object
@@ -2846,8 +2952,7 @@ spec:
                                           host:
                                             type: string
                                           port:
-                                            format: int-or-string
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                       terminationGracePeriodSeconds:
                                         format: int64
@@ -2886,6 +2991,8 @@ spec:
                                           type: string
                                         readOnly:
                                           type: boolean
+                                        recursiveReadOnly:
+                                          type: string
                                         subPath:
                                           type: string
                                         subPathExpr:
@@ -2954,6 +3061,13 @@ spec:
                               type: array
                             securityContext:
                               properties:
+                                appArmorProfile:
+                                  properties:
+                                    localhostProfile:
+                                      type: string
+                                    type:
+                                      type: string
+                                  type: object
                                 fsGroup:
                                   format: int64
                                   type: integer
@@ -3343,13 +3457,6 @@ spec:
                                                 type: object
                                               resources:
                                                 properties:
-                                                  claims:
-                                                    items:
-                                                      properties:
-                                                        name:
-                                                          type: string
-                                                      type: object
-                                                    type: array
                                                   limits:
                                                     additionalProperties:
                                                       type: string
@@ -3380,6 +3487,8 @@ spec:
                                                     type: object
                                                 type: object
                                               storageClassName:
+                                                type: string
+                                              volumeAttributesClassName:
                                                 type: string
                                               volumeMode:
                                                 type: string
@@ -3541,6 +3650,37 @@ spec:
                                       sources:
                                         items:
                                           properties:
+                                            clusterTrustBundle:
+                                              properties:
+                                                labelSelector:
+                                                  properties:
+                                                    matchExpressions:
+                                                      items:
+                                                        properties:
+                                                          key:
+                                                            type: string
+                                                          operator:
+                                                            type: string
+                                                          values:
+                                                            items:
+                                                              type: string
+                                                            type: array
+                                                        type: object
+                                                      type: array
+                                                    matchLabels:
+                                                      additionalProperties:
+                                                        type: string
+                                                      type: object
+                                                  type: object
+                                                name:
+                                                  type: string
+                                                optional:
+                                                  type: boolean
+                                                path:
+                                                  type: string
+                                                signerName:
+                                                  type: string
+                                              type: object
                                             configMap:
                                               properties:
                                                 items:
@@ -3782,10 +3922,10 @@ spec:
                             properties:
                               affinity:
                                 default:
-                                  podAffinity: null
-                                  podAntiAffinity: null
                                   nodeAffinity: null
                                   nodeSelector: null
+                                  podAffinity: null
+                                  podAntiAffinity: null
                                 description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
                                 properties:
                                   nodeAffinity:
@@ -3909,6 +4049,8 @@ spec:
                                         type: object
                                     type: object
                                   nodeSelector:
+                                    additionalProperties:
+                                      type: string
                                     nullable: true
                                     type: object
                                   podAffinity:
@@ -3924,7 +4066,7 @@ spec:
                                               description: Required. A pod affinity term, associated with the corresponding weight.
                                               properties:
                                                 labelSelector:
-                                                  description: A label query over a set of resources, in this case pods.
+                                                  description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                                   properties:
                                                     matchExpressions:
                                                       description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -3953,6 +4095,16 @@ spec:
                                                       description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                                       type: object
                                                   type: object
+                                                matchLabelKeys:
+                                                  description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                mismatchLabelKeys:
+                                                  description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                  items:
+                                                    type: string
+                                                  type: array
                                                 namespaceSelector:
                                                   description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                                   properties:
@@ -4009,7 +4161,7 @@ spec:
                                           description: Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running
                                           properties:
                                             labelSelector:
-                                              description: A label query over a set of resources, in this case pods.
+                                              description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                               properties:
                                                 matchExpressions:
                                                   description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -4038,6 +4190,16 @@ spec:
                                                   description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                                   type: object
                                               type: object
+                                            matchLabelKeys:
+                                              description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                              items:
+                                                type: string
+                                              type: array
+                                            mismatchLabelKeys:
+                                              description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                              items:
+                                                type: string
+                                              type: array
                                             namespaceSelector:
                                               description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                               properties:
@@ -4094,7 +4256,7 @@ spec:
                                               description: Required. A pod affinity term, associated with the corresponding weight.
                                               properties:
                                                 labelSelector:
-                                                  description: A label query over a set of resources, in this case pods.
+                                                  description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                                   properties:
                                                     matchExpressions:
                                                       description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -4123,6 +4285,16 @@ spec:
                                                       description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                                       type: object
                                                   type: object
+                                                matchLabelKeys:
+                                                  description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                mismatchLabelKeys:
+                                                  description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                                  items:
+                                                    type: string
+                                                  type: array
                                                 namespaceSelector:
                                                   description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                                   properties:
@@ -4179,7 +4351,7 @@ spec:
                                           description: Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running
                                           properties:
                                             labelSelector:
-                                              description: A label query over a set of resources, in this case pods.
+                                              description: A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.
                                               properties:
                                                 matchExpressions:
                                                   description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -4208,6 +4380,16 @@ spec:
                                                   description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                                   type: object
                                               type: object
+                                            matchLabelKeys:
+                                              description: MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                              items:
+                                                type: string
+                                              type: array
+                                            mismatchLabelKeys:
+                                              description: MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                              items:
+                                                type: string
+                                              type: array
                                             namespaceSelector:
                                               description: A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.
                                               properties:
@@ -4258,8 +4440,8 @@ spec:
                                 type: string
                               logging:
                                 default:
-                                  enableVectorAgent: null
                                   containers: {}
+                                  enableVectorAgent: null
                                 description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
                                 properties:
                                   containers:
@@ -4342,12 +4524,12 @@ spec:
                                 type: object
                               resources:
                                 default:
+                                  cpu:
+                                    max: null
+                                    min: null
                                   memory:
                                     limit: null
                                     runtimeLimits: {}
-                                  cpu:
-                                    min: null
-                                    max: null
                                   storage:
                                     data:
                                       capacity: null
@@ -4355,8 +4537,8 @@ spec:
                                 properties:
                                   cpu:
                                     default:
-                                      min: null
                                       max: null
+                                      min: null
                                     properties:
                                       max:
                                         description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.
@@ -4632,6 +4814,14 @@ spec:
                                                             type: string
                                                           type: object
                                                       type: object
+                                                    matchLabelKeys:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    mismatchLabelKeys:
+                                                      items:
+                                                        type: string
+                                                      type: array
                                                     namespaceSelector:
                                                       properties:
                                                         matchExpressions:
@@ -4687,6 +4877,14 @@ spec:
                                                         type: string
                                                       type: object
                                                   type: object
+                                                matchLabelKeys:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                mismatchLabelKeys:
+                                                  items:
+                                                    type: string
+                                                  type: array
                                                 namespaceSelector:
                                                   properties:
                                                     matchExpressions:
@@ -4743,6 +4941,14 @@ spec:
                                                             type: string
                                                           type: object
                                                       type: object
+                                                    matchLabelKeys:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    mismatchLabelKeys:
+                                                      items:
+                                                        type: string
+                                                      type: array
                                                     namespaceSelector:
                                                       properties:
                                                         matchExpressions:
@@ -4798,6 +5004,14 @@ spec:
                                                         type: string
                                                       type: object
                                                   type: object
+                                                matchLabelKeys:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                mismatchLabelKeys:
+                                                  items:
+                                                    type: string
+                                                  type: array
                                                 namespaceSelector:
                                                   properties:
                                                     matchExpressions:
@@ -4939,18 +5153,22 @@ spec:
                                                     path:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                     scheme:
                                                       type: string
+                                                  type: object
+                                                sleep:
+                                                  properties:
+                                                    seconds:
+                                                      format: int64
+                                                      type: integer
                                                   type: object
                                                 tcpSocket:
                                                   properties:
                                                     host:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                   type: object
                                               type: object
                                             preStop:
@@ -4978,18 +5196,22 @@ spec:
                                                     path:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                     scheme:
                                                       type: string
+                                                  type: object
+                                                sleep:
+                                                  properties:
+                                                    seconds:
+                                                      format: int64
+                                                      type: integer
                                                   type: object
                                                 tcpSocket:
                                                   properties:
                                                     host:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                   type: object
                                               type: object
                                           type: object
@@ -5029,8 +5251,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -5048,8 +5269,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -5113,8 +5333,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -5132,8 +5351,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -5175,6 +5393,13 @@ spec:
                                           properties:
                                             allowPrivilegeEscalation:
                                               type: boolean
+                                            appArmorProfile:
+                                              properties:
+                                                localhostProfile:
+                                                  type: string
+                                                type:
+                                                  type: string
+                                              type: object
                                             capabilities:
                                               properties:
                                                 add:
@@ -5266,8 +5491,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -5285,8 +5509,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -5325,6 +5548,8 @@ spec:
                                                 type: string
                                               readOnly:
                                                 type: boolean
+                                              recursiveReadOnly:
+                                                type: string
                                               subPath:
                                                 type: string
                                               subPathExpr:
@@ -5468,18 +5693,22 @@ spec:
                                                     path:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                     scheme:
                                                       type: string
+                                                  type: object
+                                                sleep:
+                                                  properties:
+                                                    seconds:
+                                                      format: int64
+                                                      type: integer
                                                   type: object
                                                 tcpSocket:
                                                   properties:
                                                     host:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                   type: object
                                               type: object
                                             preStop:
@@ -5507,18 +5736,22 @@ spec:
                                                     path:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                     scheme:
                                                       type: string
+                                                  type: object
+                                                sleep:
+                                                  properties:
+                                                    seconds:
+                                                      format: int64
+                                                      type: integer
                                                   type: object
                                                 tcpSocket:
                                                   properties:
                                                     host:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                   type: object
                                               type: object
                                           type: object
@@ -5558,8 +5791,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -5577,8 +5809,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -5642,8 +5873,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -5661,8 +5891,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -5704,6 +5933,13 @@ spec:
                                           properties:
                                             allowPrivilegeEscalation:
                                               type: boolean
+                                            appArmorProfile:
+                                              properties:
+                                                localhostProfile:
+                                                  type: string
+                                                type:
+                                                  type: string
+                                              type: object
                                             capabilities:
                                               properties:
                                                 add:
@@ -5795,8 +6031,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -5814,8 +6049,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -5856,6 +6090,8 @@ spec:
                                                 type: string
                                               readOnly:
                                                 type: boolean
+                                              recursiveReadOnly:
+                                                type: string
                                               subPath:
                                                 type: string
                                               subPathExpr:
@@ -6003,18 +6239,22 @@ spec:
                                                     path:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                     scheme:
                                                       type: string
+                                                  type: object
+                                                sleep:
+                                                  properties:
+                                                    seconds:
+                                                      format: int64
+                                                      type: integer
                                                   type: object
                                                 tcpSocket:
                                                   properties:
                                                     host:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                   type: object
                                               type: object
                                             preStop:
@@ -6042,18 +6282,22 @@ spec:
                                                     path:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                     scheme:
                                                       type: string
+                                                  type: object
+                                                sleep:
+                                                  properties:
+                                                    seconds:
+                                                      format: int64
+                                                      type: integer
                                                   type: object
                                                 tcpSocket:
                                                   properties:
                                                     host:
                                                       type: string
                                                     port:
-                                                      format: int-or-string
-                                                      type: string
+                                                      x-kubernetes-int-or-string: true
                                                   type: object
                                               type: object
                                           type: object
@@ -6093,8 +6337,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -6112,8 +6355,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -6177,8 +6419,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -6196,8 +6437,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -6239,6 +6479,13 @@ spec:
                                           properties:
                                             allowPrivilegeEscalation:
                                               type: boolean
+                                            appArmorProfile:
+                                              properties:
+                                                localhostProfile:
+                                                  type: string
+                                                type:
+                                                  type: string
+                                              type: object
                                             capabilities:
                                               properties:
                                                 add:
@@ -6330,8 +6577,7 @@ spec:
                                                 path:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                                 scheme:
                                                   type: string
                                               type: object
@@ -6349,8 +6595,7 @@ spec:
                                                 host:
                                                   type: string
                                                 port:
-                                                  format: int-or-string
-                                                  type: string
+                                                  x-kubernetes-int-or-string: true
                                               type: object
                                             terminationGracePeriodSeconds:
                                               format: int64
@@ -6389,6 +6634,8 @@ spec:
                                                 type: string
                                               readOnly:
                                                 type: boolean
+                                              recursiveReadOnly:
+                                                type: string
                                               subPath:
                                                 type: string
                                               subPathExpr:
@@ -6457,6 +6704,13 @@ spec:
                                     type: array
                                   securityContext:
                                     properties:
+                                      appArmorProfile:
+                                        properties:
+                                          localhostProfile:
+                                            type: string
+                                          type:
+                                            type: string
+                                        type: object
                                       fsGroup:
                                         format: int64
                                         type: integer
@@ -6846,13 +7100,6 @@ spec:
                                                       type: object
                                                     resources:
                                                       properties:
-                                                        claims:
-                                                          items:
-                                                            properties:
-                                                              name:
-                                                                type: string
-                                                            type: object
-                                                          type: array
                                                         limits:
                                                           additionalProperties:
                                                             type: string
@@ -6883,6 +7130,8 @@ spec:
                                                           type: object
                                                       type: object
                                                     storageClassName:
+                                                      type: string
+                                                    volumeAttributesClassName:
                                                       type: string
                                                     volumeMode:
                                                       type: string
@@ -7044,6 +7293,37 @@ spec:
                                             sources:
                                               items:
                                                 properties:
+                                                  clusterTrustBundle:
+                                                    properties:
+                                                      labelSelector:
+                                                        properties:
+                                                          matchExpressions:
+                                                            items:
+                                                              properties:
+                                                                key:
+                                                                  type: string
+                                                                operator:
+                                                                  type: string
+                                                                values:
+                                                                  items:
+                                                                    type: string
+                                                                  type: array
+                                                              type: object
+                                                            type: array
+                                                          matchLabels:
+                                                            additionalProperties:
+                                                              type: string
+                                                            type: object
+                                                        type: object
+                                                      name:
+                                                        type: string
+                                                      optional:
+                                                        type: boolean
+                                                      path:
+                                                        type: string
+                                                      signerName:
+                                                        type: string
+                                                    type: object
                                                   configMap:
                                                     properties:
                                                       items:

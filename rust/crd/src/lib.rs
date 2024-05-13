@@ -4,7 +4,6 @@ use indoc::formatdoc;
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -18,8 +17,8 @@ use stackable_operator::{
     },
     config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{runtime::reflector::ObjectRef, CustomResource},
-    product_config_utils::{ConfigError, Configuration},
+    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
@@ -446,7 +445,7 @@ impl Configuration for MetaStoreConfigFragment {
         &self,
         hive: &Self::Configurable,
         _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
         let mut result = BTreeMap::new();
 
         let env = formatdoc! {"
@@ -468,7 +467,7 @@ impl Configuration for MetaStoreConfigFragment {
         &self,
         hive: &Self::Configurable,
         _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
         let mut result = BTreeMap::new();
         result.insert(
             MetaStoreConfig::DB_TYPE_CLI.to_string(),
@@ -482,7 +481,7 @@ impl Configuration for MetaStoreConfigFragment {
         hive: &Self::Configurable,
         _role_name: &str,
         file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
         let mut result = BTreeMap::new();
 
         match file {
