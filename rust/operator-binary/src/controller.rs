@@ -835,17 +835,10 @@ fn build_metastore_rolegroup_statefulset(
     // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
     let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
 
-    let mut env: Vec<EnvVar> = vec![env_var_from_secret(
-        DB_USERNAME_ENV,
-        &credentials_secret_name,
-        "username",
-    )];
-    env.push(env_var_from_secret(
-        DB_PASSWORD_ENV,
-        &credentials_secret_name,
-        "password",
-    ));
-    container_builder.add_env_vars(env);
+    container_builder.add_env_vars(vec![
+        env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username"),
+        env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password"),
+    ]);
 
     let mut pod_builder = PodBuilder::new();
 
