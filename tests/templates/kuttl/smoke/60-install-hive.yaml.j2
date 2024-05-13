@@ -15,8 +15,8 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:postgresql://postgresql:5432/hive
-      dbType: postgres
       credentialsSecret: hive-credentials
+      dbType: postgres
     s3:
       reference: minio
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

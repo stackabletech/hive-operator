@@ -15,8 +15,8 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-      dbType: derby
       credentialsSecret: hive-credentials
+      dbType: derby
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
