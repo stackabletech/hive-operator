@@ -49,8 +49,7 @@ spec:
   clusterConfig:
     database:
       connString: jdbc:postgresql://hive-postgresql:5432/hive
-      user: hive
-      password: hive
+      credentialsSecret: hive-credentials
       dbType: postgres
     vectorAggregatorConfigMapName: hive-vector-aggregator-discovery
   metastore:
@@ -88,3 +87,12 @@ spec:
               hive:
                 custom:
                   configMap: hive-log-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive

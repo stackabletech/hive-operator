@@ -49,9 +49,8 @@ mod tests {
           clusterConfig:
             database:
               connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              user: APP
-              password: mine
               dbType: derby
+              credentialsSecret: mySecret
           metastore:
             roleGroups:
               default:

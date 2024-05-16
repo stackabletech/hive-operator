@@ -17,13 +17,14 @@ use product_config::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, CORE_SITE_XML, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
-    HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
-    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
-    STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+    CERTS_DIR, CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH,
+    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE,
+    METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+    STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
 
+use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector};
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
@@ -836,6 +837,15 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    // load database credentials to environment variables: these will be used to replace
+    // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
+    let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
+
+    container_builder.add_env_vars(vec![
+        env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username"),
+        env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password"),
+    ]);
+
     let mut pod_builder = PodBuilder::new();
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
@@ -1093,6 +1103,21 @@ fn build_metastore_rolegroup_statefulset(
         }),
         status: None,
     })
+}
+
+fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
+    EnvVar {
+        name: String::from(var_name),
+        value_from: Some(EnvVarSource {
+            secret_key_ref: Some(SecretKeySelector {
+                name: Some(String::from(secret)),
+                key: String::from(secret_key),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
 }
 
 pub fn error_policy(_obj: Arc<HiveCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
