@@ -1,4 +1,4 @@
-== Resource Requests
+= Resource requests
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
