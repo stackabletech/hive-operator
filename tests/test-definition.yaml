@@ -32,6 +32,9 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.2
+  - name: krb5-latest
+    values:
+      - 1.21.1
   - name: openshift
     values:
       - "false"
@@ -58,6 +61,7 @@ tests:
       - hive
       - hdfs-latest
       - zookeeper-latest
+      - krb5-latest
       - openshift
       - kerberos-realm
       - kerberos-backend
@@ -65,6 +69,7 @@ tests:
     dimensions:
       - postgres
       - hive
+      - krb5-latest
       - openshift
       - kerberos-realm
       - kerberos-backend
