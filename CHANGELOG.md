@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - [BREAKING] Move the metastore `user` and `password` DB credentials out of the CRD into a Secret containing the keys `username` and `password` ([#452]).
+- Processing of corrupted log events fixed; If errors occur, the error
+  messages are added to the log event ([#472]).
 
 ### Changed
 
@@ -22,6 +24,7 @@ All notable changes to this project will be documented in this file.
 [#447]: https://github.com/stackabletech/hive-operator/pull/447
 [#449]: https://github.com/stackabletech/hive-operator/pull/449
 [#452]: https://github.com/stackabletech/hive-operator/pull/452
+[#472]: https://github.com/stackabletech/hive-operator/pull/472
 
 ## [24.3.0] - 2024-03-20
 
