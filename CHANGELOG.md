@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - Added documentation/tutorial on using external database drivers ([#449]).
 
+### Changed
+
+- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#480]).
+- Bump `product-config` from `0.6.0` to `0.7.0` ([#480]).
+
+[#480]: https://github.com/stackabletech/airflow-operator/pull/480
+
 ### Fixed
 
 - [BREAKING] Move the metastore `user` and `password` DB credentials out of the CRD into a Secret containing the keys `username` and `password` ([#452]).
