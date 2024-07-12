@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#480]).
 - Bump `product-config` from `0.6.0` to `0.7.0` ([#480]).
+- Bump other dependencies ([#483])
 
 ### Fixed
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#452]: https://github.com/stackabletech/hive-operator/pull/452
 [#472]: https://github.com/stackabletech/hive-operator/pull/472
 [#480]: https://github.com/stackabletech/hive-operator/pull/480
+[#483]: https://github.com/stackabletech/hive-operator/pull/483
 
 ## [24.3.0] - 2024-03-20
 
