@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- BREAKING: Switch to new image that only contains HMS.
+  For most of the users this is an internal change, but this is breaking for users of custom logging configurations as
+  the key `hive-log4j2.properties` in the ConfigMap containing the logging configuration must now be called
+  `metastore-log4j2.properties` ([#447]).
 - Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#480]).
 - Bump `product-config` from `0.6.0` to `0.7.0` ([#480]).
 - Bump other dependencies ([#483])
@@ -19,13 +23,6 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] Move the metastore `user` and `password` DB credentials out of the CRD into a Secret containing the keys `username` and `password` ([#452]).
 - Processing of corrupted log events fixed; If errors occur, the error
   messages are added to the log event ([#472]).
-
-### Changed
-
-- BREAKING: Switch to new image that only contains HMS.
-  For most of the users this is an internal change, but this is breaking for users of custom logging configurations as
-  the key `hive-log4j2.properties` in the ConfigMap containing the logging configuration must now be called
-  `metastore-log4j2.properties` ([#447]).
 
 [#447]: https://github.com/stackabletech/hive-operator/pull/447
 [#449]: https://github.com/stackabletech/hive-operator/pull/449
