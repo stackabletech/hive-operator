@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
   `metastore-log4j2.properties` ([#447]).
 - Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#480]).
 - Bump `product-config` from `0.6.0` to `0.7.0` ([#480]).
-- Bump other dependencies ([#483])
+- Bump other dependencies ([#483]).
 
 ### Fixed
 
