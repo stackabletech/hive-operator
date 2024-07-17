@@ -55,8 +55,16 @@ pub fn kerberos_config_properties(
         return BTreeMap::new();
     }
     let hive_name = hive.name_any();
+
+    // As opposed to HDFS, Hive doesn't support env var interpolation in config files
+    // so we used to run `sed -i ...` on the string set here and just kept the string
+    // at `${env.KERBEROS_REALM}` because this was what worked for HDFS and we wanted it
+    // to be the same.
+    // As part of https://github.com/stackabletech/hive-operator/issues/470 this was
+    // moved over to the new notation which is supported by Stackable's config-util:
+    //      ${env:KERBEROS_REALM}
     let principal_host_part =
-        format!("{hive_name}.{hive_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}");
+        format!("{hive_name}.{hive_namespace}.svc.cluster.local@${{env:KERBEROS_REALM}}");
 
     BTreeMap::from([
         // Kerberos settings
@@ -92,14 +100,14 @@ pub fn kerberos_container_start_commands(hive: &HiveCluster) -> String {
 
     let mut args = vec![formatdoc! {"
         export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)
-        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}",
+        config-utils template {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}",
     }];
 
     if hive.spec.cluster_config.hdfs.is_some() {
         args.extend([
             formatdoc! {"
-                sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/core-site.xml
-                sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/hdfs-site.xml",
+                config-utils template {STACKABLE_CONFIG_DIR}/core-site.xml
+                config-utils template {STACKABLE_CONFIG_DIR}/hdfs-site.xml",
             }
         ]);
     }
