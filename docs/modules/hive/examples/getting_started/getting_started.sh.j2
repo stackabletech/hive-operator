@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# DO NOT EDIT THE SCRIPT
+# Instead, update the j2 template, and regenerate it for dev:
+# cat <<EOF | jinja2 --format yaml getting_started.sh.j2 -o getting_started.sh
+# helm:
+#   repo_name: stackable-dev
+#   repo_url: https://repo.stackable.tech/repository/helm-dev/
+# versions:
+#   commons: 0.0.0-dev
+#   hive: 0.0.0-dev
+#   listener: 0.0.0-dev
+#   secret: 0.0.0-dev
+#   minio: 4.0.2
+#   postgresql: 12.1.5
+# EOF
+
 # The getting started guide script
 # It uses tagged regions which are included in the documentation
 # https://docs.asciidoctor.org/asciidoc/latest/directives/include-tagged-regions/
@@ -39,8 +54,8 @@ helm install --wait hive-operator {{ helm.repo_name }}/hive-operator --version {
 echo "Install minio for S3"
 # tag::helm-install-minio[]
 helm install minio \
+--version {{ versions.minio }} \
 --namespace default \
---version 4.0.2 \
 --set mode=standalone \
 --set replicas=1 \
 --set persistence.enabled=false \
@@ -55,7 +70,7 @@ helm install minio \
 echo "Install postgres for Hive"
 # tag::helm-install-postgres[]
 helm install postgresql \
---version=12.1.5 \
+--version {{ versions.postgresql }} \
 --namespace default \
 --set auth.username=hive \
 --set auth.password=hive \
