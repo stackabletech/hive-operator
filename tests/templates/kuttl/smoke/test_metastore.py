@@ -15,9 +15,7 @@ import argparse
 
 
 def table(db_name, table_name, location):
-    columns = [
-        ColumnBuilder("id", "string", "col comment").build()
-    ]
+    columns = [ColumnBuilder("id", "string", "col comment").build()]
 
     serde_info = SerDeInfoBuilder(
         serialization_lib="org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
@@ -40,11 +38,15 @@ def table(db_name, table_name, location):
     return test_table
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     all_args = argparse.ArgumentParser(description="Test hive metastore.")
     all_args.add_argument("-p", "--port", help="Metastore server port", default="9083")
-    all_args.add_argument("-d", "--database", help="Test DB name", default="test_metastore")
-    all_args.add_argument("-m", "--metastore", help="The host or service to connect to", required=True)
+    all_args.add_argument(
+        "-d", "--database", help="Test DB name", default="test_metastore"
+    )
+    all_args.add_argument(
+        "-m", "--metastore", help="The host or service to connect to", required=True
+    )
     args = vars(all_args.parse_args())
 
     database_name = args["database"]
@@ -61,24 +63,46 @@ if __name__ == '__main__':
 
         # Local access
         try:
-            hive_client.create_table(table(database_name, local_test_table_name, f"/stackable/warehouse/location_{database_name}_{local_test_table_name}"))
+            hive_client.create_table(
+                table(
+                    database_name,
+                    local_test_table_name,
+                    f"/stackable/warehouse/location_{database_name}_{local_test_table_name}",
+                )
+            )
         except AlreadyExistsException:
             print(f"[INFO]: Table {local_test_table_name} already existed")
-        schema = hive_client.get_schema(db_name=database_name, table_name=local_test_table_name)
-        expected = [FieldSchema(name='id', type='string', comment='col comment')]
+        schema = hive_client.get_schema(
+            db_name=database_name, table_name=local_test_table_name
+        )
+        expected = [FieldSchema(name="id", type="string", comment="col comment")]
         if schema != expected:
-            print("[ERROR]: Received local schema " + str(schema) + " - expected schema: " + expected)
+            print(
+                "[ERROR]: Received local schema "
+                + str(schema)
+                + " - expected schema: "
+                + expected
+            )
             exit(-1)
 
         # S3 access
         try:
-            hive_client.create_table(table(database_name, s3_test_table_name, "s3a://hive/"))
+            hive_client.create_table(
+                table(database_name, s3_test_table_name, "s3a://hive/")
+            )
         except AlreadyExistsException:
             print(f"[INFO]: Table {s3_test_table_name} already existed")
-        schema = hive_client.get_schema(db_name=database_name, table_name=s3_test_table_name)
-        expected = [FieldSchema(name='id', type='string', comment='col comment')]
+        schema = hive_client.get_schema(
+            db_name=database_name, table_name=s3_test_table_name
+        )
+        expected = [FieldSchema(name="id", type="string", comment="col comment")]
         if schema != expected:
-            print("[ERROR]: Received s3 schema " + str(schema) + " - expected schema: " + expected)
+            print(
+                "[ERROR]: Received s3 schema "
+                + str(schema)
+                + " - expected schema: "
+                + expected
+            )
             exit(-1)
 
         # Removed test, because it failed against Hive 3.1.3. We do not know if the behavior of the Hive metastore changed or we made a mistake. We improved the Trino tests to do more stuff with S3 (e.g. writing tables) which passed,
