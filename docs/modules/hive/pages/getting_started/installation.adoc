@@ -111,7 +111,9 @@ include::example$getting_started/getting_started.sh[tag=stackablectl-install-ope
 The tool will show
 
 [source]
-include::example$getting_started/install_output.txt[]
+----
+include::example$getting_started/install-operator-output.txt[]
+----
 
 === Helm
 
