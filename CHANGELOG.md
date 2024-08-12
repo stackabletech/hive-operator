@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce CRD size from `487KB` to `60KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#505]):
+  - `podOverrides`
+  - `affinity`
+
+[#505]: https://github.com/stackabletech/hive-operator/pull/505
+
 ## [24.7.0] - 2024-07-24
 
 ### Added
