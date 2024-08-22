@@ -29,12 +29,21 @@ spec:
     envOverrides:
       COMMON_VAR: role-value # overridden by role group below
       ROLE_VAR: role-value   # only defined here at role level
+    configOverrides:
+      hive-env.sh:
+        COMMON_VAR: role-value # overridden by role group below
+        ROLE_VAR: role-value   # only defined here at role level
     roleGroups:
       default:
         replicas: 1
         envOverrides:
           COMMON_VAR: group-value # overrides role value
           GROUP_VAR: group-value # only defined here at group level
+        configOverrides:
+          hive-env.sh:
+            COMMON_VAR: group-value # overridden by role group below
+            GROUP_VAR: group-value # only defined here at group level
+
 ---
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection
