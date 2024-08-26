@@ -31,6 +31,7 @@ spec:
       ROLE_VAR: role-value   # only defined here at role level
     configOverrides:
       hive-env.sh:
+        HADOOP_HEAPSIZE: "512" # also set by the operator
         COMMON_VAR: role-value # overridden by role group below
         ROLE_VAR: role-value   # only defined here at role level
     roleGroups:
