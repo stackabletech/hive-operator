@@ -5,7 +5,7 @@ metadata:
   name: simple-hive-derby
 spec:
   image:
-    productVersion: 3.1.3
+    productVersion: 4.0.0
     stackableVersion: 0.0.0-dev
   clusterConfig:
     database:

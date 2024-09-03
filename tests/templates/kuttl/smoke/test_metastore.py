@@ -88,7 +88,7 @@ if __name__ == "__main__":
         # S3 access
         try:
             hive_client.create_table(
-                table(database_name, s3_test_table_name, "s3a://hive/")
+                table(database_name, s3_test_table_name, "s3a://hive/s3_one_column_table/")
             )
         except AlreadyExistsException:
             print(f"[INFO]: Table {s3_test_table_name} already existed")
