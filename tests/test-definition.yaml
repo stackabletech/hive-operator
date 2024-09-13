@@ -29,7 +29,7 @@ dimensions:
       # - 4.0.0,docker.stackable.tech/sandbox/hive:4.0.0-stackable0.0.0-dev
   - name: hdfs-latest
     values:
-      - 3.3.6
+      - 3.4.0
   - name: zookeeper-latest
     values:
       - 3.9.2
