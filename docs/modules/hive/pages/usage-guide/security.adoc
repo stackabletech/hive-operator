@@ -1,4 +1,5 @@
 = Security
+:description: Secure Apache Hive with Kerberos authentication in Kubernetes. Configure Kerberos server, SecretClass, and access Hive securely with provided guides.
 
 == Authentication
 Currently, the only supported authentication mechanism is Kerberos, which is disabled by default.
@@ -17,7 +18,7 @@ The next step is to configure your HdfsCluster to use the newly created SecretCl
 Please make sure to use the SecretClass named `kerberos`. It is also necessary to configure 2 additional things in HDFS:
 
 * Define group mappings for users with `hadoop.user.group.static.mapping.overrides`
-* Tell HDFS that Hive is allowed to impersonate other users, i.e. Hive does not need any _direct_ access permissions for itself, but should be able to impersonate Hive users when accessing HDFS. This can be done by e.g. setting `hadoop.proxyuser.hive.users=*` and `hadoop.proxyuser.hive.hosts=*` to allow the user `hive`´to impersonate all other users.
+* Tell HDFS that Hive is allowed to impersonate other users, i.e. Hive does not need any _direct_ access permissions for itself, but should be able to impersonate Hive users when accessing HDFS. This can be done by e.g. setting `hadoop.proxyuser.hive.users=*` and `hadoop.proxyuser.hive.hosts=*` to allow the user `hive` to impersonate all other users.
 
 An example of the above can be found in this https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos-hdfs/30-install-hdfs.yaml.j2[integration test].
 
