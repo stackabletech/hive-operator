@@ -1,4 +1,5 @@
 = Configuration & environment overrides
+:description: Override Hive config properties and environment variables at role or role group levels. Customize hive-site.xml, security.properties, and environment vars.
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
@@ -8,8 +9,8 @@ IMPORTANT: Overriding certain properties, which are set by the operator (such as
 
 For a role or role group, at the same level of `config`, you can specify: `configOverrides` for the following files:
 
-- `hive-site.xml`
-- `security.properties`
+* `hive-site.xml`
+* `security.properties`
 
 For example, if you want to set the `datanucleus.connectionPool.maxPoolSize` for the metastore to 20 adapt the `metastore` section of the cluster resource like so:
 

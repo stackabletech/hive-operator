@@ -1,6 +1,7 @@
 = Service exposition with ListenerClasses
 
-Apache Hive offers an API. The Operator deploys a service called `<name>` (where `<name>` is the name of the HiveCluster) through which Hive can be reached.
+Apache Hive offers an API.
+The Operator deploys a service called `<name>` (where `<name>` is the name of the HiveCluster) through which Hive can be reached.
 
 This service can have three different types: `cluster-internal`, `external-unstable` and `external-stable`. Read more about the types in the xref:concepts:service-exposition.adoc[service exposition] documentation at platform level.
 

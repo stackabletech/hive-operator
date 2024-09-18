@@ -1,7 +1,8 @@
 = Database drivers
+:description: Learn to configure Apache Hive with MySQL using Helm, PVCs, and custom images. Includes steps for driver setup and Hive cluster creation.
 
 The Stackable product images for Apache Hive come with built-in support for using PostgreSQL as the metastore database.
-The MySQL driver is not shipped in our images due to licensing issues.
+The MySQL driver is not shipped in Stackable images due to licensing issues.
 To use another supported database it is necessary to make the relevant drivers available to Hive: this tutorial shows how this is done for MySQL.
 
 == Install the MySQL helm chart
