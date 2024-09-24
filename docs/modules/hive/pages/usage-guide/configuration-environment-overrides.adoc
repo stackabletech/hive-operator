@@ -41,7 +41,7 @@ metastore:
 ----
 
 All override property values must be strings.
-The properties will be formatted and escaped correctly into the XML file.
+The properties are formatted and escaped correctly into the XML file.
 
 For a full list of configuration options we refer to the Hive https://cwiki.apache.org/confluence/display/hive/configuration+properties[Configuration Reference].
 
@@ -68,7 +68,7 @@ NOTE: The operator configures DNS caching by default as shown in the example abo
 For details on the JVM security see https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html
 
 
-== Environment Variables
+== Environment variables
 
 In a similar fashion, environment variables can be (over)written.
 For example per role group:

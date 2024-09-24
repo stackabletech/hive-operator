@@ -19,7 +19,7 @@ This operator does not support deploying Hive itself, but xref:trino:index.adoc[
 
 == Getting started
 
-Follow the xref:getting_started/index.adoc[Getting started guide] which will guide you through installing the Stackable Hive operator and its dependencies.
+Follow the xref:getting_started/index.adoc[Getting started guide] which guides you through installing the Stackable Hive operator and its dependencies.
 It walks you through setting up a Hive metastore and connecting it to a demo Postgres database and a Minio instance to store data in.
 
 Afterwards you can consult the xref:usage-guide/index.adoc[] to learn more about tailoring your Hive metastore configuration to your needs, or have a look at the <<demos, demos>> for some example setups with either xref:trino:index.adoc[Trino] or xref:spark-k8s:index.adoc[Spark].
