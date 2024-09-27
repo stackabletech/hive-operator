@@ -16,6 +16,7 @@ use stackable_operator::kube::ResourceExt;
 use std::collections::BTreeMap;
 
 #[derive(Snafu, Debug)]
+#[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
 pub enum Error {
     #[snafu(display("failed to add Kerberos secret volume"))]
     AddKerberosSecretVolume {

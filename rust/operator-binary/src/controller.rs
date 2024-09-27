@@ -763,7 +763,7 @@ fn build_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(&rolegroup.object_name())
+            .name(rolegroup.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -873,10 +873,8 @@ fn build_metastore_rolegroup_statefulset(
         s3.add_volumes_and_mounts(&mut pod_builder, vec![&mut container_builder])
             .context(ConfigureS3Snafu)?;
 
-        if s3.tls.uses_tls() {
-            if !s3.tls.uses_tls_verification() {
-                S3TlsNoVerificationNotSupportedSnafu.fail()?;
-            }
+        if s3.tls.uses_tls() && !s3.tls.uses_tls_verification() {
+            S3TlsNoVerificationNotSupportedSnafu.fail()?;
         }
     }
 
@@ -1069,7 +1067,7 @@ fn build_metastore_rolegroup_statefulset(
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(&rolegroup_ref.object_name())
+            .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
