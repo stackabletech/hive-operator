@@ -13,9 +13,15 @@ All notable changes to this project will be documented in this file.
 - Reduce CRD size from `487KB` to `60KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#505]):
   - `podOverrides`
   - `affinity`
+- Use [`config-utils`](https://github.com/stackabletech/config-utils/) ([#518]).
+
+### Fixed
+
+- BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#518]).
 
 [#505]: https://github.com/stackabletech/hive-operator/pull/505
 [#508]: https://github.com/stackabletech/hive-operator/pull/508
+[#518]: https://github.com/stackabletech/hive-operator/pull/518
 
 ## [24.7.0] - 2024-07-24
 
