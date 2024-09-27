@@ -17,32 +17,29 @@ use product_config::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
     Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH,
-    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE,
-    METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
-    STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+    CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT,
+    HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
+    METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
+    STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
 
-use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector};
 use stackable_operator::{
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder,
-            resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder,
-            volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
-            PodBuilder,
+            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::VolumeBuilder, PodBuilder,
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
-        authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
         rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
+        tls_verification::TlsClientDetailsError,
     },
     k8s_openapi::{
         api::{
@@ -64,7 +61,9 @@ use stackable_operator::{
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
         self,
-        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
+        framework::{
+            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+        },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -78,12 +77,16 @@ use stackable_operator::{
     time::Duration,
     utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
+use stackable_operator::{
+    commons::s3::S3Error,
+    k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector},
+};
 use strum::EnumDiscriminants;
 use tracing::warn;
 
 use crate::kerberos::{add_kerberos_pod_config, kerberos_config_properties};
 use crate::{
-    command::{self, build_container_command_args, S3_SECRET_DIR},
+    command::build_container_command_args,
     discovery, kerberos,
     kerberos::kerberos_container_start_commands,
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
@@ -187,10 +190,11 @@ pub enum Error {
         db_type: String,
     },
 
-    #[snafu(display("failed to resolve S3 connection"))]
-    ResolveS3Connection {
-        source: stackable_operator::commons::s3::Error,
-    },
+    #[snafu(display("failed to configure S3 connection"))]
+    ConfigureS3 { source: S3Error },
+
+    #[snafu(display("failed to configure S3 TLS client details"))]
+    ConfigureS3TlsClientDetails { source: TlsClientDetailsError },
 
     #[snafu(display(
         "Hive does not support skipping the verification of the tls enabled S3 server"
@@ -308,6 +312,17 @@ pub enum Error {
 
     #[snafu(display("failed to add kerberos config"))]
     AddKerberosConfig { source: kerberos::Error },
+
+    #[snafu(display("failed to build vector container"))]
+    BuildVectorContainer { source: LoggingError },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -331,12 +346,13 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let s3_connection_spec: Option<S3ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
             Some(
-                s3.resolve(
-                    client,
-                    &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
-                )
-                .await
-                .context(ResolveS3ConnectionSnafu)?,
+                s3.clone()
+                    .resolve(
+                        client,
+                        &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
+                    )
+                    .await
+                    .context(ConfigureS3Snafu)?,
             )
         } else {
             None
@@ -625,38 +641,30 @@ fn build_metastore_rolegroup_config_map(
                 );
 
                 if let Some(s3) = s3_connection_spec {
-                    data.insert(MetaStoreConfig::S3_ENDPOINT.to_string(), s3.endpoint());
-                    // The variable substitution is only available from version 3.
-                    // if s3.secret_class.is_some() {
-                    //     data.insert(
-                    //         MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                    //         Some(format!("${{env.{ENV_S3_ACCESS_KEY}}}")),
-                    //     );
-                    //     data.insert(
-                    //         MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                    //         Some(format!("${{env.{ENV_S3_SECRET_KEY}}}")),
-                    //     );
-                    // }
-                    // Thats why we need to replace this via script in the container command.
-                    if s3.credentials.is_some() {
+                    data.insert(
+                        MetaStoreConfig::S3_ENDPOINT.to_string(),
+                        Some(s3.endpoint().context(ConfigureS3Snafu)?.to_string()),
+                    );
+
+                    if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
+                        // Will be replaced by config-utils
                         data.insert(
                             MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                            Some(command::ACCESS_KEY_PLACEHOLDER.to_string()),
+                            Some(format!("${{file:UTF-8:{access_key_file}}}")),
                         );
                         data.insert(
                             MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                            Some(command::SECRET_KEY_PLACEHOLDER.to_string()),
+                            Some(format!("${{file:UTF-8:{secret_key_file}}}")),
                         );
                     }
-                    // END
 
                     data.insert(
                         MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-                        Some(s3.tls.is_some().to_string()),
+                        Some(s3.tls.uses_tls().to_string()),
                     );
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-                        Some((s3.access_style == Some(S3AccessStyle::Path)).to_string()),
+                        Some((s3.access_style == S3AccessStyle::Path).to_string()),
                     );
                 }
 
@@ -849,48 +857,25 @@ fn build_metastore_rolegroup_statefulset(
     let mut pod_builder = PodBuilder::new();
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
-        pod_builder.add_volume(
-            VolumeBuilder::new("hdfs-discovery")
-                .with_config_map(&hdfs.config_map)
-                .build(),
-        );
-        container_builder.add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config");
+        pod_builder
+            .add_volume(
+                VolumeBuilder::new("hdfs-discovery")
+                    .with_config_map(&hdfs.config_map)
+                    .build(),
+            )
+            .context(AddVolumeSnafu)?;
+        container_builder
+            .add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config")
+            .context(AddVolumeMountSnafu)?;
     }
 
-    if let Some(s3_conn) = s3_connection {
-        if let Some(credentials) = &s3_conn.credentials {
-            pod_builder.add_volume(
-                credentials
-                    .to_volume("s3-credentials")
-                    .context(S3CredentialsSecretClassVolumeBuildSnafu)?,
-            );
-            container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
-        }
+    if let Some(s3) = s3_connection {
+        s3.add_volumes_and_mounts(&mut pod_builder, vec![&mut container_builder])
+            .context(ConfigureS3Snafu)?;
 
-        if let Some(tls) = &s3_conn.tls {
-            match &tls.verification {
-                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(server_verification) => {
-                    match &server_verification.ca_cert {
-                        CaCert::WebPki {} => {}
-                        CaCert::SecretClass(secret_class) => {
-                            let volume_name = format!("{secret_class}-tls-certificate");
-
-                            let volume = VolumeBuilder::new(&volume_name)
-                                .ephemeral(
-                                    SecretOperatorVolumeSourceBuilder::new(secret_class)
-                                        .build()
-                                        .context(TlsCertSecretClassVolumeBuildSnafu)?,
-                                )
-                                .build();
-                            pod_builder.add_volume(volume);
-                            container_builder.add_volume_mount(
-                                &volume_name,
-                                format!("{CERTS_DIR}{volume_name}"),
-                            );
-                        }
-                    }
-                }
+        if s3.tls.uses_tls() {
+            if !s3.tls.uses_tls_verification() {
+                S3TlsNoVerificationNotSupportedSnafu.fail()?;
             }
         }
     }
@@ -926,12 +911,16 @@ fn build_metastore_rolegroup_statefulset(
             s3_connection,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
             STACKABLE_LOG_CONFIG_MOUNT_DIR,
         )
+        .context(AddVolumeMountSnafu)?
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .resources(merged_config.resources.clone().into())
@@ -986,20 +975,23 @@ fn build_metastore_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
+        .context(AddVolumeSnafu)?
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
             name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
+                name: rolegroup_ref.object_name(),
                 ..Default::default()
             }),
             ..Default::default()
         })
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
             STACKABLE_LOG_DIR_NAME,
             Some(product_logging::framework::calculate_log_volume_size_limit(
                 &[MAX_HIVE_LOG_FILES_SIZE],
             )),
         )
+        .context(AddVolumeSnafu)?
         .affinity(&merged_config.affinity)
         .service_account_name(sa_name)
         .security_context(
@@ -1017,23 +1009,27 @@ fn build_metastore_rolegroup_statefulset(
             })),
     }) = merged_config.logging.containers.get(&Container::Hive)
     {
-        pod_builder.add_volume(Volume {
-            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map.into()),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
+        pod_builder
+            .add_volume(Volume {
+                name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: config_map.into(),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            })
+            .context(AddVolumeSnafu)?;
     } else {
-        pod_builder.add_volume(Volume {
-            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
+        pod_builder
+            .add_volume(Volume {
+                name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: rolegroup_ref.object_name(),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            })
+            .context(AddVolumeSnafu)?;
     }
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
@@ -1049,18 +1045,21 @@ fn build_metastore_rolegroup_statefulset(
     // N.B. the vector container should *follow* the hive container so that the hive one is the
     // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
-        pod_builder.add_container(product_logging::framework::vector_container(
-            resolved_product_image,
-            STACKABLE_CONFIG_MOUNT_DIR_NAME,
-            STACKABLE_LOG_DIR_NAME,
-            merged_config.logging.containers.get(&Container::Vector),
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("500m")
-                .with_memory_request("128Mi")
-                .with_memory_limit("128Mi")
-                .build(),
-        ));
+        pod_builder.add_container(
+            product_logging::framework::vector_container(
+                resolved_product_image,
+                STACKABLE_CONFIG_MOUNT_DIR_NAME,
+                STACKABLE_LOG_DIR_NAME,
+                merged_config.logging.containers.get(&Container::Vector),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
+            .context(BuildVectorContainerSnafu)?,
+        );
     }
 
     let mut pod_template = pod_builder.build_template();
@@ -1110,7 +1109,7 @@ fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar
         name: String::from(var_name),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
-                name: Some(String::from(secret)),
+                name: String::from(secret),
                 key: String::from(secret_key),
                 ..Default::default()
             }),

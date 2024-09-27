@@ -1,12 +1,16 @@
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
-use stackable_operator::builder::pod::{
-    container::ContainerBuilder,
-    volume::{
-        SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError, VolumeBuilder,
+use stackable_operator::builder::{
+    self,
+    pod::{
+        container::ContainerBuilder,
+        volume::{
+            SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+            VolumeBuilder,
+        },
+        PodBuilder,
     },
-    PodBuilder,
 };
 use stackable_operator::kube::ResourceExt;
 use std::collections::BTreeMap;
@@ -16,6 +20,14 @@ pub enum Error {
     #[snafu(display("failed to add Kerberos secret volume"))]
     AddKerberosSecretVolume {
         source: SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
     },
 }
 
@@ -37,8 +49,10 @@ pub fn add_kerberos_pod_config(
             VolumeBuilder::new("kerberos")
                 .ephemeral(kerberos_secret_operator_volume)
                 .build(),
-        );
-        cb.add_volume_mount("kerberos", "/stackable/kerberos");
+        )
+        .context(AddVolumeSnafu)?;
+        cb.add_volume_mount("kerberos", "/stackable/kerberos")
+            .context(AddVolumeMountSnafu)?;
 
         // Needed env vars
         cb.add_env_var("KRB5_CONFIG", "/stackable/kerberos/krb5.conf");
