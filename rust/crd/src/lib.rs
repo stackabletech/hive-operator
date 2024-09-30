@@ -13,9 +13,12 @@ use stackable_operator::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
-        s3::S3ConnectionDef,
+        s3::S3ConnectionInlineOrReference,
     },
-    config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
+    config::{
+        fragment::{self, Fragment, ValidationError},
+        merge::Merge,
+    },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{self, Configuration},
@@ -150,7 +153,7 @@ pub struct HiveClusterConfig {
     /// S3 connection specification. This can be either `inline` or a `reference` to an
     /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3: Option<S3ConnectionDef>,
+    pub s3: Option<S3ConnectionInlineOrReference>,
 
     /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
