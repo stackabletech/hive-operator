@@ -2,7 +2,7 @@
 
 You can configure the permitted Pod disruptions for Hive nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
 
-Unless you configure something else or disable our PodDisruptionBudgets (PDBs), we write the following PDBs:
+Unless you configure something else or disable the default PodDisruptionBudgets (PDBs), the operator writes the following PDBs:
 
 == Metastores
-We only allow a single metastore to be offline at any given time, regardless of the number of replicas or `roleGroups`.
+Allow only a single metastore to be offline at any given time, regardless of the number of replicas or `roleGroups`.

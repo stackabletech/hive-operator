@@ -1,12 +1,12 @@
 = Getting started
 :description: Learn to set up Apache Hive with the Stackable Operator. Includes installation, dependencies, and creating a Hive metastore on Kubernetes.
 
-This guide will get you started with Apache Hive using the Stackable Operator.
-It will guide you through the installation of the operator, its dependencies and setting up your first Hive metastore instance.
+This guide gets you started with Apache Hive using the Stackable Operator.
+It guides you through the installation of the operator, its dependencies and setting up your first Hive metastore instance.
 
 == Prerequisites
 
-You will need:
+You need:
 
 * a Kubernetes cluster
 * kubectl

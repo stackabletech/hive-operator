@@ -88,7 +88,7 @@ spec:
               mountPath: /stackable/externals
 ----
 
-This will make the driver available at `/stackable/external-drivers/mysql-connector-j-8.0.31.jar` when the volume `external-drivers` is mounted at `/stackable/external-drivers`.
+This makes the driver available at `/stackable/external-drivers/mysql-connector-j-8.0.31.jar` when the volume `external-drivers` is mounted at `/stackable/external-drivers`.
 
 Once the above has completed successfully, you can confirm that the driver is in the expected location by running another job:
 
