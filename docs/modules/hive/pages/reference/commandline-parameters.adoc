@@ -23,8 +23,8 @@ stackable-hive-operator run --product-config /foo/bar/properties.yaml
 
 *Multiple values:* false
 
-If provided the operator **only** watches for resources in the provided namespace.
-If not provided it watches in **all** namespaces.
+If provided, the operator **only** watches for resources in the provided namespace.
+If not provided, it watches in **all** namespaces.
 
 .Example: Only watch the `test` namespace
 [source,bash]
