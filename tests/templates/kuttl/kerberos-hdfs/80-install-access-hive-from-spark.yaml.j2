@@ -1,0 +1,100 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: spark.stackable.tech/v1alpha1
+      kind: SparkApplication
+      metadata:
+        name: access-hive-from-spark
+      spec:
+        sparkImage:
+          productVersion: "{{ test_scenario['values']['spark'] }}"
+        mode: cluster
+        mainApplicationFile: local:///stackable/spark/jobs/access-hive-from-spark.py
+        sparkConf:
+          spark.driver.extraClassPath: /stackable/spark/config
+          spark.kubernetes.kerberos.krb5.path: /stackable/kerberos/krb5.conf
+          spark.kerberos.keytab: /stackable/kerberos/keytab
+          spark.kerberos.principal: access-hive/access-hive.$NAMESPACE.svc.cluster.local
+        env:
+          - name: HIVE_METASTORE_URI
+            valueFrom:
+              configMapKeyRef:
+                name: hive
+                key: HIVE
+          - name: KERBEROS_REALM
+            value: {{ test_scenario['values']['kerberos-realm'] }}
+        job:
+          config:
+            volumeMounts:
+              - name: kerberos
+                mountPath: /stackable/kerberos
+        driver:
+          config:
+            volumeMounts:
+              - name: script
+                mountPath: /stackable/spark/jobs
+              - name: hdfs-conf
+                mountPath: /stackable/spark/config/core-site.xml
+                subPath: core-site.xml
+              - name: hdfs-conf
+                mountPath: /stackable/spark/config/hdfs-site.xml
+                subPath: hdfs-site.xml
+              - name: hive-conf
+                mountPath: /stackable/spark/config/hive-site.xml
+                subPath: hive-site.xml
+        executor:
+          replicas: 1
+        volumes:
+          - name: script
+            configMap:
+              name: spark-script
+          - name: hdfs-conf
+            configMap:
+              name: hdfs
+          - name: hive-conf
+            configMap:
+              name: hive-metastore-default
+          - name: kerberos
+            ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: kerberos-$NAMESPACE
+                    secrets.stackable.tech/scope: service=access-hive
+                    secrets.stackable.tech/kerberos.service.names: access-hive
+                spec:
+                  storageClassName: secrets.stackable.tech
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: "1"
+      EOF
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-script
+data:
+  access-hive-from-spark.py: |
+    import os
+    from pyspark.sql import SparkSession
+
+    sparkSession = (SparkSession
+      .builder
+      .appName("access-hive-from-spark")
+      .config("hive.metastore.uris", os.environ['HIVE_METASTORE_URI'])
+      .enableHiveSupport()
+      .getOrCreate())
+
+    data = [(1, 'Hello'), (2, 'Stackable')]
+    df_write = sparkSession.createDataFrame(data)
+    df_write.write.saveAsTable('test', mode='overwrite')
+
+    df_read = sparkSession.sql('SELECT * FROM test')
+
+    assert sorted(df_write.collect()) == sorted(df_read.collect())

@@ -49,6 +49,9 @@ dimensions:
   - name: kerberos-backend
     values:
       - mit
+  - name: spark
+    values:
+      - 3.5.2
 tests:
   - name: smoke
     dimensions:
@@ -66,6 +69,7 @@ tests:
       - openshift
       - kerberos-realm
       - kerberos-backend
+      - spark
   - name: kerberos-s3
     dimensions:
       - postgres
