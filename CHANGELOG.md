@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add support for Hive `4.0.0` ([#508]).
+- The operator can now run on Kubernetes clusters using a non-default cluster domain. It should automatically detect the
+  correct domain to use, but you can also use the env var `KUBERNETES_CLUSTER_DOMAIN` to set the domain explicitly
+  or use the helm-chart property `kubernetesClusterDomain` ([#xxx]).
 
 ### Changed
 
@@ -22,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#505]: https://github.com/stackabletech/hive-operator/pull/505
 [#508]: https://github.com/stackabletech/hive-operator/pull/508
 [#518]: https://github.com/stackabletech/hive-operator/pull/518
+[#xxx]: https://github.com/stackabletech/hive-operator/pull/xxx
 
 ## [24.7.0] - 2024-07-24
 

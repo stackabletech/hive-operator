@@ -1,18 +1,21 @@
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
-use stackable_operator::builder::{
-    self,
-    pod::{
-        container::ContainerBuilder,
-        volume::{
-            SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
-            VolumeBuilder,
+use stackable_operator::{
+    builder::{
+        self,
+        pod::{
+            container::ContainerBuilder,
+            volume::{
+                SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+                VolumeBuilder,
+            },
+            PodBuilder,
         },
-        PodBuilder,
     },
+    kube::ResourceExt,
+    utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
 };
-use stackable_operator::kube::ResourceExt;
 use std::collections::BTreeMap;
 
 #[derive(Snafu, Debug)]
@@ -69,9 +72,13 @@ pub fn kerberos_config_properties(
     if !hive.has_kerberos_enabled() {
         return BTreeMap::new();
     }
+
     let hive_name = hive.name_any();
+    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+        .get()
+        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
     let principal_host_part =
-        format!("{hive_name}.{hive_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}");
+        format!("{hive_name}.{hive_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}");
 
     BTreeMap::from([
         // Kerberos settings
