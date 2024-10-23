@@ -48,6 +48,6 @@ tolerations: []
 
 affinity: {}
 
-# When running on a non-default Kubernetes cluster domain you can set your custom cluster domain here.
+# When running on a non-default Kubernetes cluster domain, the cluster domain can be configured here.
 # See the https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain guide for details.
 # kubernetesClusterDomain: my-cluster.local
