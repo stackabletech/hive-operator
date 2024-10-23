@@ -18,10 +18,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#518]).
+- An invalid `HiveCluster` doesn't cause the operator to stop functioning ([#523]).
 
 [#505]: https://github.com/stackabletech/hive-operator/pull/505
 [#508]: https://github.com/stackabletech/hive-operator/pull/508
 [#518]: https://github.com/stackabletech/hive-operator/pull/518
+[#523]: https://github.com/stackabletech/hive-operator/pull/523
 
 ## [24.7.0] - 2024-07-24
 

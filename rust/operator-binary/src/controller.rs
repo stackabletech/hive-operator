@@ -54,6 +54,7 @@ use stackable_operator::{
         },
         DeepMerge,
     },
+    kube::core::{error_boundary, DeserializeGuard},
     kube::{runtime::controller::Action, Resource, ResourceExt},
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
@@ -323,6 +324,11 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("HiveCluster object is invalid"))]
+    InvalidHiveCluster {
+        source: error_boundary::InvalidObject,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -332,8 +338,16 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
+pub async fn reconcile_hive(
+    hive: Arc<DeserializeGuard<HiveCluster>>,
+    ctx: Arc<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
+    let hive = hive
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidHiveClusterSnafu)?;
     let client = &ctx.client;
     let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
@@ -361,7 +375,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
         &transform_all_roles_to_config(
-            hive.as_ref(),
+            hive,
             [(
                 HiveRole::MetaStore.to_string(),
                 (
@@ -399,7 +413,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     .context(CreateClusterResourcesSnafu)?;
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        hive.as_ref(),
+        hive,
         APP_NAME,
         cluster_resources
             .get_required_labels()
@@ -416,7 +430,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let metastore_role_service = build_metastore_role_service(&hive, &resolved_product_image)?;
+    let metastore_role_service = build_metastore_role_service(hive, &resolved_product_image)?;
 
     // we have to get the assigned ports
     let metastore_role_service = cluster_resources
@@ -424,7 +438,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ApplyRoleServiceSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(&hive, client)
+    let vector_aggregator_address = resolve_vector_aggregator_address(hive, client)
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
@@ -437,9 +451,9 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
-        let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
+        let rg_service = build_rolegroup_service(hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
-            &hive,
+            hive,
             &hive_namespace,
             &resolved_product_image,
             &rolegroup,
@@ -449,7 +463,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             vector_aggregator_address.as_deref(),
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
-            &hive,
+            hive,
             &hive_role,
             &resolved_product_image,
             &rolegroup,
@@ -488,7 +502,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         pod_disruption_budget: pdb,
     }) = role_config
     {
-        add_pdbs(pdb, &hive, &hive_role, client, &mut cluster_resources)
+        add_pdbs(pdb, hive, &hive_role, client, &mut cluster_resources)
             .await
             .context(FailedToCreatePdbSnafu)?;
     }
@@ -498,8 +512,8 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let mut discovery_hash = FnvHasher::with_key(0);
     for discovery_cm in discovery::build_discovery_configmaps(
         client,
-        &*hive,
-        &hive,
+        hive,
+        hive,
         &resolved_product_image,
         &metastore_role_service,
         None,
@@ -523,14 +537,11 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         // Serialize as a string to discourage users from trying to parse the value,
         // and to keep things flexible if we end up changing the hasher at some point.
         discovery_hash: Some(discovery_hash.finish().to_string()),
-        conditions: compute_conditions(
-            hive.as_ref(),
-            &[&ss_cond_builder, &cluster_operation_cond_builder],
-        ),
+        conditions: compute_conditions(hive, &[&ss_cond_builder, &cluster_operation_cond_builder]),
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, &*hive, &status)
+        .apply_patch_status(OPERATOR_NAME, hive, &status)
         .await
         .context(ApplyStatusSnafu)?;
 
@@ -1117,8 +1128,16 @@ fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar
     }
 }
 
-pub fn error_policy(_obj: Arc<HiveCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(5))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<HiveCluster>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        // An invalid HBaseCluster was deserialized. Await for it to change.
+        Error::InvalidHiveCluster { .. } => Action::await_change(),
+        _ => Action::requeue(*Duration::from_secs(5)),
+    }
 }
 
 pub fn service_ports() -> Vec<ServicePort> {
