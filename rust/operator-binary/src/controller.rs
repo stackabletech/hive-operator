@@ -54,8 +54,11 @@ use stackable_operator::{
         },
         DeepMerge,
     },
-    kube::core::{error_boundary, DeserializeGuard},
-    kube::{runtime::controller::Action, Resource, ResourceExt},
+    kube::{
+        core::{error_boundary, DeserializeGuard},
+        runtime::controller::Action,
+        Resource, ResourceExt,
+    },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
@@ -76,7 +79,7 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
+    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
 };
 use stackable_operator::{
     commons::s3::S3Error,
@@ -461,6 +464,7 @@ pub async fn reconcile_hive(
             s3_connection_spec.as_ref(),
             &config,
             vector_aggregator_address.as_deref(),
+            &client.kubernetes_cluster_info,
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             hive,
@@ -603,6 +607,7 @@ fn build_metastore_rolegroup_config_map(
     s3_connection_spec: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     vector_aggregator_address: Option<&str>,
+    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let mut hive_env_data = String::new();
@@ -680,7 +685,7 @@ fn build_metastore_rolegroup_config_map(
                 }
 
                 for (property_name, property_value) in
-                    kerberos_config_properties(hive, hive_namespace)
+                    kerberos_config_properties(hive, hive_namespace, cluster_info)
                 {
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
                 }

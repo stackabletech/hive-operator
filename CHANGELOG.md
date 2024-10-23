@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add support for Hive `4.0.0` ([#508]).
-- The operator can now run on Kubernetes clusters using a non-default cluster domain. Use the env var `KUBERNETES_CLUSTER_DOMAIN` 
+- The operator can now run on Kubernetes clusters using a non-default cluster domain. Use the env var `KUBERNETES_CLUSTER_DOMAIN`
   to set the domain explicitly or use the operator helm-chart property `kubernetesClusterDomain` ([#522]).
 
 ### Changed

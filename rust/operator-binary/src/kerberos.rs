@@ -14,7 +14,7 @@ use stackable_operator::{
         },
     },
     kube::ResourceExt,
-    utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 use std::collections::BTreeMap;
 
@@ -68,15 +68,14 @@ pub fn add_kerberos_pod_config(
 pub fn kerberos_config_properties(
     hive: &HiveCluster,
     hive_namespace: &str,
+    cluster_info: &KubernetesClusterInfo,
 ) -> BTreeMap<String, String> {
     if !hive.has_kerberos_enabled() {
         return BTreeMap::new();
     }
 
     let hive_name = hive.name_any();
-    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-        .get()
-        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
+    let cluster_domain = &cluster_info.cluster_domain;
     let principal_host_part =
         format!("{hive_name}.{hive_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}");
 

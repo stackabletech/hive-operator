@@ -3,7 +3,6 @@ use crate::controller::build_recommended_labels;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
-use stackable_operator::utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN;
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -76,9 +75,7 @@ pub async fn build_discovery_configmaps(
         .namespace
         .as_deref()
         .context(NoNamespaceSnafu)?;
-    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-        .get()
-        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
+    let cluster_domain = &client.kubernetes_cluster_info.cluster_domain;
     let mut discovery_configmaps = vec![build_discovery_configmap(
         name,
         owner,
