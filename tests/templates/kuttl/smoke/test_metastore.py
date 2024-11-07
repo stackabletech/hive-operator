@@ -27,6 +27,7 @@ def table(db_name, table_name, location):
         input_format="org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
         output_format="org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
         serde_info=serde_info,
+        compressed=True
     ).build()
 
     test_table = TableBuilder(
