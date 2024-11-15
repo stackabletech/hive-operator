@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#518]).
 - An invalid `HiveCluster` doesn't cause the operator to stop functioning ([#523]).
+- Fix upgrade path from HMS `3.3.x` to `4.0.x`. Previously the schemaTool would try to re-create the database tables and would therefore fail. Starting with version `4.0.0` the schematool has the flag `-initOrUpgradeSchema`, which we use to resolve that problem ([#XXX]).
 
 [#505]: https://github.com/stackabletech/hive-operator/pull/505
 [#508]: https://github.com/stackabletech/hive-operator/pull/508
