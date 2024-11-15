@@ -3,7 +3,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
     hash::Hasher,
-    str::FromStr,
     sync::Arc,
 };
 
@@ -16,10 +15,10 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-    CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT,
-    HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
-    METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
+    Container, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
+    DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
+    HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
+    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
     STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
@@ -186,12 +185,6 @@ pub enum Error {
     #[snafu(display("failed to update status"))]
     ApplyStatus {
         source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display("failed to parse db type {db_type}"))]
-    InvalidDbType {
-        source: strum::ParseError,
-        db_type: String,
     },
 
     #[snafu(display("failed to configure S3 connection"))]
@@ -828,36 +821,25 @@ fn build_metastore_rolegroup_statefulset(
         .rolegroup(rolegroup_ref)
         .context(InternalOperatorSnafu)?;
 
-    let mut db_type: Option<DbType> = None;
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
             name: APP_NAME.to_string(),
         })?;
 
     for (property_name_kind, config) in metastore_config {
-        match property_name_kind {
-            PropertyNameKind::Env => {
-                // overrides
-                for (property_name, property_value) in config {
-                    if property_name.is_empty() {
-                        warn!("Received empty property_name for ENV... skipping");
-                        continue;
-                    }
-                    container_builder.add_env_var(property_name, property_value);
+        if property_name_kind == &PropertyNameKind::Env {
+            // overrides
+            for (property_name, property_value) in config {
+                if property_name.is_empty() {
+                    warn!(
+                        property_name,
+                        property_value,
+                        "The env variable had an empty name, not adding it to the container"
+                    );
+                    continue;
                 }
+                container_builder.add_env_var(property_name, property_value);
             }
-            PropertyNameKind::Cli => {
-                for (property_name, property_value) in config {
-                    if property_name == MetaStoreConfig::DB_TYPE_CLI {
-                        db_type = Some(DbType::from_str(property_value).with_context(|_| {
-                            InvalidDbTypeSnafu {
-                                db_type: property_value.to_string(),
-                            }
-                        })?);
-                    }
-                }
-            }
-            _ => {}
         }
     }
 
@@ -894,6 +876,26 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    let db_type = hive.db_type();
+    let start_command = if resolved_product_image.product_version.starts_with("3.") {
+        // The schematool version in 3.1.x does *not* support the `-initOrUpgradeSchema` flag yet, so we can not use that.
+        // As we *only* support HMS 3.1.x (or newer) since SDP release 23.11, we can safely assume we are always coming
+        // from an existing 3.1.x installation. There is no need to upgrade the schema, we can just check if the schema
+        // is already there and create it if it isn't.
+        // The script `bin/start-metastore` is buggy (e.g. around version upgrades), but it's sufficient for that job :)
+        //
+        // TODO: Once we drop support for HMS 3.1.x we can remove this condition and very likely get rid of the
+        // "bin/start-metastore" script.
+        format!("bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &")
+    } else {
+        // schematool versions 4.0.x (and above) support the `-initOrUpgradeSchema`, which is exactly what we need :)
+        // Some docs for the schemaTool can be found here: https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=34835119
+        formatdoc! {"
+            bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service schemaTool -dbType \"{db_type}\" -initOrUpgradeSchema
+            bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service metastore &
+        "}
+    };
+
     let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
@@ -905,23 +907,22 @@ fn build_metastore_rolegroup_statefulset(
         ])
         .args(build_container_command_args(
             hive,
-              formatdoc! {"
+            formatdoc! {"
             {kerberos_container_start_commands}
 
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
-            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
+            {start_command}
             wait_for_termination $!
             {create_vector_shutdown_file_command}
             ",
-            kerberos_container_start_commands = kerberos_container_start_commands(hive),
-            remove_vector_shutdown_file_command =
-                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-            create_vector_shutdown_file_command =
-                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-                  db_type = &db_type.unwrap_or_default().to_string(),
-        },
+                kerberos_container_start_commands = kerberos_container_start_commands(hive),
+                remove_vector_shutdown_file_command =
+                    remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+                create_vector_shutdown_file_command =
+                    create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+            },
             s3_connection,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)

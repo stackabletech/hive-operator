@@ -1,0 +1,19 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-metastore-default
+  labels:
+{% if test_scenario['values']['hive-old'].find(",") > 0 %}
+    # Yes, this *might* not work with custom images, I'm sorry!
+    app.kubernetes.io/version: "{{ test_scenario['values']['hive-old'].split(',')[0] }}-stackable0.0.0-dev"
+{% else %}
+    app.kubernetes.io/version: "{{ test_scenario['values']['hive-old'] }}-stackable0.0.0-dev"
+{% endif %}
+status:
+  readyReplicas: 1
+  replicas: 1
