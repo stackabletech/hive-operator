@@ -891,8 +891,8 @@ fn build_metastore_rolegroup_statefulset(
         // schematool versions 4.0.x (and above) support the `-initOrUpgradeSchema`, which is exactly what we need :)
         // Some docs for the schemaTool can be found here: https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=34835119
         formatdoc! {"
-            bin/base --config {STACKABLE_CONFIG_DIR} --service schemaTool -dbType {db_type} -initOrUpgradeSchema
-            bin/base --config {STACKABLE_CONFIG_DIR} --service metastore &
+            bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service schemaTool -dbType \"{db_type}\" -initOrUpgradeSchema
+            bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service metastore &
         "}
     };
 
