@@ -833,7 +833,8 @@ fn build_metastore_rolegroup_statefulset(
                 if property_name.is_empty() {
                     warn!(
                         property_name,
-                        property_value, "The env variable had an empty name, skipping it "
+                        property_value,
+                        "The env variable had an empty name, not adding it to the container"
                     );
                     continue;
                 }
