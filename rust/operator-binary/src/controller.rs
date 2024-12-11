@@ -913,7 +913,7 @@ fn build_metastore_rolegroup_statefulset(
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
-            CONTAINERDEBUG_LOG_DIRECTORY={STACKABLE_LOG_DIR}/containerdebug containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+            containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
             {start_command}
             wait_for_termination $!
             {create_vector_shutdown_file_command}
