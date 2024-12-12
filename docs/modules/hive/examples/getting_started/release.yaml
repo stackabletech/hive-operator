@@ -5,10 +5,10 @@ releases:
     description: Demo / Test release for Hive getting started guide
     products:
       commons:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       hive:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       listener:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       secret:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
