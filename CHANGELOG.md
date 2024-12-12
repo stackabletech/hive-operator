@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
+  deployed in one namespace. Existing Stacklets will use the newly created ServiceAccounts after
+  restart ([#544]).
+
+[#544]: https://github.com/stackabletech/hive-operator/pull/544
+
+## [24.11.0] - 2024-11-18
+
 ### Added
 
 - Add support for Hive `4.0.0` ([#508]).
@@ -21,12 +31,14 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#518]).
 - An invalid `HiveCluster` doesn't cause the operator to stop functioning ([#523]).
+- Fix upgrade path from HMS `3.3.x` to `4.0.x`. Previously the schemaTool would try to re-create the database tables and would therefore fail. Starting with version `4.0.0` the schemaTool has the flag `-initOrUpgradeSchema`, which we use to resolve that problem ([#539]).
 
 [#505]: https://github.com/stackabletech/hive-operator/pull/505
 [#508]: https://github.com/stackabletech/hive-operator/pull/508
 [#518]: https://github.com/stackabletech/hive-operator/pull/518
 [#522]: https://github.com/stackabletech/hive-operator/pull/522
 [#523]: https://github.com/stackabletech/hive-operator/pull/523
+[#539]: https://github.com/stackabletech/hive-operator/pull/539
 
 ## [24.7.0] - 2024-07-24
 

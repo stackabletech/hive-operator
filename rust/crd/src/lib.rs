@@ -332,7 +332,6 @@ impl MetaStoreConfig {
     pub const CONNECTION_PASSWORD: &'static str = "javax.jdo.option.ConnectionPassword";
     pub const METASTORE_METRICS_ENABLED: &'static str = "hive.metastore.metrics.enabled";
     pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
-    pub const DB_TYPE_CLI: &'static str = "dbType";
     // S3
     pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
     pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
@@ -406,12 +405,6 @@ pub enum DbType {
     Mssql,
 }
 
-impl Default for DbType {
-    fn default() -> Self {
-        Self::Derby
-    }
-}
-
 impl DbType {
     pub fn get_jdbc_driver_class(&self) -> &str {
         match self {
@@ -425,7 +418,7 @@ impl DbType {
 }
 
 /// Database connection specification for the metadata database.
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseConnectionSpec {
     /// A connection string for the database. For example:
@@ -469,15 +462,10 @@ impl Configuration for MetaStoreConfigFragment {
 
     fn compute_cli(
         &self,
-        hive: &Self::Configurable,
+        _hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        let mut result = BTreeMap::new();
-        result.insert(
-            MetaStoreConfig::DB_TYPE_CLI.to_string(),
-            Some(hive.spec.cluster_config.database.db_type.to_string()),
-        );
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_files(
@@ -511,14 +499,7 @@ impl Configuration for MetaStoreConfigFragment {
                 );
                 result.insert(
                     MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                    Some(
-                        hive.spec
-                            .cluster_config
-                            .database
-                            .db_type
-                            .get_jdbc_driver_class()
-                            .to_string(),
-                    ),
+                    Some(hive.db_type().get_jdbc_driver_class().to_string()),
                 );
 
                 result.insert(
@@ -655,6 +636,10 @@ impl HiveCluster {
             .as_ref()
             .map(|a| &a.kerberos)
             .map(|k| k.secret_class.clone())
+    }
+
+    pub fn db_type(&self) -> &DbType {
+        &self.spec.cluster_config.database.db_type
     }
 
     /// Retrieve and merge resource configs for role and role groups
