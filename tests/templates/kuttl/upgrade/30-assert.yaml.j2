@@ -10,9 +10,9 @@ metadata:
   labels:
 {% if test_scenario['values']['hive-old'].find(",") > 0 %}
     # Yes, this *might* not work with custom images, I'm sorry!
-    app.kubernetes.io/version: "{{ test_scenario['values']['hive-old'].split(',')[0] }}-stackable24.11.1-rc1"
+    app.kubernetes.io/version: "{{ test_scenario['values']['hive-old'].split(',')[0] }}-stackable24.11.1-rc2"
 {% else %}
-    app.kubernetes.io/version: "{{ test_scenario['values']['hive-old'] }}-stackable24.11.1-rc1"
+    app.kubernetes.io/version: "{{ test_scenario['values']['hive-old'] }}-stackable24.11.1-rc2"
 {% endif %}
 status:
   readyReplicas: 1
