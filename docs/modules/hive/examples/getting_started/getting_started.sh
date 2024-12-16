@@ -47,8 +47,8 @@ helm install minio \
 --set mode=standalone \
 --set replicas=1 \
 --set persistence.enabled=false \
---set buckets[0].name=hive,buckets[0].policy=none \
---set users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite \
+--set "buckets[0].name=hive,buckets[0].policy=none" \
+--set "users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite" \
 --set resources.requests.memory=1Gi \
 --set service.type=NodePort,service.nodePort=null \
 --set consoleService.type=NodePort,consoleService.nodePort=null \
