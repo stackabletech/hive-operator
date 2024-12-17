@@ -775,9 +775,9 @@ rec {
       };
       "cc" = rec {
         crateName = "cc";
-        version = "1.2.4";
+        version = "1.2.3";
         edition = "2018";
-        sha256 = "1bqw7559dq0by6dq5k38rijz5p0wr5sa94s2gb180n0ndfmbnmwi";
+        sha256 = "0bcga5xf5fgvddfamsjhg89hlydzbdk1fwvcym5kkxfggdj5gxi7";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
         ];
@@ -1407,33 +1407,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "powerfmt" "std" ];
       };
-      "derivative" = rec {
-        crateName = "derivative";
-        version = "2.2.0";
-        edition = "2015";
-        sha256 = "02vpb81wisk2zh1d5f44szzxamzinqgq2k8ydrfjj2wwkrgdvhzw";
-        procMacro = true;
-        authors = [
-          "mcarton <cartonmartin+git@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "syn";
-            packageId = "syn 1.0.109";
-            features = [ "visit" "extra-traits" ];
-          }
-        ];
-        features = {
-        };
-      };
       "digest" = rec {
         crateName = "digest";
         version = "0.10.7";
@@ -1595,7 +1568,7 @@ rec {
           "default" = [ "Debug" "Clone" "Copy" "PartialEq" "Eq" "PartialOrd" "Ord" "Hash" "Default" "Deref" "DerefMut" "Into" ];
           "full" = [ "syn/full" ];
         };
-        resolvedDefaultFeatures = [ "Clone" "Debug" "Hash" "PartialEq" ];
+        resolvedDefaultFeatures = [ "Clone" "Debug" "Default" "Hash" "PartialEq" ];
       };
       "either" = rec {
         crateName = "either";
@@ -5349,7 +5322,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.7";
+            packageId = "thiserror 2.0.6";
             optional = true;
           }
           {
@@ -5783,9 +5756,9 @@ rec {
       };
       "redox_syscall" = rec {
         crateName = "redox_syscall";
-        version = "0.5.8";
+        version = "0.5.7";
         edition = "2021";
-        sha256 = "0d48ylyd6gsamynyp257p6n2zl4dw2fhnn5z9y3nhgpri6rn5a03";
+        sha256 = "07vpgfr6a04k0x19zqr1xdlqm6fncik3zydbdi3f5g3l5k7zwvcv";
         libName = "syscall";
         authors = [
           "Jeremy Soller <jackpot51@gmail.com>"
@@ -6187,9 +6160,9 @@ rec {
       };
       "rustls" = rec {
         crateName = "rustls";
-        version = "0.23.20";
+        version = "0.23.19";
         edition = "2021";
-        sha256 = "06rvj13ia4hx0kba454vcm3p4f2jz907rrabi76k5lyba3rc6rah";
+        sha256 = "1lgqjf1vh09kghyj34a4svn1max18pmhka6bwbxb61mv61240jwk";
         dependencies = [
           {
             name = "log";
@@ -6339,9 +6312,9 @@ rec {
       };
       "rustls-pki-types" = rec {
         crateName = "rustls-pki-types";
-        version = "1.10.1";
+        version = "1.10.0";
         edition = "2021";
-        sha256 = "0dqb3d0cbld1yrp084wyzgw6yk3qzzic8l5pbs1b6bcjzzk4ggyj";
+        sha256 = "0jv78c32pgf1i0bn7rzf4xdr9qh5wsvigp6akc1yhzls7hdj1w8n";
         libName = "rustls_pki_types";
         features = {
           "default" = [ "alloc" ];
@@ -6684,9 +6657,9 @@ rec {
       };
       "semver" = rec {
         crateName = "semver";
-        version = "1.0.24";
+        version = "1.0.23";
         edition = "2018";
-        sha256 = "1fmvjjkd3f64y5fqr1nakkq371mnwzv09fbz5mbmdxril63ypdiw";
+        sha256 = "12wqpxfflclbq4dv8sa6gchdh92ahhwn4ci1ls22wlby3h57wsb1";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
@@ -6698,9 +6671,9 @@ rec {
       };
       "serde" = rec {
         crateName = "serde";
-        version = "1.0.216";
+        version = "1.0.215";
         edition = "2018";
-        sha256 = "13ikqs0cvd220530x4rj1m9ab5wcflrwkw7cpvl9fnlkdq0q35qb";
+        sha256 = "13xqkw93cw9rnbkm0zy1apnilzq7l2xf1qw8m1nkga8i1fnw24v5";
         authors = [
           "Erick Tryzelaar <erick.tryzelaar@gmail.com>"
           "David Tolnay <dtolnay@gmail.com>"
@@ -6753,9 +6726,9 @@ rec {
       };
       "serde_derive" = rec {
         crateName = "serde_derive";
-        version = "1.0.216";
+        version = "1.0.215";
         edition = "2015";
-        sha256 = "0pm5bm4354n40ir12bbs829arlqwjrw0wmzd4xk5r1kkpzdmky26";
+        sha256 = "1h2nswy0rmzblil38h12wxsgni1ik63rk22wy19g48v9hrpqc7md";
         procMacro = true;
         authors = [
           "Erick Tryzelaar <erick.tryzelaar@gmail.com>"
@@ -7402,13 +7375,13 @@ rec {
       };
       "stackable-operator" = rec {
         crateName = "stackable-operator";
-        version = "0.82.0";
+        version = "0.83.0";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "415bbd031bd52e9c0c5392060235030e9930b46b";
-          sha256 = "0phasjwb64rxgn5hs8vks92icmx9255bd5v9dms280clrfpcg4hy";
+          rev = "3ce7bcbdb58097cde0c0f19488a104c96f69dbc3";
+          sha256 = "1443vhsanfl2vxp6x6zpylfln682g0y8bxbk4sknycsg009mbkwm";
         };
         libName = "stackable_operator";
         authors = [
@@ -7434,12 +7407,14 @@ rec {
             packageId = "delegate";
           }
           {
-            name = "derivative";
-            packageId = "derivative";
-          }
-          {
             name = "dockerfile-parser";
             packageId = "dockerfile-parser";
+          }
+          {
+            name = "educe";
+            packageId = "educe";
+            usesDefaultFeatures = false;
+            features = [ "Clone" "Debug" "Default" "PartialEq" ];
           }
           {
             name = "either";
@@ -7565,8 +7540,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "415bbd031bd52e9c0c5392060235030e9930b46b";
-          sha256 = "0phasjwb64rxgn5hs8vks92icmx9255bd5v9dms280clrfpcg4hy";
+          rev = "3ce7bcbdb58097cde0c0f19488a104c96f69dbc3";
+          sha256 = "1443vhsanfl2vxp6x6zpylfln682g0y8bxbk4sknycsg009mbkwm";
         };
         procMacro = true;
         libName = "stackable_operator_derive";
@@ -7600,8 +7575,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "415bbd031bd52e9c0c5392060235030e9930b46b";
-          sha256 = "0phasjwb64rxgn5hs8vks92icmx9255bd5v9dms280clrfpcg4hy";
+          rev = "3ce7bcbdb58097cde0c0f19488a104c96f69dbc3";
+          sha256 = "1443vhsanfl2vxp6x6zpylfln682g0y8bxbk4sknycsg009mbkwm";
         };
         libName = "stackable_shared";
         authors = [
@@ -7753,7 +7728,7 @@ rec {
           "quote" = [ "dep:quote" ];
           "test" = [ "syn-test-suite/all-features" ];
         };
-        resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "extra-traits" "full" "parsing" "printing" "proc-macro" "quote" "visit" ];
+        resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "full" "parsing" "printing" "proc-macro" "quote" ];
       };
       "syn 2.0.90" = rec {
         crateName = "syn";
@@ -7790,9 +7765,9 @@ rec {
       };
       "sync_wrapper" = rec {
         crateName = "sync_wrapper";
-        version = "1.0.2";
-        edition = "2021";
-        sha256 = "0qvjyasd6w18mjg5xlaq5jgy84jsjfsvmnn12c13gypxbv75dwhb";
+        version = "0.1.2";
+        edition = "2018";
+        sha256 = "0q01lyj0gr9a93n10nxsn8lwbzq97jqd6b768x17c8f7v7gccir0";
         authors = [
           "Actyx AG <developer@actyx.io>"
         ];
@@ -7849,18 +7824,18 @@ rec {
         ];
 
       };
-      "thiserror 2.0.7" = rec {
+      "thiserror 2.0.6" = rec {
         crateName = "thiserror";
-        version = "2.0.7";
+        version = "2.0.6";
         edition = "2021";
-        sha256 = "0rrp8k3y2m87df7zrmd3ks2y2zpvk9c9sjdb2raihs6nrcw58q4k";
+        sha256 = "0izahgy0lzcmcg2i72h9jk9lqd5zpq3z0k8cp7i7gl7b40c2mv4g";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
         dependencies = [
           {
             name = "thiserror-impl";
-            packageId = "thiserror-impl 2.0.7";
+            packageId = "thiserror-impl 2.0.6";
           }
         ];
         features = {
@@ -7894,11 +7869,11 @@ rec {
         ];
 
       };
-      "thiserror-impl 2.0.7" = rec {
+      "thiserror-impl 2.0.6" = rec {
         crateName = "thiserror-impl";
-        version = "2.0.7";
+        version = "2.0.6";
         edition = "2021";
-        sha256 = "0diy4yillp5czqgycdhyp3i3z2iln49cspvscwbj3bri8ndp9n71";
+        sha256 = "04k3dz901mymm06j3x6f65hpbsqlk6g51fmiky9g2kqgnk550myn";
         procMacro = true;
         libName = "thiserror_impl";
         authors = [
@@ -8463,9 +8438,9 @@ rec {
       };
       "tower" = rec {
         crateName = "tower";
-        version = "0.5.2";
+        version = "0.5.1";
         edition = "2018";
-        sha256 = "1ybmd59nm4abl9bsvy6rx31m4zvzp5rja2slzpn712y9b68ssffh";
+        sha256 = "0kvbp97bhb4sk24vhihcz74ngn0i4ygxqikmxndgng3w926r6wr8";
         authors = [
           "Tower Maintainers <team@tower-rs.com>"
         ];
