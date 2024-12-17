@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Run a `containerdebug` process in the background of each Hive container to collect debugging information ([#554]).
+
 ### Changed
 
 - Bump `stackable-operator` from `0.82.0` to `0.83.0` ([#553]).
@@ -16,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 [#544]: https://github.com/stackabletech/hive-operator/pull/544
 [#553]: https://github.com/stackabletech/hive-operator/pull/553
+[#554]: https://github.com/stackabletech/hive-operator/pull/554
 
 ## [24.11.0] - 2024-11-18
 

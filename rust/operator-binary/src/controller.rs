@@ -850,6 +850,12 @@ fn build_metastore_rolegroup_statefulset(
     container_builder.add_env_vars(vec![
         env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username"),
         env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password"),
+        // Needed for the `containerdebug` process to log it's tracing information to.
+        EnvVar {
+            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+            value_from: None,
+        },
     ]);
 
     let mut pod_builder = PodBuilder::new();
@@ -913,6 +919,7 @@ fn build_metastore_rolegroup_statefulset(
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
+            containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
             {start_command}
             wait_for_termination $!
             {create_vector_shutdown_file_command}
