@@ -33,10 +33,10 @@ helm repo update
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-stable/commons-operator --version 24.11.1-rc2
-helm install --wait secret-operator stackable-stable/secret-operator --version 24.11.1-rc2
-helm install --wait listener-operator stackable-stable/listener-operator --version 24.11.1-rc2
-helm install --wait hive-operator stackable-stable/hive-operator --version 24.11.1-rc2
+helm install --wait commons-operator stackable-stable/commons-operator --version 24.11.1
+helm install --wait secret-operator stackable-stable/secret-operator --version 24.11.1
+helm install --wait listener-operator stackable-stable/listener-operator --version 24.11.1
+helm install --wait hive-operator stackable-stable/hive-operator --version 24.11.1
 # end::helm-install-operators[]
 
 echo "Install minio for S3"
@@ -75,10 +75,10 @@ if false; then
 echo "Installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=24.11.1-rc2 \
-  secret=24.11.1-rc2 \
-  listener=24.11.1-rc2 \
-  hive=24.11.1-rc2
+  commons=24.11.1 \
+  secret=24.11.1 \
+  listener=24.11.1 \
+  hive=24.11.1
 # end::stackablectl-install-operators[]
 fi
 

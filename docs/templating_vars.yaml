@@ -3,9 +3,9 @@ helm:
   repo_name: stackable-stable
   repo_url: https://repo.stackable.tech/repository/helm-stable/
 versions:
-  commons: 24.11.1-rc2
-  secret: 24.11.1-rc2
-  listener: 24.11.1-rc2
-  hive: 24.11.1-rc2
+  commons: 24.11.1
+  secret: 24.11.1
+  listener: 24.11.1
+  hive: 24.11.1
   minio: 4.0.2
   postgresql: 12.1.5
