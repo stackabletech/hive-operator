@@ -7,6 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Run a `containerdebug` process in the background of each Hive container to collect debugging information ([#554]).
+- Aggregate emitted Kubernetes events on the CustomResources ([#560]).
+
+### Changed
+
+- Append a dot (`.`) to the default cluster domain to reduce DNS requests ([#560]).
 
 ### Changed
 
@@ -21,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#544]: https://github.com/stackabletech/hive-operator/pull/544
 [#553]: https://github.com/stackabletech/hive-operator/pull/553
 [#554]: https://github.com/stackabletech/hive-operator/pull/554
+[#560]: https://github.com/stackabletech/hive-operator/pull/560
 
 ## [24.11.0] - 2024-11-18
 
