@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use const_format::concatcp;
 use fnv::FnvHasher;
 use indoc::formatdoc;
 use product_config::{
@@ -22,7 +23,6 @@ use stackable_hive_crd::{
     STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
-
 use stackable_operator::{
     builder::{
         self,
@@ -87,19 +87,23 @@ use stackable_operator::{
 use strum::EnumDiscriminants;
 use tracing::warn;
 
-use crate::kerberos::{add_kerberos_pod_config, kerberos_config_properties};
 use crate::{
     command::build_container_command_args,
-    discovery, kerberos,
-    kerberos::kerberos_container_start_commands,
+    discovery,
+    kerberos::{
+        self, add_kerberos_pod_config, kerberos_config_properties,
+        kerberos_container_start_commands,
+    },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
 
+pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
+pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
+
 /// Used as runAsUser in the pod security context. This is specified in the kafka image file
 pub const HIVE_UID: i64 = 1000;
-pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
 pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
