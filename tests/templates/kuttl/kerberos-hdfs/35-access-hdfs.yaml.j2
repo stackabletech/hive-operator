@@ -15,7 +15,7 @@ commands:
             serviceAccountName: test-sa
             containers:
               - name: access-hdfs
-                image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hdfs-latest'] }}-stackable0.0.0-dev
+                image: oci.stackable.tech/sdp/hadoop:{{ test_scenario['values']['hdfs-latest'] }}-stackable0.0.0-dev
                 imagePullPolicy: IfNotPresent
                 env:
                   - name: HADOOP_CONF_DIR

@@ -20,13 +20,13 @@ dimensions:
       - 4.0.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 4.0.0,docker.stackable.tech/sandbox/hive:4.0.0-stackable0.0.0-dev
+      # - 4.0.0,oci.stackable.tech/sandbox/hive:4.0.0-stackable0.0.0-dev
   - name: hive-latest
     values:
       - 4.0.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 4.0.0,docker.stackable.tech/sandbox/hive:4.0.0-stackable0.0.0-dev
+      # - 4.0.0,oci.stackable.tech/sandbox/hive:4.0.0-stackable0.0.0-dev
   - name: hive-old
     values:
       - 3.1.3
