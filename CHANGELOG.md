@@ -13,10 +13,6 @@ All notable changes to this project will be documented in this file.
 
 - Append a dot (`.`) to the default cluster domain to reduce DNS requests ([#560]).
 
-### Changed
-
-- Bump `stackable-operator` from `0.82.0` to `0.83.0` ([#553]).
-
 ### Fixed
 
 - BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
@@ -24,7 +20,6 @@ All notable changes to this project will be documented in this file.
   restart ([#544]).
 
 [#544]: https://github.com/stackabletech/hive-operator/pull/544
-[#553]: https://github.com/stackabletech/hive-operator/pull/553
 [#554]: https://github.com/stackabletech/hive-operator/pull/554
 [#560]: https://github.com/stackabletech/hive-operator/pull/560
 
