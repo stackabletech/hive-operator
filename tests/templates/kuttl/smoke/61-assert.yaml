@@ -1,0 +1,20 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  #
+  # Test envOverrides
+  #
+  - script: |
+      kubectl -n $NAMESPACE get sts hive-metastore-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "hive") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
+      kubectl -n $NAMESPACE get sts hive-metastore-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "hive") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
+      kubectl -n $NAMESPACE get sts hive-metastore-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "hive") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
+  #
+  # Test configOverrides
+  #
+  - script: |
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export ROLE_VAR=role-value"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export GROUP_VAR=group-value"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export COMMON_VAR=group-value"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export HADOOP_HEAPSIZE=512"

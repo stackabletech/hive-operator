@@ -4,16 +4,7 @@ use stackable_hive_crd::{
     STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE,
     STACKABLE_TRUST_STORE_PASSWORD, SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
 };
-use stackable_operator::commons::{
-    authentication::tls::{CaCert, Tls, TlsServerVerification, TlsVerification},
-    s3::S3ConnectionSpec,
-};
-
-pub const S3_SECRET_DIR: &str = "/stackable/secrets";
-pub const S3_ACCESS_KEY: &str = "accessKey";
-pub const S3_SECRET_KEY: &str = "secretKey";
-pub const ACCESS_KEY_PLACEHOLDER: &str = "xxx_access_key_xxx";
-pub const SECRET_KEY_PLACEHOLDER: &str = "xxx_secret_key_xxx";
+use stackable_operator::commons::s3::S3ConnectionSpec;
 
 pub fn build_container_command_args(
     hive: &HiveCluster,
@@ -29,6 +20,10 @@ pub fn build_container_command_args(
         format!("echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES}"),
         format!("cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES} {STACKABLE_CONFIG_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES}"),
 
+        // Template config files
+        format!("if test -f {STACKABLE_CONFIG_DIR}/core-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/core-site.xml; fi"),
+        format!("if test -f {STACKABLE_CONFIG_DIR}/hive-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/hive-site.xml; fi"),
+
         // Copy system truststore to stackable truststore
         format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE} -deststoretype pkcs12 -deststorepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt")
     ];
@@ -41,22 +36,9 @@ pub fn build_container_command_args(
     }
 
     if let Some(s3) = s3_connection_spec {
-        if s3.credentials.is_some() {
-            args.extend([
-                format!("echo replacing {ACCESS_KEY_PLACEHOLDER} and {SECRET_KEY_PLACEHOLDER} with secret values."),
-                format!("sed -i \"s|{ACCESS_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_ACCESS_KEY})|g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}"),
-                format!("sed -i \"s|{SECRET_KEY_PLACEHOLDER}|$(cat {S3_SECRET_DIR}/{S3_SECRET_KEY})|g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}"),
-            ]);
-        }
-
-        if let Some(Tls {
-            verification:
-                TlsVerification::Server(TlsServerVerification {
-                    ca_cert: CaCert::SecretClass(secret_class),
-                }),
-        }) = &s3.tls
-        {
-            args.push(format!("keytool -importcert -file /stackable/certificates/{secret_class}-tls-certificate/ca.crt -alias stackable-{secret_class} -keystore {STACKABLE_TRUST_STORE} -storepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt"));
+        if let Some(ca_cert) = s3.tls.tls_ca_cert_mount_path() {
+            // The alias can not clash, as we only support a single S3Connection
+            args.push(format!("keytool -importcert -file {ca_cert} -alias stackable-s3-ca-cert -keystore {STACKABLE_TRUST_STORE} -storepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt"));
         }
     }
 

@@ -1,7 +1,8 @@
 = Database drivers
+:description: Learn to configure Apache Hive with MySQL using Helm, PVCs, and custom images. Includes steps for driver setup and Hive cluster creation.
 
 The Stackable product images for Apache Hive come with built-in support for using PostgreSQL as the metastore database.
-The MySQL driver is not shipped in our images due to licensing issues.
+The MySQL driver is not shipped in Stackable images due to licensing issues.
 To use another supported database it is necessary to make the relevant drivers available to Hive: this tutorial shows how this is done for MySQL.
 
 == Install the MySQL helm chart
@@ -87,7 +88,7 @@ spec:
               mountPath: /stackable/externals
 ----
 
-This will make the driver available at `/stackable/external-drivers/mysql-connector-j-8.0.31.jar` when the volume `external-drivers` is mounted at `/stackable/external-drivers`.
+This makes the driver available at `/stackable/external-drivers/mysql-connector-j-8.0.31.jar` when the volume `external-drivers` is mounted at `/stackable/external-drivers`.
 
 Once the above has completed successfully, you can confirm that the driver is in the expected location by running another job:
 
@@ -141,7 +142,7 @@ metadata:
   name: hive-with-drivers
 spec:
   image:
-    productVersion: 3.1.3
+    productVersion: 4.0.0
   clusterConfig:
     database:
       connString: jdbc:mysql://mysql:3306/hive  # <1>
@@ -194,7 +195,7 @@ If you have access to a registry to store custom images, another approach is to 
 .Copy the driver
 [source]
 ----
-FROM docker.stackable.tech/stackable/hive:3.1.3-stackable0.0.0-dev
+FROM docker.stackable.tech/stackable/hive:4.0.0-stackable0.0.0-dev
 
 RUN curl --fail -L https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.31/mysql-connector-j-8.0.31.jar -o /stackable/mysql-connector-j-8.0.31.jar
 ----
@@ -202,7 +203,7 @@ RUN curl --fail -L https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.
 .Build and tag the image
 [source]
 ----
-docker build -f ./Dockerfile -t docker.stackable.tech/stackable/hive:3.1.3-stackable0.0.0-dev-mysql .
+docker build -f ./Dockerfile -t docker.stackable.tech/stackable/hive:4.0.0-stackable0.0.0-dev-mysql .
 ----
 
 .Reference the new path to the driver without the need for using a volume mounted from a PVC
@@ -215,8 +216,8 @@ metadata:
   name: hive
 spec:
   image:
-    custom: docker.stackable.tech/stackable/hive:3.1.3-stackable0.0.0-dev-mysql  # <1>
-    productVersion: 3.1.3
+    custom: docker.stackable.tech/stackable/hive:4.0.0-stackable0.0.0-dev-mysql  # <1>
+    productVersion: 4.0.0
   clusterConfig:
     database:
       ...

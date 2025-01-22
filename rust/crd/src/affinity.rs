@@ -45,7 +45,7 @@ mod tests {
           name: simple-hive
         spec:
           image:
-            productVersion: 3.1.3
+            productVersion: 4.0.0
           clusterConfig:
             database:
               connString: jdbc:derby:;databaseName=/tmp/hive;create=true

@@ -13,9 +13,12 @@ use stackable_operator::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
-        s3::S3ConnectionDef,
+        s3::S3ConnectionInlineOrReference,
     },
-    config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
+    config::{
+        fragment::{self, Fragment, ValidationError},
+        merge::Merge,
+    },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{self, Configuration},
@@ -24,6 +27,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -150,7 +154,7 @@ pub struct HiveClusterConfig {
     /// S3 connection specification. This can be either `inline` or a `reference` to an
     /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3: Option<S3ConnectionDef>,
+    pub s3: Option<S3ConnectionInlineOrReference>,
 
     /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
@@ -328,7 +332,6 @@ impl MetaStoreConfig {
     pub const CONNECTION_PASSWORD: &'static str = "javax.jdo.option.ConnectionPassword";
     pub const METASTORE_METRICS_ENABLED: &'static str = "hive.metastore.metrics.enabled";
     pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
-    pub const DB_TYPE_CLI: &'static str = "dbType";
     // S3
     pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
     pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
@@ -402,12 +405,6 @@ pub enum DbType {
     Mssql,
 }
 
-impl Default for DbType {
-    fn default() -> Self {
-        Self::Derby
-    }
-}
-
 impl DbType {
     pub fn get_jdbc_driver_class(&self) -> &str {
         match self {
@@ -421,7 +418,7 @@ impl DbType {
 }
 
 /// Database connection specification for the metadata database.
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseConnectionSpec {
     /// A connection string for the database. For example:
@@ -465,15 +462,10 @@ impl Configuration for MetaStoreConfigFragment {
 
     fn compute_cli(
         &self,
-        hive: &Self::Configurable,
+        _hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        let mut result = BTreeMap::new();
-        result.insert(
-            MetaStoreConfig::DB_TYPE_CLI.to_string(),
-            Some(hive.spec.cluster_config.database.db_type.to_string()),
-        );
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_files(
@@ -507,14 +499,7 @@ impl Configuration for MetaStoreConfigFragment {
                 );
                 result.insert(
                     MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                    Some(
-                        hive.spec
-                            .cluster_config
-                            .database
-                            .db_type
-                            .get_jdbc_driver_class()
-                            .to_string(),
-                    ),
+                    Some(hive.db_type().get_jdbc_driver_class().to_string()),
                 );
 
                 result.insert(
@@ -653,6 +638,10 @@ impl HiveCluster {
             .map(|k| k.secret_class.clone())
     }
 
+    pub fn db_type(&self) -> &DbType {
+        &self.spec.cluster_config.database.db_type
+    }
+
     /// Retrieve and merge resource configs for role and role groups
     pub fn merged_config(
         &self,
@@ -692,10 +681,13 @@ pub struct PodRef {
 }
 
 impl PodRef {
-    pub fn fqdn(&self) -> String {
+    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
         format!(
-            "{}.{}.{}.svc.cluster.local",
-            self.pod_name, self.role_group_service_name, self.namespace
+            "{pod_name}.{service_name}.{namespace}.svc.{cluster_domain}",
+            pod_name = self.pod_name,
+            service_name = self.role_group_service_name,
+            namespace = self.namespace,
+            cluster_domain = cluster_info.cluster_domain
         )
     }
 }

@@ -27,6 +27,7 @@ def table(db_name, table_name, location):
         input_format="org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
         output_format="org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
         serde_info=serde_info,
+        compressed=True,
     ).build()
 
     test_table = TableBuilder(
@@ -88,7 +89,9 @@ if __name__ == "__main__":
         # S3 access
         try:
             hive_client.create_table(
-                table(database_name, s3_test_table_name, "s3a://hive/")
+                table(
+                    database_name, s3_test_table_name, "s3a://hive/s3_one_column_table/"
+                )
             )
         except AlreadyExistsException:
             print(f"[INFO]: Table {s3_test_table_name} already existed")

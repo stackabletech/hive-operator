@@ -1,5 +1,5 @@
 = Stackable Operator for Apache Hive
-:description: The Stackable Operator for Apache Hive is a Kubernetes operator that can manage Apache Hive metastores. Learn about its features, resources, dependencies and demos, and see the list of supported Hive versions.
+:description: Manage Apache Hive metastores on Kubernetes with the Stackable Operator. Integrates with Trino and Spark.
 :keywords: Stackable Operator, Hadoop, Apache Hive, Kubernetes, k8s, operator, engineer, big data, metadata, storage, query
 :hive: https://hive.apache.org
 :github: https://github.com/stackabletech/hive-operator/
@@ -19,7 +19,7 @@ This operator does not support deploying Hive itself, but xref:trino:index.adoc[
 
 == Getting started
 
-Follow the xref:getting_started/index.adoc[Getting started guide] which will guide you through installing the Stackable Hive operator and its dependencies.
+Follow the xref:getting_started/index.adoc[Getting started guide] which guides you through the installation of the Stackable Hive operator and its dependencies.
 It walks you through setting up a Hive metastore and connecting it to a demo Postgres database and a Minio instance to store data in.
 
 Afterwards you can consult the xref:usage-guide/index.adoc[] to learn more about tailoring your Hive metastore configuration to your needs, or have a look at the <<demos, demos>> for some example setups with either xref:trino:index.adoc[Trino] or xref:spark-k8s:index.adoc[Spark].

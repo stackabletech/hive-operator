@@ -2,19 +2,7 @@
 set -euo pipefail
 
 # DO NOT EDIT THE SCRIPT
-# Instead, update the j2 template, and regenerate it for dev:
-# cat <<EOF | jinja2 --format yaml getting_started.sh.j2 -o getting_started.sh
-# helm:
-#   repo_name: stackable-dev
-#   repo_url: https://repo.stackable.tech/repository/helm-dev/
-# versions:
-#   commons: 0.0.0-dev
-#   hive: 0.0.0-dev
-#   listener: 0.0.0-dev
-#   secret: 0.0.0-dev
-#   minio: 4.0.2
-#   postgresql: 12.1.5
-# EOF
+# Instead, update the j2 template, and regenerate it for dev with `make render-docs`.
 
 # The getting started guide script
 # It uses tagged regions which are included in the documentation
@@ -59,8 +47,8 @@ helm install minio \
 --set mode=standalone \
 --set replicas=1 \
 --set persistence.enabled=false \
---set buckets[0].name=hive,buckets[0].policy=none \
---set users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite \
+--set "buckets[0].name=hive,buckets[0].policy=none" \
+--set "users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite" \
 --set resources.requests.memory=1Gi \
 --set service.type=NodePort,service.nodePort=null \
 --set consoleService.type=NodePort,consoleService.nodePort=null \

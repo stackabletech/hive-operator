@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Run a `containerdebug` process in the background of each Hive container to collect debugging information ([#554]).
+
+### Changed
+
+- Bump `stackable-operator` from `0.82.0` to `0.83.0` ([#553]).
+
+### Fixed
+
+- BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
+  deployed in one namespace. Existing Stacklets will use the newly created ServiceAccounts after
+  restart ([#544]).
+
+[#544]: https://github.com/stackabletech/hive-operator/pull/544
+[#553]: https://github.com/stackabletech/hive-operator/pull/553
+[#554]: https://github.com/stackabletech/hive-operator/pull/554
+
+## [24.11.0] - 2024-11-18
+
+### Added
+
+- Add support for Hive `4.0.0` ([#508]).
+- The operator can now run on Kubernetes clusters using a non-default cluster domain.
+  Use the env var `KUBERNETES_CLUSTER_DOMAIN` or the operator Helm chart property `kubernetesClusterDomain` to set a non-default cluster domain ([#522]).
+
+### Changed
+
+- Reduce CRD size from `487KB` to `60KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#505]):
+  - `podOverrides`
+  - `affinity`
+- Use [`config-utils`](https://github.com/stackabletech/config-utils/) ([#518]).
+
+### Fixed
+
+- BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#518]).
+- An invalid `HiveCluster` doesn't cause the operator to stop functioning ([#523]).
+- Fix upgrade path from HMS `3.3.x` to `4.0.x`. Previously the schemaTool would try to re-create the database tables and would therefore fail. Starting with version `4.0.0` the schemaTool has the flag `-initOrUpgradeSchema`, which we use to resolve that problem ([#539]).
+
+[#505]: https://github.com/stackabletech/hive-operator/pull/505
+[#508]: https://github.com/stackabletech/hive-operator/pull/508
+[#518]: https://github.com/stackabletech/hive-operator/pull/518
+[#522]: https://github.com/stackabletech/hive-operator/pull/522
+[#523]: https://github.com/stackabletech/hive-operator/pull/523
+[#539]: https://github.com/stackabletech/hive-operator/pull/539
+
 ## [24.7.0] - 2024-07-24
 
 ### Added

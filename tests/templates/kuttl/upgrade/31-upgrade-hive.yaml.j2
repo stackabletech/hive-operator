@@ -1,0 +1,13 @@
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  image:
+{% if test_scenario['values']['hive-new'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hive-new'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hive-new'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['hive-new'] }}"
+{% endif %}

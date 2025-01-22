@@ -1,4 +1,5 @@
 = Configuration & environment overrides
+:description: Override Hive config properties and environment variables at role or role group levels. Customize hive-site.xml, security.properties, and environment vars.
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
@@ -8,8 +9,8 @@ IMPORTANT: Overriding certain properties, which are set by the operator (such as
 
 For a role or role group, at the same level of `config`, you can specify: `configOverrides` for the following files:
 
-- `hive-site.xml`
-- `security.properties`
+* `hive-site.xml`
+* `security.properties`
 
 For example, if you want to set the `datanucleus.connectionPool.maxPoolSize` for the metastore to 20 adapt the `metastore` section of the cluster resource like so:
 
@@ -39,15 +40,19 @@ metastore:
       replicas: 1
 ----
 
-All override property values must be strings. The properties will be formatted and escaped correctly into the XML file.
+All override property values must be strings.
+The properties are formatted and escaped correctly into the XML file.
 
 For a full list of configuration options we refer to the Hive https://cwiki.apache.org/confluence/display/hive/configuration+properties[Configuration Reference].
 
 == The security.properties file
 
-The `security.properties` file is used to configure JVM security properties. It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
+The `security.properties` file is used to configure JVM security properties.
+It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
 
-The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved. Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them. As of version 3.1.3 Apache Hive performs poorly if the positive cache is disabled. To cache resolved host names, you can configure the TTL of entries in the positive cache like this:
+The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved. Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them.
+As of version 3.1.3 Apache Hive performs poorly if the positive cache is disabled.
+To cache resolved host names, you can configure the TTL of entries in the positive cache like this:
 
 [source,yaml]
 ----
@@ -63,9 +68,10 @@ NOTE: The operator configures DNS caching by default as shown in the example abo
 For details on the JVM security see https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html
 
 
-== Environment Variables
+== Environment variables
 
-In a similar fashion, environment variables can be (over)written. For example per role group:
+In a similar fashion, environment variables can be (over)written.
+For example per role group:
 
 [source,yaml]
 ----
@@ -90,3 +96,8 @@ metastore:
       config: {}
       replicas: 1
 ----
+
+== Pod overrides
+
+The Hive operator also supports Pod overrides, allowing you to override any property that you can set on a Kubernetes Pod.
+Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides documentation] to learn more about this feature.

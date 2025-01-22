@@ -3,7 +3,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
     hash::Hasher,
-    str::FromStr,
     sync::Arc,
 };
 
@@ -16,33 +15,30 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hive_crd::{
-    Container, DbType, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-    CERTS_DIR, CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH,
-    HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE,
-    METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
-    STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+    Container, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
+    DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
+    HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
+    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
+    STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
 };
 
-use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector};
 use stackable_operator::{
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder,
-            resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder,
-            volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
-            PodBuilder,
+            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::VolumeBuilder, PodBuilder,
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
-        authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
         rbac::build_rbac_resources,
         s3::{S3AccessStyle, S3ConnectionSpec},
+        tls_verification::TlsClientDetailsError,
     },
     k8s_openapi::{
         api::{
@@ -57,14 +53,20 @@ use stackable_operator::{
         },
         DeepMerge,
     },
-    kube::{runtime::controller::Action, Resource, ResourceExt},
+    kube::{
+        core::{error_boundary, DeserializeGuard},
+        runtime::controller::Action,
+        Resource, ResourceExt,
+    },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
         self,
-        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
+        framework::{
+            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+        },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -76,14 +78,18 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
+    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
+};
+use stackable_operator::{
+    commons::s3::S3Error,
+    k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector},
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
 
 use crate::kerberos::{add_kerberos_pod_config, kerberos_config_properties};
 use crate::{
-    command::{self, build_container_command_args, S3_SECRET_DIR},
+    command::build_container_command_args,
     discovery, kerberos,
     kerberos::kerberos_container_start_commands,
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
@@ -181,16 +187,11 @@ pub enum Error {
         source: stackable_operator::client::Error,
     },
 
-    #[snafu(display("failed to parse db type {db_type}"))]
-    InvalidDbType {
-        source: strum::ParseError,
-        db_type: String,
-    },
+    #[snafu(display("failed to configure S3 connection"))]
+    ConfigureS3 { source: S3Error },
 
-    #[snafu(display("failed to resolve S3 connection"))]
-    ResolveS3Connection {
-        source: stackable_operator::commons::s3::Error,
-    },
+    #[snafu(display("failed to configure S3 TLS client details"))]
+    ConfigureS3TlsClientDetails { source: TlsClientDetailsError },
 
     #[snafu(display(
         "Hive does not support skipping the verification of the tls enabled S3 server"
@@ -308,6 +309,22 @@ pub enum Error {
 
     #[snafu(display("failed to add kerberos config"))]
     AddKerberosConfig { source: kerberos::Error },
+
+    #[snafu(display("failed to build vector container"))]
+    BuildVectorContainer { source: LoggingError },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
+
+    #[snafu(display("HiveCluster object is invalid"))]
+    InvalidHiveCluster {
+        source: error_boundary::InvalidObject,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -317,8 +334,16 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Action> {
+pub async fn reconcile_hive(
+    hive: Arc<DeserializeGuard<HiveCluster>>,
+    ctx: Arc<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
+    let hive = hive
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidHiveClusterSnafu)?;
     let client = &ctx.client;
     let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
@@ -331,12 +356,13 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let s3_connection_spec: Option<S3ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
             Some(
-                s3.resolve(
-                    client,
-                    &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
-                )
-                .await
-                .context(ResolveS3ConnectionSnafu)?,
+                s3.clone()
+                    .resolve(
+                        client,
+                        &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
+                    )
+                    .await
+                    .context(ConfigureS3Snafu)?,
             )
         } else {
             None
@@ -345,7 +371,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
         &transform_all_roles_to_config(
-            hive.as_ref(),
+            hive,
             [(
                 HiveRole::MetaStore.to_string(),
                 (
@@ -383,7 +409,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     .context(CreateClusterResourcesSnafu)?;
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        hive.as_ref(),
+        hive,
         APP_NAME,
         cluster_resources
             .get_required_labels()
@@ -400,7 +426,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let metastore_role_service = build_metastore_role_service(&hive, &resolved_product_image)?;
+    let metastore_role_service = build_metastore_role_service(hive, &resolved_product_image)?;
 
     // we have to get the assigned ports
     let metastore_role_service = cluster_resources
@@ -408,7 +434,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ApplyRoleServiceSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(&hive, client)
+    let vector_aggregator_address = resolve_vector_aggregator_address(hive, client)
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
@@ -421,9 +447,9 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
-        let rg_service = build_rolegroup_service(&hive, &resolved_product_image, &rolegroup)?;
+        let rg_service = build_rolegroup_service(hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
-            &hive,
+            hive,
             &hive_namespace,
             &resolved_product_image,
             &rolegroup,
@@ -431,9 +457,10 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
             s3_connection_spec.as_ref(),
             &config,
             vector_aggregator_address.as_deref(),
+            &client.kubernetes_cluster_info,
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
-            &hive,
+            hive,
             &hive_role,
             &resolved_product_image,
             &rolegroup,
@@ -472,7 +499,7 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         pod_disruption_budget: pdb,
     }) = role_config
     {
-        add_pdbs(pdb, &hive, &hive_role, client, &mut cluster_resources)
+        add_pdbs(pdb, hive, &hive_role, client, &mut cluster_resources)
             .await
             .context(FailedToCreatePdbSnafu)?;
     }
@@ -482,8 +509,8 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
     let mut discovery_hash = FnvHasher::with_key(0);
     for discovery_cm in discovery::build_discovery_configmaps(
         client,
-        &*hive,
-        &hive,
+        hive,
+        hive,
         &resolved_product_image,
         &metastore_role_service,
         None,
@@ -507,14 +534,11 @@ pub async fn reconcile_hive(hive: Arc<HiveCluster>, ctx: Arc<Ctx>) -> Result<Act
         // Serialize as a string to discourage users from trying to parse the value,
         // and to keep things flexible if we end up changing the hasher at some point.
         discovery_hash: Some(discovery_hash.finish().to_string()),
-        conditions: compute_conditions(
-            hive.as_ref(),
-            &[&ss_cond_builder, &cluster_operation_cond_builder],
-        ),
+        conditions: compute_conditions(hive, &[&ss_cond_builder, &cluster_operation_cond_builder]),
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, &*hive, &status)
+        .apply_patch_status(OPERATOR_NAME, hive, &status)
         .await
         .context(ApplyStatusSnafu)?;
 
@@ -576,6 +600,7 @@ fn build_metastore_rolegroup_config_map(
     s3_connection_spec: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     vector_aggregator_address: Option<&str>,
+    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
     let mut hive_env_data = String::new();
@@ -625,43 +650,35 @@ fn build_metastore_rolegroup_config_map(
                 );
 
                 if let Some(s3) = s3_connection_spec {
-                    data.insert(MetaStoreConfig::S3_ENDPOINT.to_string(), s3.endpoint());
-                    // The variable substitution is only available from version 3.
-                    // if s3.secret_class.is_some() {
-                    //     data.insert(
-                    //         MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                    //         Some(format!("${{env.{ENV_S3_ACCESS_KEY}}}")),
-                    //     );
-                    //     data.insert(
-                    //         MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                    //         Some(format!("${{env.{ENV_S3_SECRET_KEY}}}")),
-                    //     );
-                    // }
-                    // Thats why we need to replace this via script in the container command.
-                    if s3.credentials.is_some() {
+                    data.insert(
+                        MetaStoreConfig::S3_ENDPOINT.to_string(),
+                        Some(s3.endpoint().context(ConfigureS3Snafu)?.to_string()),
+                    );
+
+                    if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
+                        // Will be replaced by config-utils
                         data.insert(
                             MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                            Some(command::ACCESS_KEY_PLACEHOLDER.to_string()),
+                            Some(format!("${{file:UTF-8:{access_key_file}}}")),
                         );
                         data.insert(
                             MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                            Some(command::SECRET_KEY_PLACEHOLDER.to_string()),
+                            Some(format!("${{file:UTF-8:{secret_key_file}}}")),
                         );
                     }
-                    // END
 
                     data.insert(
                         MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-                        Some(s3.tls.is_some().to_string()),
+                        Some(s3.tls.uses_tls().to_string()),
                     );
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-                        Some((s3.access_style == Some(S3AccessStyle::Path)).to_string()),
+                        Some((s3.access_style == S3AccessStyle::Path).to_string()),
                     );
                 }
 
                 for (property_name, property_value) in
-                    kerberos_config_properties(hive, hive_namespace)
+                    kerberos_config_properties(hive, hive_namespace, cluster_info)
                 {
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
                 }
@@ -755,7 +772,7 @@ fn build_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(&rolegroup.object_name())
+            .name(rolegroup.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -804,36 +821,25 @@ fn build_metastore_rolegroup_statefulset(
         .rolegroup(rolegroup_ref)
         .context(InternalOperatorSnafu)?;
 
-    let mut db_type: Option<DbType> = None;
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
             name: APP_NAME.to_string(),
         })?;
 
     for (property_name_kind, config) in metastore_config {
-        match property_name_kind {
-            PropertyNameKind::Env => {
-                // overrides
-                for (property_name, property_value) in config {
-                    if property_name.is_empty() {
-                        warn!("Received empty property_name for ENV... skipping");
-                        continue;
-                    }
-                    container_builder.add_env_var(property_name, property_value);
+        if property_name_kind == &PropertyNameKind::Env {
+            // overrides
+            for (property_name, property_value) in config {
+                if property_name.is_empty() {
+                    warn!(
+                        property_name,
+                        property_value,
+                        "The env variable had an empty name, not adding it to the container"
+                    );
+                    continue;
                 }
+                container_builder.add_env_var(property_name, property_value);
             }
-            PropertyNameKind::Cli => {
-                for (property_name, property_value) in config {
-                    if property_name == MetaStoreConfig::DB_TYPE_CLI {
-                        db_type = Some(DbType::from_str(property_value).with_context(|_| {
-                            InvalidDbTypeSnafu {
-                                db_type: property_value.to_string(),
-                            }
-                        })?);
-                    }
-                }
-            }
-            _ => {}
         }
     }
 
@@ -844,56 +850,57 @@ fn build_metastore_rolegroup_statefulset(
     container_builder.add_env_vars(vec![
         env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username"),
         env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password"),
+        // Needed for the `containerdebug` process to log it's tracing information to.
+        EnvVar {
+            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+            value_from: None,
+        },
     ]);
 
     let mut pod_builder = PodBuilder::new();
 
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
-        pod_builder.add_volume(
-            VolumeBuilder::new("hdfs-discovery")
-                .with_config_map(&hdfs.config_map)
-                .build(),
-        );
-        container_builder.add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config");
+        pod_builder
+            .add_volume(
+                VolumeBuilder::new("hdfs-discovery")
+                    .with_config_map(&hdfs.config_map)
+                    .build(),
+            )
+            .context(AddVolumeSnafu)?;
+        container_builder
+            .add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config")
+            .context(AddVolumeMountSnafu)?;
     }
 
-    if let Some(s3_conn) = s3_connection {
-        if let Some(credentials) = &s3_conn.credentials {
-            pod_builder.add_volume(
-                credentials
-                    .to_volume("s3-credentials")
-                    .context(S3CredentialsSecretClassVolumeBuildSnafu)?,
-            );
-            container_builder.add_volume_mount("s3-credentials", S3_SECRET_DIR);
-        }
+    if let Some(s3) = s3_connection {
+        s3.add_volumes_and_mounts(&mut pod_builder, vec![&mut container_builder])
+            .context(ConfigureS3Snafu)?;
 
-        if let Some(tls) = &s3_conn.tls {
-            match &tls.verification {
-                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(server_verification) => {
-                    match &server_verification.ca_cert {
-                        CaCert::WebPki {} => {}
-                        CaCert::SecretClass(secret_class) => {
-                            let volume_name = format!("{secret_class}-tls-certificate");
-
-                            let volume = VolumeBuilder::new(&volume_name)
-                                .ephemeral(
-                                    SecretOperatorVolumeSourceBuilder::new(secret_class)
-                                        .build()
-                                        .context(TlsCertSecretClassVolumeBuildSnafu)?,
-                                )
-                                .build();
-                            pod_builder.add_volume(volume);
-                            container_builder.add_volume_mount(
-                                &volume_name,
-                                format!("{CERTS_DIR}{volume_name}"),
-                            );
-                        }
-                    }
-                }
-            }
+        if s3.tls.uses_tls() && !s3.tls.uses_tls_verification() {
+            S3TlsNoVerificationNotSupportedSnafu.fail()?;
         }
     }
+
+    let db_type = hive.db_type();
+    let start_command = if resolved_product_image.product_version.starts_with("3.") {
+        // The schematool version in 3.1.x does *not* support the `-initOrUpgradeSchema` flag yet, so we can not use that.
+        // As we *only* support HMS 3.1.x (or newer) since SDP release 23.11, we can safely assume we are always coming
+        // from an existing 3.1.x installation. There is no need to upgrade the schema, we can just check if the schema
+        // is already there and create it if it isn't.
+        // The script `bin/start-metastore` is buggy (e.g. around version upgrades), but it's sufficient for that job :)
+        //
+        // TODO: Once we drop support for HMS 3.1.x we can remove this condition and very likely get rid of the
+        // "bin/start-metastore" script.
+        format!("bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &")
+    } else {
+        // schematool versions 4.0.x (and above) support the `-initOrUpgradeSchema`, which is exactly what we need :)
+        // Some docs for the schemaTool can be found here: https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=34835119
+        formatdoc! {"
+            bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service schemaTool -dbType \"{db_type}\" -initOrUpgradeSchema
+            bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service metastore &
+        "}
+    };
 
     let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
@@ -906,32 +913,36 @@ fn build_metastore_rolegroup_statefulset(
         ])
         .args(build_container_command_args(
             hive,
-              formatdoc! {"
+            formatdoc! {"
             {kerberos_container_start_commands}
 
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
-            bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &
+            containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+            {start_command}
             wait_for_termination $!
             {create_vector_shutdown_file_command}
             ",
-            kerberos_container_start_commands = kerberos_container_start_commands(hive),
-            remove_vector_shutdown_file_command =
-                remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-            create_vector_shutdown_file_command =
-                create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
-                  db_type = &db_type.unwrap_or_default().to_string(),
-        },
+                kerberos_container_start_commands = kerberos_container_start_commands(hive),
+                remove_vector_shutdown_file_command =
+                    remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+                create_vector_shutdown_file_command =
+                    create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+            },
             s3_connection,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
             STACKABLE_LOG_CONFIG_MOUNT_DIR,
         )
+        .context(AddVolumeMountSnafu)?
         .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .resources(merged_config.resources.clone().into())
@@ -986,20 +997,23 @@ fn build_metastore_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
+        .context(AddVolumeSnafu)?
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
             name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
+                name: rolegroup_ref.object_name(),
                 ..Default::default()
             }),
             ..Default::default()
         })
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
             STACKABLE_LOG_DIR_NAME,
             Some(product_logging::framework::calculate_log_volume_size_limit(
                 &[MAX_HIVE_LOG_FILES_SIZE],
             )),
         )
+        .context(AddVolumeSnafu)?
         .affinity(&merged_config.affinity)
         .service_account_name(sa_name)
         .security_context(
@@ -1017,23 +1031,27 @@ fn build_metastore_rolegroup_statefulset(
             })),
     }) = merged_config.logging.containers.get(&Container::Hive)
     {
-        pod_builder.add_volume(Volume {
-            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map.into()),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
+        pod_builder
+            .add_volume(Volume {
+                name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: config_map.into(),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            })
+            .context(AddVolumeSnafu)?;
     } else {
-        pod_builder.add_volume(Volume {
-            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
+        pod_builder
+            .add_volume(Volume {
+                name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: rolegroup_ref.object_name(),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            })
+            .context(AddVolumeSnafu)?;
     }
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
@@ -1049,18 +1067,21 @@ fn build_metastore_rolegroup_statefulset(
     // N.B. the vector container should *follow* the hive container so that the hive one is the
     // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
-        pod_builder.add_container(product_logging::framework::vector_container(
-            resolved_product_image,
-            STACKABLE_CONFIG_MOUNT_DIR_NAME,
-            STACKABLE_LOG_DIR_NAME,
-            merged_config.logging.containers.get(&Container::Vector),
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("500m")
-                .with_memory_request("128Mi")
-                .with_memory_limit("128Mi")
-                .build(),
-        ));
+        pod_builder.add_container(
+            product_logging::framework::vector_container(
+                resolved_product_image,
+                STACKABLE_CONFIG_MOUNT_DIR_NAME,
+                STACKABLE_LOG_DIR_NAME,
+                merged_config.logging.containers.get(&Container::Vector),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
+            .context(BuildVectorContainerSnafu)?,
+        );
     }
 
     let mut pod_template = pod_builder.build_template();
@@ -1070,7 +1091,7 @@ fn build_metastore_rolegroup_statefulset(
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(&rolegroup_ref.object_name())
+            .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -1110,7 +1131,7 @@ fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar
         name: String::from(var_name),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
-                name: Some(String::from(secret)),
+                name: String::from(secret),
                 key: String::from(secret_key),
                 ..Default::default()
             }),
@@ -1120,8 +1141,16 @@ fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar
     }
 }
 
-pub fn error_policy(_obj: Arc<HiveCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(5))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<HiveCluster>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        // An invalid HBaseCluster was deserialized. Await for it to change.
+        Error::InvalidHiveCluster { .. } => Action::await_change(),
+        _ => Action::requeue(*Duration::from_secs(5)),
+    }
 }
 
 pub fn service_ports() -> Vec<ServicePort> {
