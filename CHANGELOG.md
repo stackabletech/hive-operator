@@ -9,10 +9,6 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each Hive container to collect debugging information ([#554]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#560]).
 
-### Changed
-
-- Append a dot (`.`) to the default cluster domain to reduce DNS requests ([#560]).
-
 ### Fixed
 
 - BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
