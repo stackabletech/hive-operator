@@ -23,7 +23,9 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{
+        GenericProductSpecificCommonConfig, GenericRoleConfig, Role, RoleGroup, RoleGroupRef,
+    },
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
@@ -603,7 +605,7 @@ impl HiveCluster {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<HiveCluster>,
-    ) -> Result<RoleGroup<MetaStoreConfigFragment>, Error> {
+    ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
         let role_variant =
             HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
                 role: rolegroup_ref.role.to_owned(),
