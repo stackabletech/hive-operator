@@ -1,12 +1,11 @@
 mod command;
 mod controller;
 mod discovery;
-
 mod kerberos;
 mod operations;
 mod product_logging;
 
-use crate::controller::HIVE_CONTROLLER_NAME;
+use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
@@ -17,12 +16,18 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::core::DeserializeGuard,
-    kube::runtime::{watcher, Controller},
+    kube::{
+        core::DeserializeGuard,
+        runtime::{
+            events::{Recorder, Reporter},
+            watcher, Controller,
+        },
+    },
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
-use std::sync::Arc;
+
+use crate::controller::HIVE_FULL_CONTROLLER_NAME;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -72,6 +77,13 @@ async fn main() -> anyhow::Result<()> {
                 &cluster_info_opts,
             )
             .await?;
+            let event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
 
             Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<HiveCluster>>(&client),
@@ -98,14 +110,23 @@ async fn main() -> anyhow::Result<()> {
                     product_config,
                 }),
             )
-            .map(|res| {
-                report_controller_reconciled(
-                    &client,
-                    &format!("{HIVE_CONTROLLER_NAME}.{OPERATOR_NAME}"),
-                    &res,
-                );
-            })
-            .collect::<()>()
+            // We can let the reporting happen in the background
+            .for_each_concurrent(
+                16, // concurrency limit
+                |result| {
+                    // The event_recorder needs to be shared across all invocations, so that
+                    // events are correctly aggregated
+                    let event_recorder = event_recorder.clone();
+                    async move {
+                        report_controller_reconciled(
+                            &event_recorder,
+                            HIVE_FULL_CONTROLLER_NAME,
+                            &result,
+                        )
+                        .await;
+                    }
+                },
+            )
             .await;
         }
     }
