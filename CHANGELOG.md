@@ -4,10 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
+## [24.11.1] - 2025-01-10
 
-- Run a `containerdebug` process in the background of each Hive container to collect debugging information ([#554]).
-- Aggregate emitted Kubernetes events on the CustomResources ([#560]).
+## [24.11.1-rc2] - 2024-12-12
+
+## [24.11.1-rc1] - 2024-12-06
 
 ### Fixed
 
@@ -16,8 +17,6 @@ All notable changes to this project will be documented in this file.
   restart ([#544]).
 
 [#544]: https://github.com/stackabletech/hive-operator/pull/544
-[#554]: https://github.com/stackabletech/hive-operator/pull/554
-[#560]: https://github.com/stackabletech/hive-operator/pull/560
 
 ## [24.11.0] - 2024-11-18
 
