@@ -1,7 +1,7 @@
 # Default values for hive-operator.
 ---
 image:
-  repository: docker.stackable.tech/stackable/hive-operator
+  repository: oci.stackable.tech/sdp/hive-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 

@@ -53,7 +53,7 @@ spec:
             claimName: pvc-hive-drivers
       initContainers:
         - name: dest-dir
-          image: docker.stackable.tech/stackable/tools:1.0.0-stackable24.3.0
+          image: oci.stackable.tech/sdp/tools:1.0.0-stackable24.3.0
           env:
             - name: DEST_DIR
               value: "/stackable/externals"
@@ -71,7 +71,7 @@ spec:
               mountPath: /stackable/externals
       containers:
         - name: hive-driver
-          image: docker.stackable.tech/stackable/tools:1.0.0-stackable24.3.0
+          image: oci.stackable.tech/sdp/tools:1.0.0-stackable24.3.0
           env:
             - name: DEST_DIR
               value: "/stackable/externals"
@@ -109,7 +109,7 @@ spec:
             claimName: pvc-hive-drivers
       containers:
         - name: hive-driver
-          image: docker.stackable.tech/stackable/tools:1.0.0-stackable24.3.0
+          image: oci.stackable.tech/sdp/tools:1.0.0-stackable24.3.0
           env:
             - name: DEST_DIR
               value: "/stackable/externals"
@@ -195,7 +195,7 @@ If you have access to a registry to store custom images, another approach is to 
 .Copy the driver
 [source]
 ----
-FROM docker.stackable.tech/stackable/hive:4.0.0-stackable0.0.0-dev
+FROM oci.stackable.tech/sdp/hive:4.0.0-stackable0.0.0-dev
 
 RUN curl --fail -L https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.31/mysql-connector-j-8.0.31.jar -o /stackable/mysql-connector-j-8.0.31.jar
 ----
@@ -203,7 +203,7 @@ RUN curl --fail -L https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.
 .Build and tag the image
 [source]
 ----
-docker build -f ./Dockerfile -t docker.stackable.tech/stackable/hive:4.0.0-stackable0.0.0-dev-mysql .
+docker build -f ./Dockerfile -t oci.stackable.tech/sdp/hive:4.0.0-stackable0.0.0-dev-mysql .
 ----
 
 .Reference the new path to the driver without the need for using a volume mounted from a PVC
@@ -216,7 +216,7 @@ metadata:
   name: hive
 spec:
   image:
-    custom: docker.stackable.tech/stackable/hive:4.0.0-stackable0.0.0-dev-mysql  # <1>
+    custom: oci.stackable.tech/sdp/hive:4.0.0-stackable0.0.0-dev-mysql  # <1>
     productVersion: 4.0.0
   clusterConfig:
     database:
