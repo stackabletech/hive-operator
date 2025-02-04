@@ -37,15 +37,16 @@ use stackable_operator::{
     commons::{
         product_image_selection::ResolvedProductImage,
         rbac::build_rbac_resources,
-        s3::{S3AccessStyle, S3ConnectionSpec},
+        s3::{S3AccessStyle, S3ConnectionSpec, S3Error},
         tls_verification::TlsClientDetailsError,
     },
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
-                ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource,
+                Probe, SecretKeySelector, Service, ServicePort, ServiceSpec, TCPSocketAction,
+                Volume,
             },
         },
         apimachinery::pkg::{
@@ -79,10 +80,6 @@ use stackable_operator::{
     },
     time::Duration,
     utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
-};
-use stackable_operator::{
-    commons::s3::S3Error,
-    k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector},
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
