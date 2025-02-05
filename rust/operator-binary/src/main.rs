@@ -24,12 +24,13 @@ use stackable_operator::{
         },
     },
     logging::controller::report_controller_reconciled,
-    CustomResourceExt,
+    shared::yaml::SerializeOptions,
+    YamlSchema,
 };
 
 use crate::{
     controller::HIVE_FULL_CONTROLLER_NAME,
-    crd::{HiveCluster, APP_NAME},
+    crd::{v1alpha1, HiveCluster, APP_NAME},
 };
 
 mod built_info {
@@ -49,7 +50,8 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => HiveCluster::print_yaml_schema(built_info::PKG_VERSION)?,
+        Command::Crd => HiveCluster::merged_crd(HiveCluster::V1Alpha1)?
+            .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
@@ -89,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
             ));
 
             Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<HiveCluster>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
                 watcher::Config::default(),
             )
             .owns(

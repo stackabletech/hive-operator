@@ -33,7 +33,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::HiveCluster;
+    use crate::crd::v1alpha1;
 
     #[rstest]
     #[case(HiveRole::MetaStore)]
@@ -56,7 +56,7 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let hive: HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
+        let hive: v1alpha1::HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
         let merged_config = hive
             .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();

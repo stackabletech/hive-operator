@@ -1,4 +1,5 @@
-//! Ensures that `Pod`s are configured and running for each [`HiveCluster`]
+//! Ensures that `Pod`s are configured and running for each [`v1alpha1::HiveCluster`]
+
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -79,9 +80,9 @@ use tracing::warn;
 use crate::{
     command::build_container_command_args,
     crd::{
-        Container, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
-        CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT,
-        HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
+        v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
+        DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
+        HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
         METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
@@ -129,7 +130,7 @@ pub enum Error {
 
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
     RoleGroupServiceNameNotFound {
-        rolegroup: RoleGroupRef<HiveCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
     },
 
     #[snafu(display("failed to apply global Service"))]
@@ -140,25 +141,25 @@ pub enum Error {
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<HiveCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
     },
 
     #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
     BuildRoleGroupConfig {
         source: stackable_operator::builder::configmap::Error,
-        rolegroup: RoleGroupRef<HiveCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
     },
 
     #[snafu(display("failed to apply ConfigMap for {rolegroup}"))]
     ApplyRoleGroupConfig {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<HiveCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
     },
 
     #[snafu(display("failed to apply StatefulSet for {rolegroup}"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<HiveCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
     },
 
     #[snafu(display("failed to generate product config"))]
@@ -337,7 +338,7 @@ impl ReconcilerError for Error {
 }
 
 pub async fn reconcile_hive(
-    hive: Arc<DeserializeGuard<HiveCluster>>,
+    hive: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -555,7 +556,7 @@ pub async fn reconcile_hive(
 /// The server-role service is the primary endpoint that should be used by clients that do not
 /// perform internal load balancing including targets outside of the cluster.
 pub fn build_metastore_role_service(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<Service> {
     let role_name = HiveRole::MetaStore.to_string();
@@ -594,10 +595,10 @@ pub fn build_metastore_role_service(
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_config_map(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     hive_namespace: &str,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<HiveCluster>,
+    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
@@ -767,9 +768,9 @@ fn build_metastore_rolegroup_config_map(
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 fn build_rolegroup_service(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<HiveCluster>,
+    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
 ) -> Result<Service> {
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
@@ -809,10 +810,10 @@ fn build_rolegroup_service(
 /// corresponding [`Service`] (from [`build_rolegroup_service`]).
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     hive_role: &HiveRole,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup_ref: &RoleGroupRef<HiveCluster>,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
@@ -1144,7 +1145,7 @@ fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<HiveCluster>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {

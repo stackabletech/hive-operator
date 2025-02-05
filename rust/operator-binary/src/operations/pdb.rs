@@ -6,7 +6,7 @@ use stackable_operator::{
 
 use crate::{
     controller::HIVE_CONTROLLER_NAME,
-    crd::{HiveCluster, HiveRole, APP_NAME},
+    crd::{v1alpha1, HiveRole, APP_NAME},
     OPERATOR_NAME,
 };
 
@@ -26,7 +26,7 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     role: &HiveRole,
     client: &Client,
     cluster_resources: &mut ClusterResources,

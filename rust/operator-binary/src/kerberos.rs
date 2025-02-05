@@ -18,7 +18,7 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
 };
 
-use crate::crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
+use crate::crd::{v1alpha1, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
@@ -38,7 +38,7 @@ pub enum Error {
 }
 
 pub fn add_kerberos_pod_config(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     role: &HiveRole,
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
@@ -68,7 +68,7 @@ pub fn add_kerberos_pod_config(
 }
 
 pub fn kerberos_config_properties(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     hive_namespace: &str,
     cluster_info: &KubernetesClusterInfo,
 ) -> BTreeMap<String, String> {
@@ -108,7 +108,7 @@ pub fn kerberos_config_properties(
     ])
 }
 
-pub fn kerberos_container_start_commands(hive: &HiveCluster) -> String {
+pub fn kerberos_container_start_commands(hive: &v1alpha1::HiveCluster) -> String {
     if !hive.has_kerberos_enabled() {
         return String::new();
     }

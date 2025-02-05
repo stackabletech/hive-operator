@@ -31,6 +31,7 @@ use stackable_operator::{
     time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
+use stackable_versioned::versioned;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
 use crate::crd::affinity::get_affinity;
@@ -106,40 +107,42 @@ pub enum Error {
     },
 }
 
-/// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
-/// Find more information on how to use it and the resources that the operator generates in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[kube(
-    group = "hive.stackable.tech",
-    version = "v1alpha1",
-    kind = "HiveCluster",
-    plural = "hiveclusters",
-    shortname = "hive",
-    status = "HiveClusterStatus",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
-pub struct HiveClusterSpec {
-    /// Hive metastore settings that affect all roles and role groups.
-    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-    pub cluster_config: HiveClusterConfig,
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
+    /// Find more information on how to use it and the resources that the operator generates in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
+    #[versioned(k8s(
+        group = "hive.stackable.tech",
+        kind = "HiveCluster",
+        plural = "hiveclusters",
+        shortname = "hive",
+        status = "HiveClusterStatus",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveClusterSpec {
+        /// Hive metastore settings that affect all roles and role groups.
+        /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
+        pub cluster_config: HiveClusterConfig,
 
-    // no doc - docs in ClusterOperation struct.
-    #[serde(default)]
-    pub cluster_operation: ClusterOperation,
+        // no doc - docs in ClusterOperation struct.
+        #[serde(default)]
+        pub cluster_operation: ClusterOperation,
 
-    // no doc - docs in ProductImage struct.
-    pub image: ProductImage,
+        // no doc - docs in ProductImage struct.
+        pub image: ProductImage,
 
-    // no doc - docs in Role struct.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metastore: Option<Role<MetaStoreConfigFragment>>,
+        // no doc - docs in Role struct.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub metastore: Option<Role<MetaStoreConfigFragment>>,
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -226,9 +229,9 @@ impl HiveRole {
     /// Metadata about a rolegroup
     pub fn rolegroup_ref(
         &self,
-        hive: &HiveCluster,
+        hive: &v1alpha1::HiveCluster,
         group_name: impl Into<String>,
-    ) -> RoleGroupRef<HiveCluster> {
+    ) -> RoleGroupRef<v1alpha1::HiveCluster> {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(hive),
             role: self.to_string(),
@@ -437,7 +440,7 @@ pub struct DatabaseConnectionSpec {
 }
 
 impl Configuration for MetaStoreConfigFragment {
-    type Configurable = HiveCluster;
+    type Configurable = v1alpha1::HiveCluster;
 
     fn compute_env(
         &self,
@@ -516,7 +519,7 @@ impl Configuration for MetaStoreConfigFragment {
     }
 }
 
-fn java_security_krb5_conf(hive: &HiveCluster) -> String {
+fn java_security_krb5_conf(hive: &v1alpha1::HiveCluster) -> String {
     if hive.has_kerberos_enabled() {
         return formatdoc! {
             "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
@@ -536,7 +539,7 @@ pub struct HiveClusterStatus {
     pub conditions: Vec<ClusterCondition>,
 }
 
-impl HasStatusCondition for HiveCluster {
+impl HasStatusCondition for v1alpha1::HiveCluster {
     fn conditions(&self) -> Vec<ClusterCondition> {
         match &self.status {
             Some(status) => status.conditions.clone(),
@@ -549,17 +552,14 @@ impl HasStatusCondition for HiveCluster {
 #[snafu(display("object has no namespace associated"))]
 pub struct NoNamespaceError;
 
-impl HiveCluster {
+impl v1alpha1::HiveCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn metastore_role_service_name(&self) -> Option<&str> {
         self.metadata.name.as_deref()
     }
 
     /// Metadata about a metastore rolegroup
-    pub fn metastore_rolegroup_ref(
-        &self,
-        group_name: impl Into<String>,
-    ) -> RoleGroupRef<HiveCluster> {
+    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(self),
             role: HiveRole::MetaStore.to_string(),
@@ -603,7 +603,7 @@ impl HiveCluster {
 
     pub fn rolegroup(
         &self,
-        rolegroup_ref: &RoleGroupRef<HiveCluster>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
         let role_variant =
             HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
