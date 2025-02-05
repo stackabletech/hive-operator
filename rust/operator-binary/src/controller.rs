@@ -15,14 +15,6 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{
-    Container, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
-    DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
-    HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
-    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
-    STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
-    STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR, STACKABLE_LOG_DIR_NAME,
-};
 use stackable_operator::{
     builder::{
         self,
@@ -86,6 +78,15 @@ use tracing::warn;
 
 use crate::{
     command::build_container_command_args,
+    crd::{
+        Container, HiveCluster, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME,
+        CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT,
+        HIVE_PORT_NAME, HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
+        METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
+        STACKABLE_LOG_DIR_NAME,
+    },
     discovery,
     kerberos::{
         self, add_kerberos_pod_config, kerberos_config_properties,
@@ -200,7 +201,7 @@ pub enum Error {
     S3TlsNoVerificationNotSupported,
 
     #[snafu(display("failed to resolve and merge resource config for role and role group"))]
-    FailedToResolveResourceConfig { source: stackable_hive_crd::Error },
+    FailedToResolveResourceConfig { source: crate::crd::Error },
 
     #[snafu(display("invalid java heap config - missing default or value in crd?"))]
     InvalidJavaHeapConfig,
@@ -254,7 +255,7 @@ pub enum Error {
     },
 
     #[snafu(display("internal operator failure"))]
-    InternalOperatorError { source: stackable_hive_crd::Error },
+    InternalOperatorError { source: crate::crd::Error },
 
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",

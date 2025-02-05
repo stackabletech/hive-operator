@@ -1,11 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, APP_NAME};
 use stackable_operator::{
     builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
     commons::pdb::PdbConfig, kube::ResourceExt,
 };
 
-use crate::{controller::HIVE_CONTROLLER_NAME, OPERATOR_NAME};
+use crate::{
+    controller::HIVE_CONTROLLER_NAME,
+    crd::{HiveCluster, HiveRole, APP_NAME},
+    OPERATOR_NAME,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

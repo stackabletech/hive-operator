@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
 use stackable_operator::{
     builder::{
         self,
@@ -18,6 +17,8 @@ use stackable_operator::{
     kube::ResourceExt,
     utils::cluster_info::KubernetesClusterInfo,
 };
+
+use crate::crd::{HiveCluster, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`

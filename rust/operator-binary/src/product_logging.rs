@@ -1,7 +1,4 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{
-    Container, HiveCluster, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR,
-};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     client::Client,
@@ -15,7 +12,10 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 
-use crate::controller::MAX_HIVE_LOG_FILES_SIZE;
+use crate::{
+    controller::MAX_HIVE_LOG_FILES_SIZE,
+    crd::{Container, HiveCluster, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -32,7 +32,7 @@ pub enum Error {
         cm_name: String,
     },
     #[snafu(display("crd validation failure"))]
-    CrdValidationFailure { source: stackable_hive_crd::Error },
+    CrdValidationFailure { source: crate::crd::Error },
     #[snafu(display("vectorAggregatorConfigMapName must be set"))]
     MissingVectorAggregatorAddress,
 }

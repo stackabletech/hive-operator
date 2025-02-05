@@ -3,7 +3,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::PodAntiAffinity,
 };
 
-use crate::{HiveRole, APP_NAME};
+use crate::crd::{HiveRole, APP_NAME};
 
 pub fn get_affinity(cluster_name: &str, role: &HiveRole) -> StackableAffinityFragment {
     StackableAffinityFragment {

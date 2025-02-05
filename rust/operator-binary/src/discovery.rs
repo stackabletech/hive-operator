@@ -1,7 +1,6 @@
 use std::{collections::BTreeSet, num::TryFromIntError};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
@@ -9,7 +8,10 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, Resource},
 };
 
-use crate::controller::build_recommended_labels;
+use crate::{
+    controller::build_recommended_labels,
+    crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

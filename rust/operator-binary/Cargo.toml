@@ -9,8 +9,6 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-stackable-hive-crd = { path = "../crd" }
-
 anyhow.workspace = true
 clap.workspace = true
 const_format.workspace = true
@@ -27,6 +25,10 @@ product-config.workspace = true
 strum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+serde_yaml.workspace = true
 
 [build-dependencies]
 built.workspace = true

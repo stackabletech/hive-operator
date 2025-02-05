@@ -1,5 +1,6 @@
 mod command;
 mod controller;
+mod crd;
 mod discovery;
 mod kerberos;
 mod operations;
@@ -9,7 +10,6 @@ use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
-use stackable_hive_crd::{HiveCluster, APP_NAME};
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
@@ -27,7 +27,10 @@ use stackable_operator::{
     CustomResourceExt,
 };
 
-use crate::controller::HIVE_FULL_CONTROLLER_NAME;
+use crate::{
+    controller::HIVE_FULL_CONTROLLER_NAME,
+    crd::{HiveCluster, APP_NAME},
+};
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
