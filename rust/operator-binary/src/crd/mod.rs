@@ -68,7 +68,6 @@ pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
-pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 // Metastore opts
 pub const HADOOP_OPTS: &str = "HADOOP_OPTS";
