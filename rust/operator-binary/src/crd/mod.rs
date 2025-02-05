@@ -145,6 +145,136 @@ pub mod versioned {
     }
 }
 
+impl HasStatusCondition for v1alpha1::HiveCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
+    }
+}
+
+impl v1alpha1::HiveCluster {
+    /// The name of the role-level load-balanced Kubernetes `Service`
+    pub fn metastore_role_service_name(&self) -> Option<&str> {
+        self.metadata.name.as_deref()
+    }
+
+    /// Metadata about a metastore rolegroup
+    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(self),
+            role: HiveRole::MetaStore.to_string(),
+            role_group: group_name.into(),
+        }
+    }
+
+    /// List all pods expected to form the cluster
+    ///
+    /// We try to predict the pods here rather than looking at the current cluster state in order to
+    /// avoid instance churn.
+    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
+        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
+        Ok(self
+            .spec
+            .metastore
+            .iter()
+            .flat_map(|role| &role.role_groups)
+            // Order rolegroups consistently, to avoid spurious downstream rewrites
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .flat_map(move |(rolegroup_name, rolegroup)| {
+                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
+                let ns = ns.clone();
+                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
+                    namespace: ns.clone(),
+                    role_group_service_name: rolegroup_ref.object_name(),
+                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
+                })
+            }))
+    }
+
+    pub fn role(&self, role_variant: &HiveRole) -> Result<&Role<MetaStoreConfigFragment>, Error> {
+        match role_variant {
+            HiveRole::MetaStore => self.spec.metastore.as_ref(),
+        }
+        .with_context(|| CannotRetrieveHiveRoleSnafu {
+            role: role_variant.to_string(),
+        })
+    }
+
+    pub fn rolegroup(
+        &self,
+        rolegroup_ref: &RoleGroupRef<Self>,
+    ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
+        let role_variant =
+            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
+                role: rolegroup_ref.role.to_owned(),
+                roles: HiveRole::roles(),
+            })?;
+
+        let role = self.role(&role_variant)?;
+        role.role_groups
+            .get(&rolegroup_ref.role_group)
+            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
+                role_group: rolegroup_ref.role_group.to_owned(),
+            })
+            .cloned()
+    }
+
+    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
+        match role {
+            HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
+        }
+    }
+
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.kerberos_secret_class().is_some()
+    }
+
+    pub fn kerberos_secret_class(&self) -> Option<String> {
+        self.spec
+            .cluster_config
+            .authentication
+            .as_ref()
+            .map(|a| &a.kerberos)
+            .map(|k| k.secret_class.clone())
+    }
+
+    pub fn db_type(&self) -> &DbType {
+        &self.spec.cluster_config.database.db_type
+    }
+
+    /// Retrieve and merge resource configs for role and role groups
+    pub fn merged_config(
+        &self,
+        role: &HiveRole,
+        rolegroup_ref: &RoleGroupRef<Self>,
+    ) -> Result<MetaStoreConfig, Error> {
+        // Initialize the result with all default values as baseline
+        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
+
+        // Retrieve role resource config
+        let role = self.role(role)?;
+        let mut conf_role = role.config.config.to_owned();
+
+        // Retrieve rolegroup specific resource config
+        let role_group = self.rolegroup(rolegroup_ref)?;
+        let mut conf_role_group = role_group.config.config;
+
+        // Merge more specific configs into default config
+        // Hierarchy is:
+        // 1. RoleGroup
+        // 2. Role
+        // 3. Default
+        conf_role.merge(&conf_defaults);
+        conf_role_group.merge(&conf_role);
+
+        tracing::debug!("Merged config: {:?}", conf_role_group);
+        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterConfig {
@@ -539,139 +669,9 @@ pub struct HiveClusterStatus {
     pub conditions: Vec<ClusterCondition>,
 }
 
-impl HasStatusCondition for v1alpha1::HiveCluster {
-    fn conditions(&self) -> Vec<ClusterCondition> {
-        match &self.status {
-            Some(status) => status.conditions.clone(),
-            None => vec![],
-        }
-    }
-}
-
 #[derive(Debug, Snafu)]
 #[snafu(display("object has no namespace associated"))]
 pub struct NoNamespaceError;
-
-impl v1alpha1::HiveCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_name(&self) -> Option<&str> {
-        self.metadata.name.as_deref()
-    }
-
-    /// Metadata about a metastore rolegroup
-    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: HiveRole::MetaStore.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .metastore
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
-    pub fn role(&self, role_variant: &HiveRole) -> Result<&Role<MetaStoreConfigFragment>, Error> {
-        match role_variant {
-            HiveRole::MetaStore => self.spec.metastore.as_ref(),
-        }
-        .with_context(|| CannotRetrieveHiveRoleSnafu {
-            role: role_variant.to_string(),
-        })
-    }
-
-    pub fn rolegroup(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
-        let role_variant =
-            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
-                role: rolegroup_ref.role.to_owned(),
-                roles: HiveRole::roles(),
-            })?;
-
-        let role = self.role(&role_variant)?;
-        role.role_groups
-            .get(&rolegroup_ref.role_group)
-            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
-                role_group: rolegroup_ref.role_group.to_owned(),
-            })
-            .cloned()
-    }
-
-    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
-        match role {
-            HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
-        }
-    }
-
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.kerberos_secret_class().is_some()
-    }
-
-    pub fn kerberos_secret_class(&self) -> Option<String> {
-        self.spec
-            .cluster_config
-            .authentication
-            .as_ref()
-            .map(|a| &a.kerberos)
-            .map(|k| k.secret_class.clone())
-    }
-
-    pub fn db_type(&self) -> &DbType {
-        &self.spec.cluster_config.database.db_type
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(
-        &self,
-        role: &HiveRole,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<MetaStoreConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
-
-        // Retrieve role resource config
-        let role = self.role(role)?;
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let role_group = self.rolegroup(rolegroup_ref)?;
-        let mut conf_role_group = role_group.config.config;
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_role_group.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_role_group);
-        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
-    }
-}
 
 /// Reference to a single `Pod` that is a component of a [`HiveCluster`]
 /// Used for service discovery.
