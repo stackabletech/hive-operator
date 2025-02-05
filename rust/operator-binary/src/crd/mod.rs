@@ -130,7 +130,7 @@ pub mod versioned {
     pub struct HiveClusterSpec {
         /// Hive metastore settings that affect all roles and role groups.
         /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-        pub cluster_config: HiveClusterConfig,
+        pub cluster_config: v1alpha1::HiveClusterConfig,
 
         // no doc - docs in ClusterOperation struct.
         #[serde(default)]
@@ -142,6 +142,46 @@ pub mod versioned {
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub metastore: Option<Role<MetaStoreConfigFragment>>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveClusterConfig {
+        // no doc - docs in DatabaseConnectionSpec struct.
+        pub database: DatabaseConnectionSpec,
+
+        /// HDFS connection specification.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub hdfs: Option<HdfsConnection>,
+
+        /// S3 connection specification. This can be either `inline` or a `reference` to an
+        /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub s3: Option<S3ConnectionInlineOrReference>,
+
+        /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+        /// to learn how to configure log aggregation with Vector.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
+
+        /// This field controls which type of Service the Operator creates for this HiveCluster:
+        ///
+        /// * cluster-internal: Use a ClusterIP service
+        ///
+        /// * external-unstable: Use a NodePort service
+        ///
+        /// * external-stable: Use a LoadBalancer service
+        ///
+        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
+        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+        #[serde(default)]
+        pub listener_class: CurrentlySupportedListenerClasses,
+
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
+        pub authentication: Option<AuthenticationConfig>,
     }
 }
 
@@ -273,46 +313,6 @@ impl v1alpha1::HiveCluster {
         tracing::debug!("Merged config: {:?}", conf_role_group);
         fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HiveClusterConfig {
-    // no doc - docs in DatabaseConnectionSpec struct.
-    pub database: DatabaseConnectionSpec,
-
-    /// HDFS connection specification.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hdfs: Option<HdfsConnection>,
-
-    /// S3 connection specification. This can be either `inline` or a `reference` to an
-    /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3: Option<S3ConnectionInlineOrReference>,
-
-    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
-    /// to learn how to configure log aggregation with Vector.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
-
-    /// This field controls which type of Service the Operator creates for this HiveCluster:
-    ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// * external-stable: Use a LoadBalancer service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
-
-    /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
-    pub authentication: Option<AuthenticationConfig>,
 }
 
 // TODO: Temporary solution until listener-operator is finished
