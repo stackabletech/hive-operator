@@ -1,6 +1,7 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hive_crd::MetaStoreConfig;
 use stackable_operator::builder::pod::PodBuilder;
+
+use crate::crd::MetaStoreConfig;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
