@@ -1,7 +1,6 @@
 use std::{collections::BTreeSet, num::TryFromIntError};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hive_crd::{HiveCluster, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
@@ -9,7 +8,10 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, Resource},
 };
 
-use crate::controller::build_recommended_labels;
+use crate::{
+    controller::build_recommended_labels,
+    crd::{v1alpha1, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -20,14 +22,14 @@ pub enum Error {
     #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
-        hive: ObjectRef<HiveCluster>,
+        hive: ObjectRef<v1alpha1::HiveCluster>,
     },
     #[snafu(display("chroot path {chroot} was relative (must be absolute)"))]
     RelativeChroot { chroot: String },
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
     DiscoveryConfigMap {
         source: stackable_operator::builder::configmap::Error,
-        obj_ref: ObjectRef<HiveCluster>,
+        obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
     #[snafu(display("could not find service [{obj_ref}] port [{port_name}]"))]
     NoServicePort {
@@ -55,11 +57,12 @@ pub enum Error {
     },
 }
 
-/// Builds discovery [`ConfigMap`]s for connecting to a [`HiveCluster`] for all expected scenarios
+/// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
+/// scenarios.
 pub async fn build_discovery_configmaps(
     client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     svc: &Service,
     chroot: Option<&str>,
@@ -108,13 +111,14 @@ pub async fn build_discovery_configmaps(
     Ok(discovery_configmaps)
 }
 
-/// Build a discovery [`ConfigMap`] containing information about how to connect to a certain [`HiveCluster`]
+/// Build a discovery [`ConfigMap`] containing information about how to connect to a certain
+/// [`v1alpha1::HiveCluster`].
 ///
 /// `hosts` will usually come from the cluster role service or [`nodeport_hosts`].
 fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
     hosts: impl IntoIterator<Item = (impl Into<String>, u16)>,

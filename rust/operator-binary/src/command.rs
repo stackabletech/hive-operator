@@ -1,13 +1,14 @@
-use stackable_hive_crd::{
-    HiveCluster, DB_PASSWORD_ENV, DB_PASSWORD_PLACEHOLDER, DB_USERNAME_ENV,
-    DB_USERNAME_PLACEHOLDER, HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR,
+use stackable_operator::commons::s3::S3ConnectionSpec;
+
+use crate::crd::{
+    v1alpha1, DB_PASSWORD_ENV, DB_PASSWORD_PLACEHOLDER, DB_USERNAME_ENV, DB_USERNAME_PLACEHOLDER,
+    HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR,
     STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE,
     STACKABLE_TRUST_STORE_PASSWORD, SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
 };
-use stackable_operator::commons::s3::S3ConnectionSpec;
 
 pub fn build_container_command_args(
-    hive: &HiveCluster,
+    hive: &v1alpha1::HiveCluster,
     start_command: String,
     s3_connection_spec: Option<&S3ConnectionSpec>,
 ) -> Vec<String> {

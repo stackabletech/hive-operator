@@ -31,9 +31,10 @@ use stackable_operator::{
     time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
+use stackable_versioned::versioned;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-use crate::affinity::get_affinity;
+use crate::crd::affinity::get_affinity;
 
 pub mod affinity;
 pub mod security;
@@ -68,7 +69,6 @@ pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
-pub const CERTS_DIR: &str = "/stackable/certificates/";
 
 // Metastore opts
 pub const HADOOP_OPTS: &str = "HADOOP_OPTS";
@@ -107,80 +107,212 @@ pub enum Error {
     },
 }
 
-/// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
-/// Find more information on how to use it and the resources that the operator generates in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[kube(
-    group = "hive.stackable.tech",
-    version = "v1alpha1",
-    kind = "HiveCluster",
-    plural = "hiveclusters",
-    shortname = "hive",
-    status = "HiveClusterStatus",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
-pub struct HiveClusterSpec {
-    /// Hive metastore settings that affect all roles and role groups.
-    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-    pub cluster_config: HiveClusterConfig,
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
+    /// Find more information on how to use it and the resources that the operator generates in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
+    #[versioned(k8s(
+        group = "hive.stackable.tech",
+        kind = "HiveCluster",
+        plural = "hiveclusters",
+        shortname = "hive",
+        status = "HiveClusterStatus",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveClusterSpec {
+        /// Hive metastore settings that affect all roles and role groups.
+        /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
+        pub cluster_config: v1alpha1::HiveClusterConfig,
 
-    // no doc - docs in ClusterOperation struct.
-    #[serde(default)]
-    pub cluster_operation: ClusterOperation,
+        // no doc - docs in ClusterOperation struct.
+        #[serde(default)]
+        pub cluster_operation: ClusterOperation,
 
-    // no doc - docs in ProductImage struct.
-    pub image: ProductImage,
+        // no doc - docs in ProductImage struct.
+        pub image: ProductImage,
 
-    // no doc - docs in Role struct.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metastore: Option<Role<MetaStoreConfigFragment>>,
+        // no doc - docs in Role struct.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub metastore: Option<Role<MetaStoreConfigFragment>>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveClusterConfig {
+        // no doc - docs in DatabaseConnectionSpec struct.
+        pub database: DatabaseConnectionSpec,
+
+        /// HDFS connection specification.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub hdfs: Option<HdfsConnection>,
+
+        /// S3 connection specification. This can be either `inline` or a `reference` to an
+        /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub s3: Option<S3ConnectionInlineOrReference>,
+
+        /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+        /// to learn how to configure log aggregation with Vector.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
+
+        /// This field controls which type of Service the Operator creates for this HiveCluster:
+        ///
+        /// * cluster-internal: Use a ClusterIP service
+        ///
+        /// * external-unstable: Use a NodePort service
+        ///
+        /// * external-stable: Use a LoadBalancer service
+        ///
+        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
+        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+        #[serde(default)]
+        pub listener_class: CurrentlySupportedListenerClasses,
+
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
+        pub authentication: Option<AuthenticationConfig>,
+    }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HiveClusterConfig {
-    // no doc - docs in DatabaseConnectionSpec struct.
-    pub database: DatabaseConnectionSpec,
+impl HasStatusCondition for v1alpha1::HiveCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
+    }
+}
 
-    /// HDFS connection specification.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hdfs: Option<HdfsConnection>,
+impl v1alpha1::HiveCluster {
+    /// The name of the role-level load-balanced Kubernetes `Service`
+    pub fn metastore_role_service_name(&self) -> Option<&str> {
+        self.metadata.name.as_deref()
+    }
 
-    /// S3 connection specification. This can be either `inline` or a `reference` to an
-    /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3: Option<S3ConnectionInlineOrReference>,
+    /// Metadata about a metastore rolegroup
+    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(self),
+            role: HiveRole::MetaStore.to_string(),
+            role_group: group_name.into(),
+        }
+    }
 
-    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
-    /// to learn how to configure log aggregation with Vector.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
-
-    /// This field controls which type of Service the Operator creates for this HiveCluster:
+    /// List all pods expected to form the cluster
     ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// * external-stable: Use a LoadBalancer service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
+    /// We try to predict the pods here rather than looking at the current cluster state in order to
+    /// avoid instance churn.
+    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
+        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
+        Ok(self
+            .spec
+            .metastore
+            .iter()
+            .flat_map(|role| &role.role_groups)
+            // Order rolegroups consistently, to avoid spurious downstream rewrites
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .flat_map(move |(rolegroup_name, rolegroup)| {
+                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
+                let ns = ns.clone();
+                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
+                    namespace: ns.clone(),
+                    role_group_service_name: rolegroup_ref.object_name(),
+                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
+                })
+            }))
+    }
 
-    /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
-    pub authentication: Option<AuthenticationConfig>,
+    pub fn role(&self, role_variant: &HiveRole) -> Result<&Role<MetaStoreConfigFragment>, Error> {
+        match role_variant {
+            HiveRole::MetaStore => self.spec.metastore.as_ref(),
+        }
+        .with_context(|| CannotRetrieveHiveRoleSnafu {
+            role: role_variant.to_string(),
+        })
+    }
+
+    pub fn rolegroup(
+        &self,
+        rolegroup_ref: &RoleGroupRef<Self>,
+    ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
+        let role_variant =
+            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
+                role: rolegroup_ref.role.to_owned(),
+                roles: HiveRole::roles(),
+            })?;
+
+        let role = self.role(&role_variant)?;
+        role.role_groups
+            .get(&rolegroup_ref.role_group)
+            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
+                role_group: rolegroup_ref.role_group.to_owned(),
+            })
+            .cloned()
+    }
+
+    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
+        match role {
+            HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
+        }
+    }
+
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.kerberos_secret_class().is_some()
+    }
+
+    pub fn kerberos_secret_class(&self) -> Option<String> {
+        self.spec
+            .cluster_config
+            .authentication
+            .as_ref()
+            .map(|a| &a.kerberos)
+            .map(|k| k.secret_class.clone())
+    }
+
+    pub fn db_type(&self) -> &DbType {
+        &self.spec.cluster_config.database.db_type
+    }
+
+    /// Retrieve and merge resource configs for role and role groups
+    pub fn merged_config(
+        &self,
+        role: &HiveRole,
+        rolegroup_ref: &RoleGroupRef<Self>,
+    ) -> Result<MetaStoreConfig, Error> {
+        // Initialize the result with all default values as baseline
+        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
+
+        // Retrieve role resource config
+        let role = self.role(role)?;
+        let mut conf_role = role.config.config.to_owned();
+
+        // Retrieve rolegroup specific resource config
+        let role_group = self.rolegroup(rolegroup_ref)?;
+        let mut conf_role_group = role_group.config.config;
+
+        // Merge more specific configs into default config
+        // Hierarchy is:
+        // 1. RoleGroup
+        // 2. Role
+        // 3. Default
+        conf_role.merge(&conf_defaults);
+        conf_role_group.merge(&conf_role);
+
+        tracing::debug!("Merged config: {:?}", conf_role_group);
+        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
+    }
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -227,9 +359,9 @@ impl HiveRole {
     /// Metadata about a rolegroup
     pub fn rolegroup_ref(
         &self,
-        hive: &HiveCluster,
+        hive: &v1alpha1::HiveCluster,
         group_name: impl Into<String>,
-    ) -> RoleGroupRef<HiveCluster> {
+    ) -> RoleGroupRef<v1alpha1::HiveCluster> {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(hive),
             role: self.to_string(),
@@ -438,7 +570,7 @@ pub struct DatabaseConnectionSpec {
 }
 
 impl Configuration for MetaStoreConfigFragment {
-    type Configurable = HiveCluster;
+    type Configurable = v1alpha1::HiveCluster;
 
     fn compute_env(
         &self,
@@ -517,7 +649,7 @@ impl Configuration for MetaStoreConfigFragment {
     }
 }
 
-fn java_security_krb5_conf(hive: &HiveCluster) -> String {
+fn java_security_krb5_conf(hive: &v1alpha1::HiveCluster) -> String {
     if hive.has_kerberos_enabled() {
         return formatdoc! {
             "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
@@ -537,142 +669,9 @@ pub struct HiveClusterStatus {
     pub conditions: Vec<ClusterCondition>,
 }
 
-impl HasStatusCondition for HiveCluster {
-    fn conditions(&self) -> Vec<ClusterCondition> {
-        match &self.status {
-            Some(status) => status.conditions.clone(),
-            None => vec![],
-        }
-    }
-}
-
 #[derive(Debug, Snafu)]
 #[snafu(display("object has no namespace associated"))]
 pub struct NoNamespaceError;
-
-impl HiveCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_name(&self) -> Option<&str> {
-        self.metadata.name.as_deref()
-    }
-
-    /// Metadata about a metastore rolegroup
-    pub fn metastore_rolegroup_ref(
-        &self,
-        group_name: impl Into<String>,
-    ) -> RoleGroupRef<HiveCluster> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: HiveRole::MetaStore.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .metastore
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
-    pub fn role(&self, role_variant: &HiveRole) -> Result<&Role<MetaStoreConfigFragment>, Error> {
-        match role_variant {
-            HiveRole::MetaStore => self.spec.metastore.as_ref(),
-        }
-        .with_context(|| CannotRetrieveHiveRoleSnafu {
-            role: role_variant.to_string(),
-        })
-    }
-
-    pub fn rolegroup(
-        &self,
-        rolegroup_ref: &RoleGroupRef<HiveCluster>,
-    ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
-        let role_variant =
-            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
-                role: rolegroup_ref.role.to_owned(),
-                roles: HiveRole::roles(),
-            })?;
-
-        let role = self.role(&role_variant)?;
-        role.role_groups
-            .get(&rolegroup_ref.role_group)
-            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
-                role_group: rolegroup_ref.role_group.to_owned(),
-            })
-            .cloned()
-    }
-
-    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
-        match role {
-            HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
-        }
-    }
-
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.kerberos_secret_class().is_some()
-    }
-
-    pub fn kerberos_secret_class(&self) -> Option<String> {
-        self.spec
-            .cluster_config
-            .authentication
-            .as_ref()
-            .map(|a| &a.kerberos)
-            .map(|k| k.secret_class.clone())
-    }
-
-    pub fn db_type(&self) -> &DbType {
-        &self.spec.cluster_config.database.db_type
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(
-        &self,
-        role: &HiveRole,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<MetaStoreConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
-
-        // Retrieve role resource config
-        let role = self.role(role)?;
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let role_group = self.rolegroup(rolegroup_ref)?;
-        let mut conf_role_group = role_group.config.config;
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_role_group.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_role_group);
-        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
-    }
-}
 
 /// Reference to a single `Pod` that is a component of a [`HiveCluster`]
 /// Used for service discovery.
