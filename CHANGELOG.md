@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Run a `containerdebug` process in the background of each Hive container to collect debugging information ([#554]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#560]).
+- Support configuring JVM arguments ([#572]).
 
 ### Changed
 
@@ -16,6 +17,7 @@ All notable changes to this project will be documented in this file.
 [#554]: https://github.com/stackabletech/hive-operator/pull/554
 [#560]: https://github.com/stackabletech/hive-operator/pull/560
 [#561]: https://github.com/stackabletech/hive-operator/pull/561
+[#572]: https://github.com/stackabletech/hive-operator/pull/572
 
 ## [24.11.1] - 2025-01-10
 
