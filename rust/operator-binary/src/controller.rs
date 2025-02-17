@@ -66,7 +66,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, RoleGroupRef},
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -79,10 +79,11 @@ use tracing::warn;
 
 use crate::{
     command::build_container_command_args,
+    config::jvm::{construct_heap_jvm_args, construct_non_heap_jvm_args},
     crd::{
-        v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
-        DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
-        HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
+        v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, MetaStoreConfigFragment,
+        APP_NAME, CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_ENV_SH, HIVE_PORT,
+        HIVE_PORT_NAME, HIVE_SITE_XML, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
         METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
@@ -101,7 +102,7 @@ use crate::{
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-/// Used as runAsUser in the pod security context. This is specified in the kafka image file
+/// Used as runAsUser in the pod security context
 pub const HIVE_UID: i64 = 1000;
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
@@ -328,6 +329,9 @@ pub enum Error {
     InvalidHiveCluster {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("failed to construct JVM arguments"))]
+    ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -354,6 +358,7 @@ pub async fn reconcile_hive(
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
+    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
     let hive_role = HiveRole::MetaStore;
 
     let s3_connection_spec: Option<S3ConnectionSpec> =
@@ -385,7 +390,7 @@ pub async fn reconcile_hive(
                         PropertyNameKind::File(HIVE_ENV_SH.to_string()),
                         PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                     ],
-                    hive.spec.metastore.clone().context(NoMetaStoreRoleSnafu)?,
+                    role.clone(),
                 ),
             )]
             .into(),
@@ -455,6 +460,7 @@ pub async fn reconcile_hive(
             hive,
             &hive_namespace,
             &resolved_product_image,
+            role,
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
@@ -598,6 +604,7 @@ fn build_metastore_rolegroup_config_map(
     hive: &v1alpha1::HiveCluster,
     hive_namespace: &str,
     resolved_product_image: &ResolvedProductImage,
+    role: &Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
@@ -611,36 +618,32 @@ fn build_metastore_rolegroup_config_map(
     for (property_name_kind, config) in role_group_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
-                let mut data = BTreeMap::new();
-
-                let memory_limit = MemoryQuantity::try_from(
-                    merged_config
-                        .resources
-                        .memory
-                        .limit
-                        .as_ref()
-                        .context(InvalidJavaHeapConfigSnafu)?,
-                )
-                .context(FailedToConvertJavaHeapSnafu {
-                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                })?;
-                let heap_in_mebi = (memory_limit * JVM_HEAP_FACTOR)
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32;
-
-                data.insert(HADOOP_HEAPSIZE.to_string(), Some(heap_in_mebi.to_string()));
+                let mut data = BTreeMap::from([
+                    (
+                        "HADOOP_HEAPSIZE".to_string(),
+                        construct_heap_jvm_args(hive, merged_config, role, &rolegroup.role_group)
+                            .context(ConstructJvmArgumentsSnafu)?,
+                    ),
+                    (
+                        "HADOOP_OPTS".to_string(),
+                        construct_non_heap_jvm_args(
+                            hive,
+                            merged_config,
+                            role,
+                            &rolegroup.role_group,
+                        )
+                        .context(ConstructJvmArgumentsSnafu)?,
+                    ),
+                ]);
 
                 // other properties /  overrides
                 for (property_name, property_value) in config {
-                    data.insert(property_name.to_string(), Some(property_value.to_string()));
+                    data.insert(property_name.to_string(), property_value.to_string());
                 }
 
                 hive_env_data = data
                     .into_iter()
-                    .map(|(key, value)| {
-                        format!("export {key}={val}", val = value.unwrap_or_default())
-                    })
+                    .map(|(key, value)| format!("export {key}={value}"))
                     .collect::<Vec<String>>()
                     .join("\n");
             }
