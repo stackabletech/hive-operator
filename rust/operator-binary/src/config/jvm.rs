@@ -48,9 +48,6 @@ fn construct_jvm_args(
         .context(InvalidMemoryConfigSnafu)?;
 
     let mut jvm_args = vec![
-        // Heap settings
-        format!("-Xmx{java_heap}"),
-        format!("-Xms{java_heap}"),
         format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"),
         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml"),
         format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}"),
