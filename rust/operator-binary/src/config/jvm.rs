@@ -28,25 +28,9 @@ pub enum Error {
 /// All JVM arguments.
 fn construct_jvm_args(
     hive: &HiveCluster,
-    merged_config: &MetaStoreConfig,
     role: &Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     role_group: &str,
 ) -> Result<Vec<String>, Error> {
-    let heap_size = MemoryQuantity::try_from(
-        merged_config
-            .resources
-            .memory
-            .limit
-            .as_ref()
-            .context(MissingMemoryResourceConfigSnafu)?,
-    )
-    .context(InvalidMemoryConfigSnafu)?
-    .scale_to(BinaryMultiple::Mebi)
-        * JAVA_HEAP_FACTOR;
-    let java_heap = heap_size
-        .format_for_java()
-        .context(InvalidMemoryConfigSnafu)?;
-
     let mut jvm_args = vec![
         format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"),
         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml"),
@@ -73,11 +57,10 @@ fn construct_jvm_args(
 /// [`construct_heap_jvm_args`]).
 pub fn construct_non_heap_jvm_args(
     hive: &HiveCluster,
-    merged_config: &MetaStoreConfig,
     role: &Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     role_group: &str,
 ) -> Result<String, Error> {
-    let mut jvm_args = construct_jvm_args(hive, merged_config, role, role_group)?;
+    let mut jvm_args = construct_jvm_args(hive, role, role_group)?;
     jvm_args.retain(|arg| !is_heap_jvm_argument(arg));
 
     Ok(jvm_args.join(" "))
@@ -133,8 +116,7 @@ mod tests {
                 replicas: 1
         "#;
         let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
-        let non_heap_jvm_args =
-            construct_non_heap_jvm_args(&hive, &merged_config, &role, &rolegroup).unwrap();
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &role, &rolegroup).unwrap();
         let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
 
         assert_eq!(
@@ -186,8 +168,7 @@ mod tests {
                     - -Dhttps.proxyPort=1234
         "#;
         let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
-        let non_heap_jvm_args =
-            construct_non_heap_jvm_args(&hive, &merged_config, &role, &rolegroup).unwrap();
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &role, &rolegroup).unwrap();
         let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
 
         assert_eq!(

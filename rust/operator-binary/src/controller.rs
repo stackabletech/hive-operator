@@ -626,13 +626,8 @@ fn build_metastore_rolegroup_config_map(
                     ),
                     (
                         "HADOOP_OPTS".to_string(),
-                        construct_non_heap_jvm_args(
-                            hive,
-                            merged_config,
-                            role,
-                            &rolegroup.role_group,
-                        )
-                        .context(ConstructJvmArgumentsSnafu)?,
+                        construct_non_heap_jvm_args(hive, role, &rolegroup.role_group)
+                            .context(ConstructJvmArgumentsSnafu)?,
                     ),
                 ]);
 
