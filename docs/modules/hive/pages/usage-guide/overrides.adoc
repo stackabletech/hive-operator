@@ -108,3 +108,4 @@ Stackable operators automatically determine the set of needed JVM arguments, suc
 Using JVM argument overrides you can configure the JVM arguments xref:concepts:overrides.adoc#jvm-argument-overrides[according to the concepts page].
 
 One thing that is different for Hive metastores, is that all heap-related arguments will be passed in via the env variable `HADOOP_HEAPSIZE`, all the other ones via `HADOOP_OPTS`.
+`HADOOP_HEAPSIZE` can *not* have a unit suffix, it will always be an integer representing the number of megabytes heap available.

@@ -86,18 +86,22 @@ pub fn construct_non_heap_jvm_args(
     Ok(jvm_args.join(" "))
 }
 
-/// Arguments that go into `HADOOP_HEAPSIZE`.
-/// You can get the normal JVM arguments using [`construct_non_heap_jvm_args`].
-pub fn construct_heap_jvm_args(
-    hive: &HiveCluster,
-    merged_config: &MetaStoreConfig,
-    role: &Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>,
-    role_group: &str,
-) -> Result<String, Error> {
-    let mut jvm_args = construct_jvm_args(hive, merged_config, role, role_group)?;
-    jvm_args.retain(|arg| is_heap_jvm_argument(arg));
+/// This will be put into `HADOOP_HEAPSIZE`, which is just the heap size in megabytes (*without* the `m`
+/// unit prepended).
+pub fn construct_hadoop_heapsize_env(merged_config: &MetaStoreConfig) -> Result<String, Error> {
+    let heap_size_in_mb = (MemoryQuantity::try_from(
+        merged_config
+            .resources
+            .memory
+            .limit
+            .as_ref()
+            .context(MissingMemoryResourceConfigSnafu)?,
+    )
+    .context(InvalidMemoryConfigSnafu)?
+        * JAVA_HEAP_FACTOR)
+        .scale_to(BinaryMultiple::Mebi);
 
-    Ok(jvm_args.join(" "))
+    Ok((heap_size_in_mb.value.floor() as u32).to_string())
 }
 
 fn is_heap_jvm_argument(jvm_argument: &str) -> bool {
@@ -131,11 +135,10 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let (hive, hive_role, role, merged_config) = construct_boilerplate(input);
+        let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
         let non_heap_jvm_args =
-            construct_non_heap_jvm_args(&hive, &hive_role, &role, &merged_config).unwrap();
-        let heap_jvm_args =
-            construct_heap_jvm_args(&hive, &hive_role, &role, &merged_config).unwrap();
+            construct_non_heap_jvm_args(&hive, &merged_config, &role, &rolegroup).unwrap();
+        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
 
         assert_eq!(
             non_heap_jvm_args,
@@ -145,7 +148,7 @@ mod tests {
             -Djavax.net.ssl.trustStorePassword=changeit \
             -Djavax.net.ssl.trustStoreType=pkcs12"
         );
-        assert_eq!(heap_jvm_args, "-Xmx409m -Xms409m");
+        assert_eq!(hadoop_heapsize_env, "409");
     }
 
     #[test]
@@ -185,11 +188,10 @@ mod tests {
                     - -Xmx40000m
                     - -Dhttps.proxyPort=1234
         "#;
-        let (hive, merged_config, role, role_group) = construct_boilerplate(input);
+        let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
         let non_heap_jvm_args =
-            construct_non_heap_jvm_args(&hive, &merged_config, &role, &role_group).unwrap();
-        let heap_jvm_args =
-            construct_heap_jvm_args(&hive, &merged_config, &role, &role_group).unwrap();
+            construct_non_heap_jvm_args(&hive, &merged_config, &role, &rolegroup).unwrap();
+        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
 
         assert_eq!(
             non_heap_jvm_args,
@@ -202,7 +204,7 @@ mod tests {
             -Djava.net.preferIPv4Stack=true \
             -Dhttps.proxyPort=1234"
         );
-        assert_eq!(heap_jvm_args, "-Xms34406m -Xmx40000m");
+        assert_eq!(hadoop_heapsize_env, "34406");
     }
 
     fn construct_boilerplate(

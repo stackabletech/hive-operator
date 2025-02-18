@@ -79,7 +79,7 @@ use tracing::warn;
 
 use crate::{
     command::build_container_command_args,
-    config::jvm::{construct_heap_jvm_args, construct_non_heap_jvm_args},
+    config::jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
     crd::{
         v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, MetaStoreConfigFragment,
         APP_NAME, CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_ENV_SH, HIVE_PORT,
@@ -621,7 +621,7 @@ fn build_metastore_rolegroup_config_map(
                 let mut data = BTreeMap::from([
                     (
                         "HADOOP_HEAPSIZE".to_string(),
-                        construct_heap_jvm_args(hive, merged_config, role, &rolegroup.role_group)
+                        construct_hadoop_heapsize_env(merged_config)
                             .context(ConstructJvmArgumentsSnafu)?,
                     ),
                     (
