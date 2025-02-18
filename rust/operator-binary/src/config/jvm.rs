@@ -1,11 +1,12 @@
-use crate::crd::{
-    v1alpha1::HiveCluster, MetaStoreConfig, MetaStoreConfigFragment, JVM_SECURITY_PROPERTIES_FILE,
-    METRICS_PORT, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     role_utils::{self, GenericRoleConfig, JavaCommonConfig, JvmArgumentOverrides, Role},
+};
+
+use crate::crd::{
+    v1alpha1::HiveCluster, MetaStoreConfig, MetaStoreConfigFragment, JVM_SECURITY_PROPERTIES_FILE,
+    METRICS_PORT, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
 };
 
 const JAVA_HEAP_FACTOR: f32 = 0.8;
@@ -107,9 +108,8 @@ fn is_heap_jvm_argument(jvm_argument: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::crd::HiveRole;
-
     use super::*;
+    use crate::crd::HiveRole;
 
     #[test]
     fn test_construct_jvm_arguments_defaults() {
