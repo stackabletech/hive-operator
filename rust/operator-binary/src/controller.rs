@@ -638,7 +638,7 @@ fn build_metastore_rolegroup_config_map(
 
                 hive_env_data = data
                     .into_iter()
-                    .map(|(key, value)| format!("export {key}={value}"))
+                    .map(|(key, value)| format!("export {key}=\"{value}\""))
                     .collect::<Vec<String>>()
                     .join("\n");
             }
