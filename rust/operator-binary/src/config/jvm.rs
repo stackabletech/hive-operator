@@ -54,7 +54,7 @@ fn construct_jvm_args(
 }
 
 /// Arguments that go into `HADOOP_OPTS`, so *not* the heap settings (which you can get using
-/// [`construct_heap_jvm_args`]).
+/// [`construct_hadoop_heapsize_env`]).
 pub fn construct_non_heap_jvm_args(
     hive: &HiveCluster,
     role: &Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>,
