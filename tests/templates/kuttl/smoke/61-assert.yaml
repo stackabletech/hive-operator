@@ -14,7 +14,7 @@ commands:
   # Test configOverrides
   #
   - script: |
-      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export ROLE_VAR=role-value"
-      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export GROUP_VAR=group-value"
-      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export COMMON_VAR=group-value"
-      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-env.sh"' | grep "export HADOOP_HEAPSIZE=512"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-site.xml"' | yq -p=xml '.configuration.property[] | select(.name == "hive.metastore.warehouse.dir") | .value' | grep -qx "/stackable/warehouse/override"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-site.xml"' | yq -p=xml '.configuration.property[] | select(.name == "role-var") | .value' | grep -qx "role-value"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-site.xml"' | yq -p=xml '.configuration.property[] | select(.name == "group-var") | .value' | grep -qx "group-value"
+      kubectl -n $NAMESPACE get cm hive-metastore-default -o yaml | yq -e '.data."hive-site.xml"' | yq -p=xml '.configuration.property[] | select(.name == "common-var") | .value' | grep -qx "group-value"

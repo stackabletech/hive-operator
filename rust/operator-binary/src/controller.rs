@@ -37,9 +37,8 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource,
-                Probe, SecretKeySelector, Service, ServicePort, ServiceSpec, TCPSocketAction,
-                Volume,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
+                ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -66,7 +65,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -81,11 +80,10 @@ use crate::{
     command::build_container_command_args,
     config::jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
     crd::{
-        v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, MetaStoreConfigFragment,
-        APP_NAME, CORE_SITE_XML, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_ENV_SH, HIVE_PORT,
-        HIVE_PORT_NAME, HIVE_SITE_XML, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
-        METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
-        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
+        DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+        JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+        STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
     },
@@ -387,7 +385,6 @@ pub async fn reconcile_hive(
                         PropertyNameKind::Env,
                         PropertyNameKind::Cli,
                         PropertyNameKind::File(HIVE_SITE_XML.to_string()),
-                        PropertyNameKind::File(HIVE_ENV_SH.to_string()),
                         PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                     ],
                     role.clone(),
@@ -460,7 +457,6 @@ pub async fn reconcile_hive(
             hive,
             &hive_namespace,
             &resolved_product_image,
-            role,
             &rolegroup,
             rolegroup_config,
             s3_connection_spec.as_ref(),
@@ -604,7 +600,6 @@ fn build_metastore_rolegroup_config_map(
     hive: &v1alpha1::HiveCluster,
     hive_namespace: &str,
     resolved_product_image: &ResolvedProductImage,
-    role: &Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
@@ -613,35 +608,9 @@ fn build_metastore_rolegroup_config_map(
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
-    let mut hive_env_data = String::new();
 
     for (property_name_kind, config) in role_group_config {
         match property_name_kind {
-            PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
-                let mut data = BTreeMap::from([
-                    (
-                        "HADOOP_HEAPSIZE".to_string(),
-                        construct_hadoop_heapsize_env(merged_config)
-                            .context(ConstructJvmArgumentsSnafu)?,
-                    ),
-                    (
-                        "HADOOP_OPTS".to_string(),
-                        construct_non_heap_jvm_args(hive, role, &rolegroup.role_group)
-                            .context(ConstructJvmArgumentsSnafu)?,
-                    ),
-                ]);
-
-                // other properties /  overrides
-                for (property_name, property_value) in config {
-                    data.insert(property_name.to_string(), property_value.to_string());
-                }
-
-                hive_env_data = data
-                    .into_iter()
-                    .map(|(key, value)| format!("export {key}=\"{value}\""))
-                    .collect::<Vec<String>>()
-                    .join("\n");
-            }
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
 
@@ -724,7 +693,6 @@ fn build_metastore_rolegroup_config_map(
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
-        .add_data(HIVE_ENV_SH, hive_env_data)
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
@@ -827,6 +795,27 @@ fn build_metastore_rolegroup_statefulset(
             name: APP_NAME.to_string(),
         })?;
 
+    let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
+
+    container_builder
+        // load database credentials to environment variables: these will be used to replace
+        // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
+        .add_env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username")
+        .add_env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password")
+        .add_env_var(
+            "HADOOP_HEAPSIZE",
+            construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
+        )
+        .add_env_var(
+            "HADOOP_OPTS",
+            construct_non_heap_jvm_args(hive, role, &rolegroup_ref.role_group)
+                .context(ConstructJvmArgumentsSnafu)?,
+        )
+        .add_env_var(
+            "CONTAINERDEBUG_LOG_DIRECTORY",
+            format!("{STACKABLE_LOG_DIR}/containerdebug"),
+        );
+
     for (property_name_kind, config) in metastore_config {
         if property_name_kind == &PropertyNameKind::Env {
             // overrides
@@ -843,21 +832,6 @@ fn build_metastore_rolegroup_statefulset(
             }
         }
     }
-
-    // load database credentials to environment variables: these will be used to replace
-    // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
-    let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
-
-    container_builder.add_env_vars(vec![
-        env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username"),
-        env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password"),
-        // Needed for the `containerdebug` process to log it's tracing information to.
-        EnvVar {
-            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-            value_from: None,
-        },
-    ]);
 
     let mut pod_builder = PodBuilder::new();
 
@@ -1125,21 +1099,6 @@ fn build_metastore_rolegroup_statefulset(
         }),
         status: None,
     })
-}
-
-fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
-    EnvVar {
-        name: String::from(var_name),
-        value_from: Some(EnvVarSource {
-            secret_key_ref: Some(SecretKeySelector {
-                name: String::from(secret),
-                key: String::from(secret_key),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
 }
 
 pub fn error_policy(

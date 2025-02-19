@@ -51,7 +51,6 @@ pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 // Config file names
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
-pub const HIVE_ENV_SH: &str = "hive-env.sh";
 pub const HIVE_METASTORE_LOG4J2_PROPERTIES: &str = "metastore-log4j2.properties";
 pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
@@ -590,39 +589,35 @@ impl Configuration for MetaStoreConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
         let mut result = BTreeMap::new();
 
-        match file {
-            HIVE_SITE_XML => {
-                if let Some(warehouse_dir) = &self.warehouse_dir {
-                    result.insert(
-                        MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-                        Some(warehouse_dir.to_string()),
-                    );
-                }
+        if file == HIVE_SITE_XML {
+            if let Some(warehouse_dir) = &self.warehouse_dir {
                 result.insert(
-                    MetaStoreConfig::CONNECTION_URL.to_string(),
-                    Some(hive.spec.cluster_config.database.conn_string.clone()),
-                );
-                // use a placeholder that will be replaced in the start command (also for the password)
-                result.insert(
-                    MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-                    Some(DB_USERNAME_PLACEHOLDER.into()),
-                );
-                result.insert(
-                    MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-                    Some(DB_PASSWORD_PLACEHOLDER.into()),
-                );
-                result.insert(
-                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                    Some(hive.db_type().get_jdbc_driver_class().to_string()),
-                );
-
-                result.insert(
-                    MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-                    Some("true".to_string()),
+                    MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
+                    Some(warehouse_dir.to_string()),
                 );
             }
-            HIVE_ENV_SH => {}
-            _ => {}
+            result.insert(
+                MetaStoreConfig::CONNECTION_URL.to_string(),
+                Some(hive.spec.cluster_config.database.conn_string.clone()),
+            );
+            // use a placeholder that will be replaced in the start command (also for the password)
+            result.insert(
+                MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
+                Some(DB_USERNAME_PLACEHOLDER.into()),
+            );
+            result.insert(
+                MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
+                Some(DB_PASSWORD_PLACEHOLDER.into()),
+            );
+            result.insert(
+                MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+                Some(hive.db_type().get_jdbc_driver_class().to_string()),
+            );
+
+            result.insert(
+                MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
+                Some("true".to_string()),
+            );
         }
 
         Ok(result)

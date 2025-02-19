@@ -14,6 +14,15 @@ All notable changes to this project will be documented in this file.
 
 - Default to OCI for image metadata and product image selection ([#561]).
 
+### Fixed
+
+- BREAKING: Remove the `hive-env.sh` config file, as e.g. setting `HADOOP_OPTS` in there had absolutely no effect.
+  This is considered a fix, as users expected the envs to be used, but they haven't.
+  Users should use `envOverrides` instead, which are actually working ([#572]).
+- BREAKING: The env variable `HADOOP_HEAPSIZE` was previously put in `hive-env.sh` and very likely had no effect.
+  It is now passed as env variable, thus working.
+  This might impact your stacklet as the heap size setting now actually has an effect ([#572]).
+
 [#554]: https://github.com/stackabletech/hive-operator/pull/554
 [#560]: https://github.com/stackabletech/hive-operator/pull/560
 [#561]: https://github.com/stackabletech/hive-operator/pull/561
