@@ -3,5 +3,5 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 commands:
-  - script: kubectl get cm -n $NAMESPACE hive-metastore-resources-from-role -o yaml | grep -- 'HADOOP_HEAPSIZE=3276'
-  - script: kubectl get cm -n $NAMESPACE hive-metastore-resources-from-role-group -o yaml | grep -- 'HADOOP_HEAPSIZE=2457'
+  - script: kubectl -n $NAMESPACE get sts hive-metastore-resources-from-role -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "hive") | .env[] | select (.name == "HADOOP_HEAPSIZE" and .value == "3276")'
+  - script: kubectl -n $NAMESPACE get sts hive-metastore-resources-from-role-group -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "hive") | .env[] | select (.name == "HADOOP_HEAPSIZE" and .value == "2457")'
