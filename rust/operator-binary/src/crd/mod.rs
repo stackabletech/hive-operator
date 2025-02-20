@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use indoc::formatdoc;
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -23,9 +22,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{
-        GenericProductSpecificCommonConfig, GenericRoleConfig, Role, RoleGroup, RoleGroupRef,
-    },
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
@@ -54,7 +51,6 @@ pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 // Config file names
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const HIVE_SITE_XML: &str = "hive-site.xml";
-pub const HIVE_ENV_SH: &str = "hive-env.sh";
 pub const HIVE_METASTORE_LOG4J2_PROPERTIES: &str = "metastore-log4j2.properties";
 pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
@@ -69,13 +65,6 @@ pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
-
-// Metastore opts
-pub const HADOOP_OPTS: &str = "HADOOP_OPTS";
-
-// Heap
-pub const HADOOP_HEAPSIZE: &str = "HADOOP_HEAPSIZE";
-pub const JVM_HEAP_FACTOR: f32 = 0.8;
 
 // DB credentials
 pub const DB_USERNAME_PLACEHOLDER: &str = "xxx_db_username_xxx";
@@ -141,7 +130,7 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub metastore: Option<Role<MetaStoreConfigFragment>>,
+        pub metastore: Option<Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
     }
 
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -234,7 +223,10 @@ impl v1alpha1::HiveCluster {
             }))
     }
 
-    pub fn role(&self, role_variant: &HiveRole) -> Result<&Role<MetaStoreConfigFragment>, Error> {
+    pub fn role(
+        &self,
+        role_variant: &HiveRole,
+    ) -> Result<&Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>, Error> {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
         }
@@ -246,7 +238,7 @@ impl v1alpha1::HiveCluster {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<MetaStoreConfigFragment, GenericProductSpecificCommonConfig>, Error> {
+    ) -> Result<RoleGroup<MetaStoreConfigFragment, JavaCommonConfig>, Error> {
         let role_variant =
             HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
                 role: rolegroup_ref.role.to_owned(),
@@ -574,24 +566,11 @@ impl Configuration for MetaStoreConfigFragment {
 
     fn compute_env(
         &self,
-        hive: &Self::Configurable,
+        _hive: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        let mut result = BTreeMap::new();
-
-        let env = formatdoc! {"
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml \
-            -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE} \
-            -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD} \
-            -Djavax.net.ssl.trustStoreType=pkcs12 \
-            -Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE} \
-            {java_security_krb5_conf}",
-            java_security_krb5_conf = java_security_krb5_conf(hive)
-        };
-
-        result.insert(HADOOP_OPTS.to_string(), Some(env));
-
-        Ok(result)
+        // Well product-config strikes again...
+        Ok(BTreeMap::new())
     }
 
     fn compute_cli(
@@ -610,53 +589,39 @@ impl Configuration for MetaStoreConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
         let mut result = BTreeMap::new();
 
-        match file {
-            HIVE_SITE_XML => {
-                if let Some(warehouse_dir) = &self.warehouse_dir {
-                    result.insert(
-                        MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-                        Some(warehouse_dir.to_string()),
-                    );
-                }
+        if file == HIVE_SITE_XML {
+            if let Some(warehouse_dir) = &self.warehouse_dir {
                 result.insert(
-                    MetaStoreConfig::CONNECTION_URL.to_string(),
-                    Some(hive.spec.cluster_config.database.conn_string.clone()),
-                );
-                // use a placeholder that will be replaced in the start command (also for the password)
-                result.insert(
-                    MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-                    Some(DB_USERNAME_PLACEHOLDER.into()),
-                );
-                result.insert(
-                    MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-                    Some(DB_PASSWORD_PLACEHOLDER.into()),
-                );
-                result.insert(
-                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                    Some(hive.db_type().get_jdbc_driver_class().to_string()),
-                );
-
-                result.insert(
-                    MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-                    Some("true".to_string()),
+                    MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
+                    Some(warehouse_dir.to_string()),
                 );
             }
-            HIVE_ENV_SH => {}
-            _ => {}
+            result.insert(
+                MetaStoreConfig::CONNECTION_URL.to_string(),
+                Some(hive.spec.cluster_config.database.conn_string.clone()),
+            );
+            // use a placeholder that will be replaced in the start command (also for the password)
+            result.insert(
+                MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
+                Some(DB_USERNAME_PLACEHOLDER.into()),
+            );
+            result.insert(
+                MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
+                Some(DB_PASSWORD_PLACEHOLDER.into()),
+            );
+            result.insert(
+                MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+                Some(hive.db_type().get_jdbc_driver_class().to_string()),
+            );
+
+            result.insert(
+                MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
+                Some("true".to_string()),
+            );
         }
 
         Ok(result)
     }
-}
-
-fn java_security_krb5_conf(hive: &v1alpha1::HiveCluster) -> String {
-    if hive.has_kerberos_enabled() {
-        return formatdoc! {
-            "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
-        };
-    }
-
-    String::new()
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

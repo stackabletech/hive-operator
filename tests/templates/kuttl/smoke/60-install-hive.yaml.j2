@@ -30,10 +30,10 @@ spec:
       COMMON_VAR: role-value # overridden by role group below
       ROLE_VAR: role-value   # only defined here at role level
     configOverrides:
-      hive-env.sh:
-        HADOOP_HEAPSIZE: "512" # also set by the operator
-        COMMON_VAR: role-value # overridden by role group below
-        ROLE_VAR: role-value   # only defined here at role level
+      hive-site.xml:
+        hive.metastore.warehouse.dir: "/stackable/warehouse/override" # Also set by the operator
+        common-var: role-value # Overridden by role group below
+        role-var: role-value # Only defined here at role level
     roleGroups:
       default:
         replicas: 1
@@ -41,10 +41,9 @@ spec:
           COMMON_VAR: group-value # overrides role value
           GROUP_VAR: group-value # only defined here at group level
         configOverrides:
-          hive-env.sh:
-            COMMON_VAR: group-value # overridden by role group below
-            GROUP_VAR: group-value # only defined here at group level
-
+          hive-site.xml:
+            common-var: group-value
+            group-var: group-value
 ---
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection

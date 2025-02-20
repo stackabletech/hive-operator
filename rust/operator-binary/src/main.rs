@@ -1,4 +1,5 @@
 mod command;
+mod config;
 mod controller;
 mod crd;
 mod discovery;

@@ -37,9 +37,8 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource,
-                Probe, SecretKeySelector, Service, ServicePort, ServiceSpec, TCPSocketAction,
-                Volume,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
+                ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -79,12 +78,12 @@ use tracing::warn;
 
 use crate::{
     command::build_container_command_args,
+    config::jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
     crd::{
         v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
-        DB_PASSWORD_ENV, DB_USERNAME_ENV, HADOOP_HEAPSIZE, HIVE_ENV_SH, HIVE_PORT, HIVE_PORT_NAME,
-        HIVE_SITE_XML, JVM_HEAP_FACTOR, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT,
-        METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
-        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+        JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+        STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
     },
@@ -101,7 +100,7 @@ use crate::{
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-/// Used as runAsUser in the pod security context. This is specified in the kafka image file
+/// Used as runAsUser in the pod security context
 pub const HIVE_UID: i64 = 1000;
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
@@ -328,6 +327,9 @@ pub enum Error {
     InvalidHiveCluster {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("failed to construct JVM arguments"))]
+    ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -354,6 +356,7 @@ pub async fn reconcile_hive(
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
+    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
     let hive_role = HiveRole::MetaStore;
 
     let s3_connection_spec: Option<S3ConnectionSpec> =
@@ -382,10 +385,9 @@ pub async fn reconcile_hive(
                         PropertyNameKind::Env,
                         PropertyNameKind::Cli,
                         PropertyNameKind::File(HIVE_SITE_XML.to_string()),
-                        PropertyNameKind::File(HIVE_ENV_SH.to_string()),
                         PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                     ],
-                    hive.spec.metastore.clone().context(NoMetaStoreRoleSnafu)?,
+                    role.clone(),
                 ),
             )]
             .into(),
@@ -606,44 +608,9 @@ fn build_metastore_rolegroup_config_map(
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
-    let mut hive_env_data = String::new();
 
     for (property_name_kind, config) in role_group_config {
         match property_name_kind {
-            PropertyNameKind::File(file_name) if file_name == HIVE_ENV_SH => {
-                let mut data = BTreeMap::new();
-
-                let memory_limit = MemoryQuantity::try_from(
-                    merged_config
-                        .resources
-                        .memory
-                        .limit
-                        .as_ref()
-                        .context(InvalidJavaHeapConfigSnafu)?,
-                )
-                .context(FailedToConvertJavaHeapSnafu {
-                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                })?;
-                let heap_in_mebi = (memory_limit * JVM_HEAP_FACTOR)
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32;
-
-                data.insert(HADOOP_HEAPSIZE.to_string(), Some(heap_in_mebi.to_string()));
-
-                // other properties /  overrides
-                for (property_name, property_value) in config {
-                    data.insert(property_name.to_string(), Some(property_value.to_string()));
-                }
-
-                hive_env_data = data
-                    .into_iter()
-                    .map(|(key, value)| {
-                        format!("export {key}={val}", val = value.unwrap_or_default())
-                    })
-                    .collect::<Vec<String>>()
-                    .join("\n");
-            }
             PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
                 let mut data = BTreeMap::new();
 
@@ -726,7 +693,6 @@ fn build_metastore_rolegroup_config_map(
                 .build(),
         )
         .add_data(HIVE_SITE_XML, hive_site_data)
-        .add_data(HIVE_ENV_SH, hive_env_data)
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
@@ -829,6 +795,27 @@ fn build_metastore_rolegroup_statefulset(
             name: APP_NAME.to_string(),
         })?;
 
+    let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
+
+    container_builder
+        // load database credentials to environment variables: these will be used to replace
+        // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
+        .add_env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username")
+        .add_env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password")
+        .add_env_var(
+            "HADOOP_HEAPSIZE",
+            construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
+        )
+        .add_env_var(
+            "HADOOP_OPTS",
+            construct_non_heap_jvm_args(hive, role, &rolegroup_ref.role_group)
+                .context(ConstructJvmArgumentsSnafu)?,
+        )
+        .add_env_var(
+            "CONTAINERDEBUG_LOG_DIRECTORY",
+            format!("{STACKABLE_LOG_DIR}/containerdebug"),
+        );
+
     for (property_name_kind, config) in metastore_config {
         if property_name_kind == &PropertyNameKind::Env {
             // overrides
@@ -845,21 +832,6 @@ fn build_metastore_rolegroup_statefulset(
             }
         }
     }
-
-    // load database credentials to environment variables: these will be used to replace
-    // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
-    let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
-
-    container_builder.add_env_vars(vec![
-        env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username"),
-        env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password"),
-        // Needed for the `containerdebug` process to log it's tracing information to.
-        EnvVar {
-            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-            value_from: None,
-        },
-    ]);
 
     let mut pod_builder = PodBuilder::new();
 
@@ -1127,21 +1099,6 @@ fn build_metastore_rolegroup_statefulset(
         }),
         status: None,
     })
-}
-
-fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
-    EnvVar {
-        name: String::from(var_name),
-        value_from: Some(EnvVarSource {
-            secret_key_ref: Some(SecretKeySelector {
-                name: String::from(secret),
-                key: String::from(secret_key),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
 }
 
 pub fn error_policy(

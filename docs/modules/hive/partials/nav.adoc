@@ -11,7 +11,7 @@
 ** xref:hive:usage-guide/monitoring.adoc[]
 ** xref:hive:usage-guide/resources.adoc[]
 ** xref:hive:usage-guide/security.adoc[]
-** xref:hive:usage-guide/configuration-environment-overrides.adoc[]
+** xref:hive:usage-guide/overrides.adoc[]
 ** xref:hive:usage-guide/operations/index.adoc[]
 *** xref:hive:usage-guide/operations/cluster-operations.adoc[]
 *** xref:hive:usage-guide/operations/pod-placement.adoc[]
