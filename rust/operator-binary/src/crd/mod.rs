@@ -460,6 +460,7 @@ impl MetaStoreConfig {
     pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
     // S3
     pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
+    pub const S3_REGION_NAME: &'static str = "fs.s3a.endpoint.region";
     pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
