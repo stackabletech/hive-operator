@@ -1,11 +1,18 @@
 = Data storage backends
 :description: Hive supports metadata storage on S3 and HDFS. Configure S3 with S3Connection and HDFS with configMap in clusterConfig.
 
-Hive does not store data, only metadata. It can store metadata about data stored in various places. The Stackable Operator currently supports S3 and HFS.
+You can operate the Hive metastore service (HMS) without S3 or HDFS.
+Its whole purpose is to store metadata such as "Table foo has columns a, b and c and is stored as parquet in local://tmp/hive/foo".
 
-== [[s3]]S3 support
+However, as soon as you start storing metadata in the HMS that refers to a `s3a://` or `hdfs://` locations, HMS will actually do some operations on the filesystem. This can be e.g. checking if the table location exists, creating it in case it is missing.
 
-Hive supports creating tables in S3 compatible object stores.
+So if you are storing tables in S3 (or HDFS for that matter), you need to give the HMS access to that filesystem as well.
+The Stackable Operator currently supports S3 and HFS.
+
+[s3]
+== S3 support
+
+HMS supports creating tables in S3 compatible object stores.
 To use this feature you need to provide connection details for the object store using the xref:concepts:s3.adoc[S3Connection] in the top level `clusterConfig`.
 
 An example usage can look like this:
@@ -22,10 +29,10 @@ clusterConfig:
         secretClass: simple-hive-s3-secret-class
 ----
 
+[hdfs]
+== Apache HDFS support
 
-== [[hdfs]]Apache HDFS support
-
-As well as S3, Hive also supports creating tables in HDFS.
+As well as S3, HMS also supports creating tables in HDFS.
 You can add the HDFS connection in the top level `clusterConfig` as follows:
 
 [source,yaml]
