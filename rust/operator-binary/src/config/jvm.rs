@@ -127,7 +127,7 @@ mod tests {
             -Djavax.net.ssl.trustStorePassword=changeit \
             -Djavax.net.ssl.trustStoreType=pkcs12"
         );
-        assert_eq!(hadoop_heapsize_env, "409");
+        assert_eq!(hadoop_heapsize_env, "614");
     }
 
     #[test]

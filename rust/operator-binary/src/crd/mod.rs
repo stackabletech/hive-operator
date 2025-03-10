@@ -475,7 +475,7 @@ impl MetaStoreConfig {
                     max: Some(Quantity("1000m".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("512Mi".to_owned())),
+                    limit: Some(Quantity("768Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: MetastoreStorageConfigFragment {
