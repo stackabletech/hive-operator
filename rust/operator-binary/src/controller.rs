@@ -625,6 +625,11 @@ fn build_metastore_rolegroup_config_map(
                         Some(s3.endpoint().context(ConfigureS3Snafu)?.to_string()),
                     );
 
+                    data.insert(
+                        MetaStoreConfig::S3_REGION_NAME.to_string(),
+                        Some(s3.region.name.clone()),
+                    );
+
                     if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
                         // Will be replaced by config-utils
                         data.insert(
