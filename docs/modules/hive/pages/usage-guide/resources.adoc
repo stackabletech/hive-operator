@@ -7,7 +7,7 @@ A minimal HA setup consisting of 2 Hive metastore instances has the following ht
 
 * `100m` CPU request
 * `3000m` CPU limit
-* `1280m` memory request and limit
+* `1792Mi` memory request and limit
 
 Of course, additional services, require additional resources. For Stackable components, see the corresponding documentation on further resource requirements.
 
@@ -22,10 +22,10 @@ metastore:
         resources:
           requests:
             cpu: "250m"
-            memory: "512Mi"
+            memory: "768Mi"
           limits:
             cpu: "1000m"
-            memory: "512Mi"
+            memory: "768Mi"
 ----
 
 The operator may configure an additional container for log aggregation. This is done when log aggregation is configured as described in xref:concepts:logging.adoc[]. The resources for this container cannot be configured using the mechanism described above. Use xref:home:concepts:overrides.adoc#_pod_overrides[podOverrides] for this purpose.

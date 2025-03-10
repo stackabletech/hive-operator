@@ -15,10 +15,10 @@ spec:
           resources:
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 768Mi
             requests:
               cpu: 250m
-              memory: 512Mi
+              memory: 768Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
         - name: vector
 {% endif %}
