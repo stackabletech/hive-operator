@@ -627,7 +627,7 @@ fn build_metastore_rolegroup_config_map(
 
                     data.insert(
                         MetaStoreConfig::S3_REGION_NAME.to_string(),
-                        s3.region.name().map(String::from),
+                        Some(s3.region.name.clone()),
                     );
 
                     if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
