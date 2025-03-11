@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Default to OCI for image metadata and product image selection ([#561]).
-- Increase default memory reservation to `768Mi` to avoid OOMKilled ([#578]).
+- Increase default memory reservation to `768Mi` to avoid `OOMKilled` ([#578]).
 
 ### Fixed
 
