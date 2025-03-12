@@ -10,11 +10,13 @@ All notable changes to this project will be documented in this file.
 - Aggregate emitted Kubernetes events on the CustomResources ([#560]).
 - Support configuring JVM arguments ([#572]).
 - Support for S3 region ([#574]).
+- Support for version `4.0.1` as LTS ([#579]).
 
 ### Changed
 
 - Default to OCI for image metadata and product image selection ([#561]).
 - Increase default memory reservation to `768Mi` to avoid `OOMKilled` ([#578]).
+- Deprecated version `4.0.0` ([#579]).
 
 ### Fixed
 
@@ -31,6 +33,7 @@ All notable changes to this project will be documented in this file.
 [#572]: https://github.com/stackabletech/hive-operator/pull/572
 [#574]: https://github.com/stackabletech/hive-operator/pull/574
 [#578]: https://github.com/stackabletech/hive-operator/pull/578
+[#579]: https://github.com/stackabletech/hive-operator/pull/579
 
 ## [24.11.1] - 2025-01-10
 
