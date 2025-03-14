@@ -1,0 +1,19 @@
+---
+releaseName: postgresql
+name: postgresql
+repo:
+  name: bitnami
+  url: https://charts.bitnami.com/bitnami/
+version: {{ versions.postgresql }}
+options:
+  volumePermissions:
+    enabled: false
+    securityContext:
+      runAsUser: auto
+  primary:
+    extendedConfiguration: |
+      password_encryption=md5
+  auth:
+    username: hive
+    password: hive
+    database: hive
