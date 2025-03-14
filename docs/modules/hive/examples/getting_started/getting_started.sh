@@ -42,29 +42,29 @@ helm install --wait hive-operator stackable-dev/hive-operator --version 0.0.0-de
 echo "Install minio for S3"
 # tag::helm-install-minio[]
 helm install minio \
---version 4.0.2 \
---namespace default \
---set mode=standalone \
---set replicas=1 \
---set persistence.enabled=false \
---set "buckets[0].name=hive,buckets[0].policy=none" \
---set "users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite" \
---set resources.requests.memory=1Gi \
---set service.type=NodePort,service.nodePort=null \
---set consoleService.type=NodePort,consoleService.nodePort=null \
---repo https://charts.min.io/ minio
+  --version 5.4.0 \
+  --namespace default \
+  --set mode=standalone \
+  --set replicas=1 \
+  --set persistence.enabled=false \
+  --set buckets[0].name=hive,buckets[0].policy=none \
+  --set users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite \
+  --set resources.requests.memory=1Gi \
+  --set service.type=NodePort,service.nodePort=null \
+  --set consoleService.type=NodePort,consoleService.nodePort=null \
+  --repo https://charts.min.io/ minio
 # end::helm-install-minio[]
 
 echo "Install postgres for Hive"
 # tag::helm-install-postgres[]
-helm install postgresql \
---version 12.1.5 \
---namespace default \
---set auth.username=hive \
---set auth.password=hive \
---set auth.database=hive \
---set primary.extendedConfiguration="password_encryption=md5" \
---repo https://charts.bitnami.com/bitnami postgresql
+helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
+  --version 16.5.0 \
+  --namespace default \
+  --set auth.username=hive \
+  --set auth.password=hive \
+  --set auth.database=hive \
+  --set primary.extendedConfiguration="password_encryption=md5" \
+  --wait
 # end::helm-install-postgres[]
 ;;
 "stackablectl")
