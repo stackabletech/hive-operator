@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 - Default to OCI for image metadata and product image selection ([#561]).
 - Increase default memory reservation to `768Mi` to avoid `OOMKilled` ([#578]).
-- Deprecated version `4.0.0` ([#579]).
+- Mark version `4.0.1` as experimental and set `4.0.0` as LTS ([#582]).
 
 ### Fixed
 
@@ -34,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#574]: https://github.com/stackabletech/hive-operator/pull/574
 [#578]: https://github.com/stackabletech/hive-operator/pull/578
 [#579]: https://github.com/stackabletech/hive-operator/pull/579
+[#582]: https://github.com/stackabletech/hive-operator/pull/582
 
 ## [24.11.1] - 2025-01-10
 
