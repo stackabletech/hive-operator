@@ -14,7 +14,7 @@ use stackable_operator::{
 
 use crate::{
     controller::MAX_HIVE_LOG_FILES_SIZE,
-    crd::{v1alpha1, Container, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR},
+    crd::{Container, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
