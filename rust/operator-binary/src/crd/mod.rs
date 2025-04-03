@@ -19,7 +19,7 @@ use stackable_operator::{
         merge::Merge,
     },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
@@ -451,20 +451,20 @@ pub struct MetaStoreConfig {
 }
 
 impl MetaStoreConfig {
+    pub const CONNECTION_DRIVER_NAME: &'static str = "javax.jdo.option.ConnectionDriverName";
+    pub const CONNECTION_PASSWORD: &'static str = "javax.jdo.option.ConnectionPassword";
     // metastore
     pub const CONNECTION_URL: &'static str = "javax.jdo.option.ConnectionURL";
-    pub const CONNECTION_DRIVER_NAME: &'static str = "javax.jdo.option.ConnectionDriverName";
     pub const CONNECTION_USER_NAME: &'static str = "javax.jdo.option.ConnectionUserName";
-    pub const CONNECTION_PASSWORD: &'static str = "javax.jdo.option.ConnectionPassword";
     pub const METASTORE_METRICS_ENABLED: &'static str = "hive.metastore.metrics.enabled";
     pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
+    pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
     // S3
     pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
+    pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
     pub const S3_REGION_NAME: &'static str = "fs.s3a.endpoint.region";
-    pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
-    pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
 
     fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {

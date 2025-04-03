@@ -12,6 +12,7 @@ use std::sync::Arc;
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_operator::{
+    YamlSchema,
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -20,18 +21,18 @@ use stackable_operator::{
     kube::{
         core::DeserializeGuard,
         runtime::{
+            Controller,
             events::{Recorder, Reporter},
-            watcher, Controller,
+            watcher,
         },
     },
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
-    YamlSchema,
 };
 
 use crate::{
     controller::HIVE_FULL_CONTROLLER_NAME,
-    crd::{v1alpha1, HiveCluster, APP_NAME},
+    crd::{APP_NAME, HiveCluster, v1alpha1},
 };
 
 mod built_info {
@@ -84,13 +85,10 @@ async fn main() -> anyhow::Result<()> {
                 &cluster_info_opts,
             )
             .await?;
-            let event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
+            let event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+                controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
+                instance: None,
+            }));
 
             Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),

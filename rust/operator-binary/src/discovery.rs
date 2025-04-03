@@ -5,12 +5,12 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service, ServiceSpec},
-    kube::{runtime::reflector::ObjectRef, Resource},
+    kube::{Resource, runtime::reflector::ObjectRef},
 };
 
 use crate::{
     controller::build_recommended_labels,
-    crd::{v1alpha1, HiveRole, ServiceType, HIVE_PORT, HIVE_PORT_NAME},
+    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole, ServiceType, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]

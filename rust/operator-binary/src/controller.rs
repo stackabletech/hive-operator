@@ -11,9 +11,9 @@ use const_format::concatcp;
 use fnv::FnvHasher;
 use indoc::formatdoc;
 use product_config::{
-    types::PropertyNameKind,
-    writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
     ProductConfigManager,
+    types::PropertyNameKind,
+    writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -22,8 +22,8 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder, volume::VolumeBuilder, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::VolumeBuilder,
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -34,6 +34,7 @@ use stackable_operator::{
         tls_verification::TlsClientDetailsError,
     },
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
@@ -44,12 +45,11 @@ use stackable_operator::{
         apimachinery::pkg::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
-        DeepMerge,
     },
     kube::{
-        core::{error_boundary, DeserializeGuard},
-        runtime::controller::Action,
         Resource, ResourceExt,
+        core::{DeserializeGuard, error_boundary},
+        runtime::controller::Action,
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
@@ -58,7 +58,7 @@ use stackable_operator::{
     product_logging::{
         self,
         framework::{
-            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
         },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
@@ -71,21 +71,22 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
-    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
+    utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
 
 use crate::{
+    OPERATOR_NAME,
     command::build_container_command_args,
     config::jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
     crd::{
-        v1alpha1, Container, HiveClusterStatus, HiveRole, MetaStoreConfig, APP_NAME, CORE_SITE_XML,
-        DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-        JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
+        APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
+        HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
+        METRICS_PORT, METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR,
         STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
-        STACKABLE_LOG_DIR_NAME,
+        STACKABLE_LOG_DIR_NAME, v1alpha1,
     },
     discovery,
     kerberos::{
@@ -94,7 +95,6 @@ use crate::{
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
-    OPERATOR_NAME,
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -872,7 +872,9 @@ fn build_metastore_rolegroup_statefulset(
         //
         // TODO: Once we drop support for HMS 3.1.x we can remove this condition and very likely get rid of the
         // "bin/start-metastore" script.
-        format!("bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &")
+        format!(
+            "bin/start-metastore --config {STACKABLE_CONFIG_DIR} --db-type {db_type} --hive-bin-dir bin &"
+        )
     } else {
         // schematool versions 4.0.x (and above) support the `-initOrUpgradeSchema`, which is exactly what we need :)
         // Some docs for the schemaTool can be found here: https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=34835119

@@ -6,19 +6,19 @@ use stackable_operator::{
     builder::{
         self,
         pod::{
+            PodBuilder,
             container::ContainerBuilder,
             volume::{
                 SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
                 VolumeBuilder,
             },
-            PodBuilder,
         },
     },
     kube::ResourceExt,
     utils::cluster_info::KubernetesClusterInfo,
 };
 
-use crate::crd::{v1alpha1, HiveRole, HIVE_SITE_XML, STACKABLE_CONFIG_DIR};
+use crate::crd::{HIVE_SITE_XML, HiveRole, STACKABLE_CONFIG_DIR, v1alpha1};
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
