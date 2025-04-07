@@ -12,22 +12,15 @@ use std::sync::Arc;
 use clap::{Parser, crate_description, crate_version};
 use futures::stream::StreamExt;
 use stackable_operator::{
-    YamlSchema,
-    cli::{Command, ProductOperatorRun},
-    k8s_openapi::api::{
+    cli::{Command, ProductOperatorRun}, k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
-    },
-    kube::{
+    }, kube::{
         core::DeserializeGuard,
         runtime::{
-            Controller,
-            events::{Recorder, Reporter},
-            watcher,
-        },
-    },
-    logging::controller::report_controller_reconciled,
-    shared::yaml::SerializeOptions,
+            events::{Recorder, Reporter}, reflector::ObjectRef, watcher, Controller
+        }, ResourceExt,
+    }, logging::controller::report_controller_reconciled, shared::yaml::SerializeOptions, YamlSchema
 };
 
 use crate::{
@@ -89,11 +82,12 @@ async fn main() -> anyhow::Result<()> {
                 instance: None,
             }));
 
-            Controller::new(
+            let hive_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
                 watcher::Config::default(),
-            )
-            .owns(
+            );
+            let hive_store_1 = hive_controller.store();
+            hive_controller.owns(
                 watch_namespace.get_api::<Service>(&client),
                 watcher::Config::default(),
             )
@@ -106,6 +100,17 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .shutdown_on_signal()
+            .watches(
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+                move |config_map| {
+                    hive_store_1
+                        .state()
+                        .into_iter()
+                        .filter(move |hive| references_config_map(hive, &config_map))
+                        .map(|hive| ObjectRef::from_obj(&*hive))
+                },
+            )
             .run(
                 controller::reconcile_hive,
                 controller::error_policy,
@@ -136,4 +141,18 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn references_config_map(
+    hive: &DeserializeGuard<v1alpha1::HiveCluster>,
+    config_map: &DeserializeGuard<ConfigMap>,
+) -> bool {
+    let Ok(hive) = &hive.0 else {
+        return false;
+    };
+
+    match hive.spec.cluster_config.hdfs.to_owned() {
+        Some(hdfs_connection) => hdfs_connection.config_map == config_map.name_any(),
+        None => false,
+        }
 }
