@@ -22,7 +22,7 @@ use stackable_operator::{
         runtime::{
             events::{Recorder, Reporter}, reflector::ObjectRef, watcher, Controller
         }, ResourceExt,
-    }, logging::controller::report_controller_reconciled, shared::yaml::SerializeOptions, YamlSchema
+    }, logging::controller::report_controller_reconciled, shared::yaml::SerializeOptions,
 };
 use stackable_telemetry::{Tracing, tracing::settings::Settings};
 use tracing::level_filters::LevelFilter;
