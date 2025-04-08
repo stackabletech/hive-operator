@@ -77,10 +77,7 @@ pub fn extend_role_group_config_map(
     if logging.enable_vector_agent {
         cm_builder.add_data(
             product_logging::framework::VECTOR_CONFIG_FILE,
-            product_logging::framework::create_vector_config(
-                rolegroup,
-                vector_log_config,
-            ),
+            product_logging::framework::create_vector_config(rolegroup, vector_log_config),
         );
     }
 

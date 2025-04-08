@@ -710,14 +710,11 @@ fn build_metastore_rolegroup_config_map(
         cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(data.iter()));
     }
 
-    extend_role_group_config_map(
-        rolegroup,
-        &merged_config.logging,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu {
-        cm_name: rolegroup.object_name(),
-    })?;
+    extend_role_group_config_map(rolegroup, &merged_config.logging, &mut cm_builder).context(
+        InvalidLoggingConfigSnafu {
+            cm_name: rolegroup.object_name(),
+        },
+    )?;
 
     cm_builder
         .build()
@@ -1041,33 +1038,33 @@ fn build_metastore_rolegroup_statefulset(
     // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
         match hive
-        .spec
-        .cluster_config
-        .vector_aggregator_config_map_name
-        .to_owned()
-    {
-        Some(vector_aggregator_config_map_name) => {
-        pod_builder.add_container(
-            product_logging::framework::vector_container(
-                resolved_product_image,
-                STACKABLE_CONFIG_MOUNT_DIR_NAME,
-                STACKABLE_LOG_DIR_NAME,
-                merged_config.logging.containers.get(&Container::Vector),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-                    &vector_aggregator_config_map_name,
-            )
-            .context(BuildVectorContainerSnafu)?,
-        );
-    }
-    None => {
-        VectorAggregatorConfigMapMissingSnafu.fail()?;
-    }
-}
+            .spec
+            .cluster_config
+            .vector_aggregator_config_map_name
+            .to_owned()
+        {
+            Some(vector_aggregator_config_map_name) => {
+                pod_builder.add_container(
+                    product_logging::framework::vector_container(
+                        resolved_product_image,
+                        STACKABLE_CONFIG_MOUNT_DIR_NAME,
+                        STACKABLE_LOG_DIR_NAME,
+                        merged_config.logging.containers.get(&Container::Vector),
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                        &vector_aggregator_config_map_name,
+                    )
+                    .context(BuildVectorContainerSnafu)?,
+                );
+            }
+            None => {
+                VectorAggregatorConfigMapMissingSnafu.fail()?;
+            }
+        }
     }
 
     let mut pod_template = pod_builder.build_template();

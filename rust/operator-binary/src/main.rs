@@ -17,12 +17,19 @@ use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
-    }, kube::{
+    },
+    kube::{
+        ResourceExt,
         core::DeserializeGuard,
         runtime::{
-            events::{Recorder, Reporter}, reflector::ObjectRef, watcher, Controller
-        }, ResourceExt,
-    }, logging::controller::report_controller_reconciled, shared::yaml::SerializeOptions,
+            Controller,
+            events::{Recorder, Reporter},
+            reflector::ObjectRef,
+            watcher,
+        },
+    },
+    logging::controller::report_controller_reconciled,
+    shared::yaml::SerializeOptions,
 };
 use stackable_telemetry::{Tracing, tracing::settings::Settings};
 use tracing::level_filters::LevelFilter;
@@ -118,66 +125,70 @@ async fn main() -> anyhow::Result<()> {
                 &cluster_info_opts,
             )
             .await?;
-            let event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
-                controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
-                instance: None,
-            }));
+            let event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
 
             let hive_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
                 watcher::Config::default(),
             );
             let hive_store_1 = hive_controller.store();
-            hive_controller.owns(
-                watch_namespace.get_api::<Service>(&client),
-                watcher::Config::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<StatefulSet>(&client),
-                watcher::Config::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<ConfigMap>(&client),
-                watcher::Config::default(),
-            )
-            .shutdown_on_signal()
-            .watches(
-                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
-                watcher::Config::default(),
-                move |config_map| {
-                    hive_store_1
-                        .state()
-                        .into_iter()
-                        .filter(move |hive| references_config_map(hive, &config_map))
-                        .map(|hive| ObjectRef::from_obj(&*hive))
-                },
-            )
-            .run(
-                controller::reconcile_hive,
-                controller::error_policy,
-                Arc::new(controller::Ctx {
-                    client: client.clone(),
-                    product_config,
-                }),
-            )
-            // We can let the reporting happen in the background
-            .for_each_concurrent(
-                16, // concurrency limit
-                |result| {
-                    // The event_recorder needs to be shared across all invocations, so that
-                    // events are correctly aggregated
-                    let event_recorder = event_recorder.clone();
-                    async move {
-                        report_controller_reconciled(
-                            &event_recorder,
-                            HIVE_FULL_CONTROLLER_NAME,
-                            &result,
-                        )
-                        .await;
-                    }
-                },
-            )
-            .await;
+            hive_controller
+                .owns(
+                    watch_namespace.get_api::<Service>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<StatefulSet>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<ConfigMap>(&client),
+                    watcher::Config::default(),
+                )
+                .shutdown_on_signal()
+                .watches(
+                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                    watcher::Config::default(),
+                    move |config_map| {
+                        hive_store_1
+                            .state()
+                            .into_iter()
+                            .filter(move |hive| references_config_map(hive, &config_map))
+                            .map(|hive| ObjectRef::from_obj(&*hive))
+                    },
+                )
+                .run(
+                    controller::reconcile_hive,
+                    controller::error_policy,
+                    Arc::new(controller::Ctx {
+                        client: client.clone(),
+                        product_config,
+                    }),
+                )
+                // We can let the reporting happen in the background
+                .for_each_concurrent(
+                    16, // concurrency limit
+                    |result| {
+                        // The event_recorder needs to be shared across all invocations, so that
+                        // events are correctly aggregated
+                        let event_recorder = event_recorder.clone();
+                        async move {
+                            report_controller_reconciled(
+                                &event_recorder,
+                                HIVE_FULL_CONTROLLER_NAME,
+                                &result,
+                            )
+                            .await;
+                        }
+                    },
+                )
+                .await;
         }
     }
 
@@ -195,5 +206,5 @@ fn references_config_map(
     match hive.spec.cluster_config.hdfs.to_owned() {
         Some(hdfs_connection) => hdfs_connection.config_map == config_map.name_any(),
         None => false,
-        }
+    }
 }
