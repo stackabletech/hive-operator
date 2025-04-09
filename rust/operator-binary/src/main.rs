@@ -200,7 +200,7 @@ fn references_config_map(
         return false;
     };
 
-    match hive.spec.cluster_config.hdfs.to_owned() {
+    match &hive.spec.cluster_config.hdfs {
         Some(hdfs_connection) => hdfs_connection.config_map == config_map.name_any(),
         None => false,
     }

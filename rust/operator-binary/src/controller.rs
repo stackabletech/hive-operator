@@ -1037,12 +1037,7 @@ fn build_metastore_rolegroup_statefulset(
     // N.B. the vector container should *follow* the hive container so that the hive one is the
     // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
-        match hive
-            .spec
-            .cluster_config
-            .vector_aggregator_config_map_name
-            .to_owned()
-        {
+        match &hive.spec.cluster_config.vector_aggregator_config_map_name {
             Some(vector_aggregator_config_map_name) => {
                 pod_builder.add_container(
                     product_logging::framework::vector_container(
@@ -1056,7 +1051,7 @@ fn build_metastore_rolegroup_statefulset(
                             .with_memory_request("128Mi")
                             .with_memory_limit("128Mi")
                             .build(),
-                        &vector_aggregator_config_map_name,
+                        vector_aggregator_config_map_name,
                     )
                     .context(BuildVectorContainerSnafu)?,
                 );
