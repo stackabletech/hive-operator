@@ -15,10 +15,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Use `json` file extension for log files ([#591]).
 - Fix a bug where changes to ConfigMaps that are referenced in the HiveCluster spec didn't trigger a reconciliation ([#589]).
 
 [#585]: https://github.com/stackabletech/hive-operator/pull/585
 [#589]: https://github.com/stackabletech/hdfs-operator/pull/589
+[#591]: https://github.com/stackabletech/hive-operator/pull/591
 
 ## [25.3.0] - 2025-03-21
 

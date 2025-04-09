@@ -88,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
                     Settings::builder()
                         .with_environment_variable(ENV_VAR_CONSOLE_LOG)
                         .with_default_level(LevelFilter::INFO)
-                        .file_log_settings_builder(log_directory, "tracing-rs.log")
+                        .file_log_settings_builder(log_directory, "tracing-rs.json")
                         .with_rotation_period(rotation_period)
                         .build()
                 }))
@@ -125,13 +125,10 @@ async fn main() -> anyhow::Result<()> {
                 &cluster_info_opts,
             )
             .await?;
-            let event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
+            let event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+                controller: HIVE_FULL_CONTROLLER_NAME.to_string(),
+                instance: None,
+            }));
 
             let hive_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
