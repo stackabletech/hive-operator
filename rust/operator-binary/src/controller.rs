@@ -94,7 +94,7 @@ use crate::{
         kerberos_container_start_commands,
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
-    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    product_logging::extend_role_group_config_map,
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -228,10 +228,8 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress {
-        source: crate::product_logging::Error,
-    },
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
 
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
@@ -439,10 +437,6 @@ pub async fn reconcile_hive(
         .await
         .context(ApplyRoleServiceSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(hive, client)
-        .await
-        .context(ResolveVectorAggregatorAddressSnafu)?;
-
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
@@ -461,7 +455,6 @@ pub async fn reconcile_hive(
             rolegroup_config,
             s3_connection_spec.as_ref(),
             &config,
-            vector_aggregator_address.as_deref(),
             &client.kubernetes_cluster_info,
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
@@ -604,7 +597,6 @@ fn build_metastore_rolegroup_config_map(
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_connection_spec: Option<&S3ConnectionSpec>,
     merged_config: &MetaStoreConfig,
-    vector_aggregator_address: Option<&str>,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
@@ -718,15 +710,11 @@ fn build_metastore_rolegroup_config_map(
         cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(data.iter()));
     }
 
-    extend_role_group_config_map(
-        rolegroup,
-        vector_aggregator_address,
-        &merged_config.logging,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu {
-        cm_name: rolegroup.object_name(),
-    })?;
+    extend_role_group_config_map(rolegroup, &merged_config.logging, &mut cm_builder).context(
+        InvalidLoggingConfigSnafu {
+            cm_name: rolegroup.object_name(),
+        },
+    )?;
 
     cm_builder
         .build()
@@ -1049,21 +1037,29 @@ fn build_metastore_rolegroup_statefulset(
     // N.B. the vector container should *follow* the hive container so that the hive one is the
     // default, is started first and can provide any dependencies that vector expects
     if merged_config.logging.enable_vector_agent {
-        pod_builder.add_container(
-            product_logging::framework::vector_container(
-                resolved_product_image,
-                STACKABLE_CONFIG_MOUNT_DIR_NAME,
-                STACKABLE_LOG_DIR_NAME,
-                merged_config.logging.containers.get(&Container::Vector),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-            )
-            .context(BuildVectorContainerSnafu)?,
-        );
+        match &hive.spec.cluster_config.vector_aggregator_config_map_name {
+            Some(vector_aggregator_config_map_name) => {
+                pod_builder.add_container(
+                    product_logging::framework::vector_container(
+                        resolved_product_image,
+                        STACKABLE_CONFIG_MOUNT_DIR_NAME,
+                        STACKABLE_LOG_DIR_NAME,
+                        merged_config.logging.containers.get(&Container::Vector),
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                        vector_aggregator_config_map_name,
+                    )
+                    .context(BuildVectorContainerSnafu)?,
+                );
+            }
+            None => {
+                VectorAggregatorConfigMapMissingSnafu.fail()?;
+            }
+        }
     }
 
     let mut pod_template = pod_builder.build_template();

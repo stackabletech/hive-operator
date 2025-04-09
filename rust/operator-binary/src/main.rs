@@ -19,10 +19,12 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
+        ResourceExt,
         core::DeserializeGuard,
         runtime::{
             Controller,
             events::{Recorder, Reporter},
+            reflector::ObjectRef,
             watcher,
         },
     },
@@ -128,51 +130,78 @@ async fn main() -> anyhow::Result<()> {
                 instance: None,
             }));
 
-            Controller::new(
+            let hive_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
                 watcher::Config::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<Service>(&client),
-                watcher::Config::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<StatefulSet>(&client),
-                watcher::Config::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<ConfigMap>(&client),
-                watcher::Config::default(),
-            )
-            .shutdown_on_signal()
-            .run(
-                controller::reconcile_hive,
-                controller::error_policy,
-                Arc::new(controller::Ctx {
-                    client: client.clone(),
-                    product_config,
-                }),
-            )
-            // We can let the reporting happen in the background
-            .for_each_concurrent(
-                16, // concurrency limit
-                |result| {
-                    // The event_recorder needs to be shared across all invocations, so that
-                    // events are correctly aggregated
-                    let event_recorder = event_recorder.clone();
-                    async move {
-                        report_controller_reconciled(
-                            &event_recorder,
-                            HIVE_FULL_CONTROLLER_NAME,
-                            &result,
-                        )
-                        .await;
-                    }
-                },
-            )
-            .await;
+            );
+            let config_map_store = hive_controller.store();
+            hive_controller
+                .owns(
+                    watch_namespace.get_api::<Service>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<StatefulSet>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<ConfigMap>(&client),
+                    watcher::Config::default(),
+                )
+                .shutdown_on_signal()
+                .watches(
+                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                    watcher::Config::default(),
+                    move |config_map| {
+                        config_map_store
+                            .state()
+                            .into_iter()
+                            .filter(move |hive| references_config_map(hive, &config_map))
+                            .map(|hive| ObjectRef::from_obj(&*hive))
+                    },
+                )
+                .run(
+                    controller::reconcile_hive,
+                    controller::error_policy,
+                    Arc::new(controller::Ctx {
+                        client: client.clone(),
+                        product_config,
+                    }),
+                )
+                // We can let the reporting happen in the background
+                .for_each_concurrent(
+                    16, // concurrency limit
+                    |result| {
+                        // The event_recorder needs to be shared across all invocations, so that
+                        // events are correctly aggregated
+                        let event_recorder = event_recorder.clone();
+                        async move {
+                            report_controller_reconciled(
+                                &event_recorder,
+                                HIVE_FULL_CONTROLLER_NAME,
+                                &result,
+                            )
+                            .await;
+                        }
+                    },
+                )
+                .await;
         }
     }
 
     Ok(())
+}
+
+fn references_config_map(
+    hive: &DeserializeGuard<v1alpha1::HiveCluster>,
+    config_map: &DeserializeGuard<ConfigMap>,
+) -> bool {
+    let Ok(hive) = &hive.0 else {
+        return false;
+    };
+
+    match &hive.spec.cluster_config.hdfs {
+        Some(hdfs_connection) => hdfs_connection.config_map == config_map.name_any(),
+        None => false,
+    }
 }

@@ -10,12 +10,16 @@ All notable changes to this project will be documented in this file.
   - BREAKING: The file log directory was set by `HIVE_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS`
     (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
+- BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
+    of having the operator write it to the vector config ([#589]).
 
 ### Fixed
 
 - Use `json` file extension for log files ([#591]).
+- Fix a bug where changes to ConfigMaps that are referenced in the HiveCluster spec didn't trigger a reconciliation ([#589]).
 
 [#585]: https://github.com/stackabletech/hive-operator/pull/585
+[#589]: https://github.com/stackabletech/hdfs-operator/pull/589
 [#591]: https://github.com/stackabletech/hive-operator/pull/591
 
 ## [25.3.0] - 2025-03-21
