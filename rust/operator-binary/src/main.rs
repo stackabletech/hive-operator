@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
                 watcher::Config::default(),
             );
-            let hive_store_1 = hive_controller.store();
+            let config_map_store = hive_controller.store();
             hive_controller
                 .owns(
                     watch_namespace.get_api::<Service>(&client),
@@ -153,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
                     watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
                     move |config_map| {
-                        hive_store_1
+                        config_map_store
                             .state()
                             .into_iter()
                             .filter(move |hive| references_config_map(hive, &config_map))
