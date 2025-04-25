@@ -3,7 +3,7 @@
 
 The version you need to specify is not only the version of Apache Hive which you want to roll out, but has to be amended with a Stackable version as shown.
 This Stackable version is the version of the underlying container image which is used to execute the processes.
-For a list of available versions check the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhive%2Ftags[image registry].
+For a list of available versions check the https://oci.stackable.tech/[image registry,window=_blank]. Information on how to browse the registry can be found xref:contributor:project-overview.adoc#docker-images[here,window=_blank].
 It should generally be safe to simply use the latest image version that is available.
 
 .Create a single node Apache Hive Metastore cluster using Derby:

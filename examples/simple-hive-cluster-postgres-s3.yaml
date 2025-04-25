@@ -1,6 +1,5 @@
 # helm install secret-operator \
-#     secret-operator \
-#     --repo https://repo.stackable.tech/repository/helm-stable
+#     oci://oci.stackable.tech/sdp-charts/secret-operator
 # helm install minio \
 #     minio \
 #     --repo https://charts.bitnami.com/bitnami \
