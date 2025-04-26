@@ -118,14 +118,9 @@ include::example$getting_started/install-operator-output.txt[]
 
 Run the following commands Helm to install the operators via Helm
 
-Add the Stackable Helm repository:
+NOTE: `helm repo` subcommands are not supported for OCI registries. The operators are installed directly, without adding the Helm Chart repository first.
 
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=helm-add-repo]
-----
-
-Then install the Stackable operators:
+Install the Stackable operators:
 
 [source,bash]
 ----
