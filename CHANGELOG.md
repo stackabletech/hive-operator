@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#589]).
+- test: Bump to Vector `0.46.1` ([#599]).
 
 ### Fixed
 
@@ -32,6 +33,7 @@ All notable changes to this project will be documented in this file.
 [#591]: https://github.com/stackabletech/hive-operator/pull/591
 [#592]: https://github.com/stackabletech/hive-operator/pull/592
 [#596]: https://github.com/stackabletech/hive-operator/pull/596
+[#599]: https://github.com/stackabletech/hive-operator/pull/599
 
 ## [25.3.0] - 2025-03-21
 
