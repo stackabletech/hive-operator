@@ -100,8 +100,6 @@ use crate::{
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-/// Used as runAsUser in the pod security context
-pub const HIVE_UID: i64 = 1000;
 const DOCKER_IMAGE_BASE_NAME: &str = "hive";
 
 pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
@@ -986,13 +984,7 @@ fn build_metastore_rolegroup_statefulset(
         .context(AddVolumeSnafu)?
         .affinity(&merged_config.affinity)
         .service_account_name(sa_name)
-        .security_context(
-            PodSecurityContextBuilder::new()
-                .run_as_user(HIVE_UID)
-                .run_as_group(0)
-                .fs_group(1000)
-                .build(),
-        );
+        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     if let Some(ContainerLogConfig {
         choice:
