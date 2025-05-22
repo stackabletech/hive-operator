@@ -1,4 +1,4 @@
-use stackable_operator::commons::s3::S3ConnectionSpec;
+use stackable_operator::crd::s3;
 
 use crate::crd::{
     DB_PASSWORD_ENV, DB_PASSWORD_PLACEHOLDER, DB_USERNAME_ENV, DB_USERNAME_PLACEHOLDER,
@@ -10,7 +10,7 @@ use crate::crd::{
 pub fn build_container_command_args(
     hive: &v1alpha1::HiveCluster,
     start_command: String,
-    s3_connection_spec: Option<&S3ConnectionSpec>,
+    s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
 ) -> Vec<String> {
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set s3 access and secret keys
