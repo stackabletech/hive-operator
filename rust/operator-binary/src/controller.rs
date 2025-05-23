@@ -28,11 +28,10 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
-        product_image_selection::ResolvedProductImage,
-        rbac::build_rbac_resources,
-        s3::{S3AccessStyle, S3ConnectionSpec, S3Error},
+        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
         tls_verification::TlsClientDetailsError,
     },
+    crd::s3,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -188,7 +187,9 @@ pub enum Error {
     },
 
     #[snafu(display("failed to configure S3 connection"))]
-    ConfigureS3 { source: S3Error },
+    ConfigureS3Connection {
+        source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
+    },
 
     #[snafu(display("failed to configure S3 TLS client details"))]
     ConfigureS3TlsClientDetails { source: TlsClientDetailsError },
@@ -302,7 +303,7 @@ pub enum Error {
         "there was an error adding LDAP Volumes and VolumeMounts to the Pod and Containers"
     ))]
     AddLdapVolumes {
-        source: stackable_operator::commons::authentication::ldap::Error,
+        source: stackable_operator::crd::authentication::ldap::v1alpha1::Error,
     },
 
     #[snafu(display("failed to add kerberos config"))]
@@ -355,7 +356,7 @@ pub async fn reconcile_hive(
     let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
     let hive_role = HiveRole::MetaStore;
 
-    let s3_connection_spec: Option<S3ConnectionSpec> =
+    let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
             Some(
                 s3.clone()
@@ -364,7 +365,7 @@ pub async fn reconcile_hive(
                         &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
                     )
                     .await
-                    .context(ConfigureS3Snafu)?,
+                    .context(ConfigureS3ConnectionSnafu)?,
             )
         } else {
             None
@@ -593,7 +594,7 @@ fn build_metastore_rolegroup_config_map(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    s3_connection_spec: Option<&S3ConnectionSpec>,
+    s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
@@ -612,7 +613,11 @@ fn build_metastore_rolegroup_config_map(
                 if let Some(s3) = s3_connection_spec {
                     data.insert(
                         MetaStoreConfig::S3_ENDPOINT.to_string(),
-                        Some(s3.endpoint().context(ConfigureS3Snafu)?.to_string()),
+                        Some(
+                            s3.endpoint()
+                                .context(ConfigureS3ConnectionSnafu)?
+                                .to_string(),
+                        ),
                     );
 
                     data.insert(
@@ -638,7 +643,7 @@ fn build_metastore_rolegroup_config_map(
                     );
                     data.insert(
                         MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-                        Some((s3.access_style == S3AccessStyle::Path).to_string()),
+                        Some((s3.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string()),
                     );
                 }
 
@@ -772,7 +777,7 @@ fn build_metastore_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    s3_connection: Option<&S3ConnectionSpec>,
+    s3_connection: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     sa_name: &str,
 ) -> Result<StatefulSet> {
@@ -841,7 +846,7 @@ fn build_metastore_rolegroup_statefulset(
 
     if let Some(s3) = s3_connection {
         s3.add_volumes_and_mounts(&mut pod_builder, vec![&mut container_builder])
-            .context(ConfigureS3Snafu)?;
+            .context(ConfigureS3ConnectionSnafu)?;
 
         if s3.tls.uses_tls() && !s3.tls.uses_tls_verification() {
             S3TlsNoVerificationNotSupportedSnafu.fail()?;
@@ -1088,7 +1093,7 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: rolegroup_ref.object_name(),
+            service_name: Some(rolegroup_ref.object_name()),
             template: pod_template,
             ..StatefulSetSpec::default()
         }),

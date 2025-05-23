@@ -12,12 +12,12 @@ use stackable_operator::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
-        s3::S3ConnectionInlineOrReference,
     },
     config::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::s3,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     product_config_utils::{self, Configuration},
@@ -146,7 +146,7 @@ pub mod versioned {
         /// S3 connection specification. This can be either `inline` or a `reference` to an
         /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub s3: Option<S3ConnectionInlineOrReference>,
+        pub s3: Option<s3::v1alpha1::InlineConnectionOrReference>,
 
         /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.

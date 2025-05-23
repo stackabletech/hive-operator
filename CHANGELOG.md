@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
+- Use versioned common structs ([#604]).
 
 ### Fixed
 
@@ -39,6 +40,7 @@ All notable changes to this project will be documented in this file.
 [#596]: https://github.com/stackabletech/hive-operator/pull/596
 [#599]: https://github.com/stackabletech/hive-operator/pull/599
 [#603]: https://github.com/stackabletech/hive-operator/pull/603
+[#604]: https://github.com/stackabletech/hive-operator/pull/604
 
 ## [25.3.0] - 2025-03-21
 
