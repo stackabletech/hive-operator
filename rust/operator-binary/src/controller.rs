@@ -3,7 +3,6 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
-    default,
     hash::Hasher,
     sync::Arc,
 };
@@ -39,10 +38,7 @@ use stackable_operator::{
         tls_verification::TlsClientDetailsError,
     },
     crd::{
-        listener::{
-            self,
-            v1alpha1::{Listener, ListenerPort, ListenerSpec},
-        },
+        listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
         s3,
     },
     k8s_openapi::{

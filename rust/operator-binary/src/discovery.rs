@@ -4,13 +4,13 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
-    k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service, ServiceSpec},
+    k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service},
     kube::{Resource, runtime::reflector::ObjectRef},
 };
 
 use crate::{
     controller::build_recommended_labels,
-    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole, ServiceType, v1alpha1},
+    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
