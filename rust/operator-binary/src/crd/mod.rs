@@ -60,6 +60,10 @@ pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
 
+// Listener volumes
+pub const LISTENER_VOLUME_NAME: &str = "listener";
+pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
+
 // Certificates and trust stores
 pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
@@ -155,20 +159,6 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// This field controls which type of Service the Operator creates for this HiveCluster:
-        ///
-        /// * cluster-internal: Use a ClusterIP service
-        ///
-        /// * external-unstable: Use a NodePort service
-        ///
-        /// * external-stable: Use a LoadBalancer service
-        ///
-        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-        #[serde(default)]
-        pub listener_class: CurrentlySupportedListenerClasses,
-
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
         pub authentication: Option<AuthenticationConfig>,
     }
@@ -184,11 +174,6 @@ impl HasStatusCondition for v1alpha1::HiveCluster {
 }
 
 impl v1alpha1::HiveCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_name(&self) -> Option<&str> {
-        self.metadata.name.as_deref()
-    }
-
     /// Metadata about a metastore rolegroup
     pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
         RoleGroupRef {
@@ -233,6 +218,13 @@ impl v1alpha1::HiveCluster {
         .with_context(|| CannotRetrieveHiveRoleSnafu {
             role: role_variant.to_string(),
         })
+    }
+
+    /// The name of the group-listener provided for a specific role-group.
+    /// The UI will use this group listener so that only one load balancer
+    /// is needed (per role group).
+    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
+        rolegroup.object_name()
     }
 
     pub fn rolegroup(
@@ -448,6 +440,10 @@ pub struct MetaStoreConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the webserver.
+    #[serde(default)]
+    pub listener_class: String,
 }
 
 impl MetaStoreConfig {
@@ -489,6 +485,7 @@ impl MetaStoreConfig {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            listener_class: Some("cluster-internal".to_owned()),
         }
     }
 }

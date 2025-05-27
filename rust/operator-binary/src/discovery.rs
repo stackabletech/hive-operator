@@ -64,7 +64,6 @@ pub async fn build_discovery_configmaps(
     owner: &impl Resource<DynamicType = ()>,
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
-    svc: &Service,
     chroot: Option<&str>,
 ) -> Result<Vec<ConfigMap>, Error> {
     let name = owner
@@ -78,7 +77,7 @@ pub async fn build_discovery_configmaps(
         .as_deref()
         .context(NoNamespaceSnafu)?;
     let cluster_domain = &client.kubernetes_cluster_info.cluster_domain;
-    let mut discovery_configmaps = vec![build_discovery_configmap(
+    let discovery_configmaps = vec![build_discovery_configmap(
         name,
         owner,
         hive,
@@ -89,24 +88,6 @@ pub async fn build_discovery_configmaps(
             HIVE_PORT,
         )],
     )?];
-
-    // TODO: Temporary solution until listener-operator is finished
-    if let Some(ServiceSpec {
-        type_: Some(service_type),
-        ..
-    }) = svc.spec.as_ref()
-    {
-        if service_type == &ServiceType::NodePort.to_string() {
-            discovery_configmaps.push(build_discovery_configmap(
-                &format!("{}-nodeport", name),
-                owner,
-                hive,
-                resolved_product_image,
-                chroot,
-                nodeport_hosts(client, svc, HIVE_PORT_NAME).await?,
-            )?);
-        }
-    }
 
     Ok(discovery_configmaps)
 }
