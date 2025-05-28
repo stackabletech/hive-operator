@@ -450,7 +450,6 @@ pub async fn reconcile_hive(
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    // TODO: You want to add service creation in this for loop
     // for each rg a service needs to be build for hive
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
@@ -755,7 +754,6 @@ fn build_metastore_rolegroup_config_map(
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
-// TODO: However it looks like I need to add it here as services will be created here by rolegroup
 fn build_rolegroup_service(
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
