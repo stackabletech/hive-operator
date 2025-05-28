@@ -105,6 +105,10 @@ tests:
     dimensions:
       - hive-latest
       - openshift
+  - name: external-access
+    dimensions:
+      - hive-latest
+      - openshift
 suites:
   - name: nightly
     patch:
