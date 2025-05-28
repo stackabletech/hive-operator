@@ -764,7 +764,7 @@ fn build_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(rolegroup.object_name())
+            .name(format!("{name}-metrics", name = rolegroup.object_name()))
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -976,12 +976,13 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
-    let recommended_object_labels = build_recommended_labels(
-        hive,
-        &resolved_product_image.app_version_label,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    );
+    let recommended_object_labels: ObjectLabels<'_, v1alpha1::HiveCluster> =
+        build_recommended_labels(
+            hive,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        );
     // Used for PVC templates that cannot be modified once they are deployed
     let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
         hive,
@@ -1138,7 +1139,10 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(rolegroup_ref.object_name()),
+            service_name: Some(format!(
+                "{name}-metrics",
+                name = rolegroup_ref.object_name()
+            )),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
@@ -1160,20 +1164,12 @@ pub fn error_policy(
 }
 
 pub fn service_ports() -> Vec<ServicePort> {
-    vec![
-        ServicePort {
-            name: Some(HIVE_PORT_NAME.to_string()),
-            port: HIVE_PORT.into(),
-            protocol: Some("TCP".to_string()),
-            ..ServicePort::default()
-        },
-        ServicePort {
-            name: Some(METRICS_PORT_NAME.to_string()),
-            port: METRICS_PORT.into(),
-            protocol: Some("TCP".to_string()),
-            ..ServicePort::default()
-        },
-    ]
+    vec![ServicePort {
+        name: Some(METRICS_PORT_NAME.to_string()),
+        port: METRICS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
+    }]
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources
