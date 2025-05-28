@@ -69,7 +69,7 @@ data:
     kinit -kt /stackable/kerberos/keytab access-hive/access-hive."$NAMESPACE".svc.cluster.local
     klist
 
-    python /tmp/scripts/metastore.py -m hive-metastore-default-0.hive-metastore-default.$NAMESPACE.svc.cluster.local
+    python /tmp/scripts/metastore.py -m hive-metastore-default.$NAMESPACE.svc.cluster.local
   metastore.py: |
     from hive_metastore_client import HiveMetastoreClient
     from hive_metastore_client.builders import (
@@ -92,9 +92,9 @@ data:
         @staticmethod
         def _init_protocol(host: str, port: int) -> TBinaryProtocol:
             transport = TSocket.TSocket(host, int(port))
-            # host is something like "hive-metastore-default-0.hive-metastore-default.kuttl-test-brave-caribou.svc.cluster.local"
+            # host is something like "hive-metastore-default.kuttl-test-brave-caribou.svc.cluster.local"
             # We need to change it to the host part of the HMS principal e.g. "hive.kuttl-test-brave-caribou.svc.cluster.local"
-            host = host.replace("hive-metastore-default-0.hive-metastore-default", "hive")
+            host = host.replace("hive-metastore-default", "hive")
             transport = TTransport.TSaslClientTransport(transport,
                                                         # host part of the HMS principal (not the HMS client)
                                                         host=host,
