@@ -874,7 +874,7 @@ fn build_metastore_rolegroup_statefulset(
             bin/base --config \"{STACKABLE_CONFIG_DIR}\" --service metastore &
         "}
     };
-
+    // I made an important change to test clippy
     let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
