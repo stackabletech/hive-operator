@@ -4,13 +4,14 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
+    crd::listener,
     k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service},
     kube::{Resource, runtime::reflector::ObjectRef},
 };
 
 use crate::{
     controller::build_recommended_labels,
-    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole, v1alpha1},
+    crd::{HIVE_PORT_NAME, HiveRole, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
@@ -31,10 +32,10 @@ pub enum Error {
         source: stackable_operator::builder::configmap::Error,
         obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
-    #[snafu(display("could not find service [{obj_ref}] port [{port_name}]"))]
+    #[snafu(display("could not find port [{port_name}]"))]
     NoServicePort {
         port_name: String,
-        obj_ref: ObjectRef<Service>,
+        //obj_ref: ObjectRef<Service>,
     },
     #[snafu(display("service [{obj_ref}] port [{port_name}] does not have a nodePort "))]
     NoNodePort {
@@ -60,33 +61,25 @@ pub enum Error {
 /// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
 /// scenarios.
 pub async fn build_discovery_configmaps(
-    client: &stackable_operator::client::Client,
     owner: &impl Resource<DynamicType = ()>,
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
+    listeners: &[listener::v1alpha1::Listener],
 ) -> Result<Vec<ConfigMap>, Error> {
     let name = owner
         .meta()
         .name
         .as_ref()
         .context(InvalidOwnerNameForDiscoveryConfigMapSnafu)?;
-    let namespace = owner
-        .meta()
-        .namespace
-        .as_deref()
-        .context(NoNamespaceSnafu)?;
-    let cluster_domain = &client.kubernetes_cluster_info.cluster_domain;
+
     let discovery_configmaps = vec![build_discovery_configmap(
         name,
         owner,
         hive,
         resolved_product_image,
         chroot,
-        vec![(
-            format!("{name}.{namespace}.svc.{cluster_domain}"),
-            HIVE_PORT,
-        )],
+        listener_hosts(listeners, &HIVE_PORT_NAME)?,
     )?];
 
     Ok(discovery_configmaps)
@@ -95,7 +88,7 @@ pub async fn build_discovery_configmaps(
 /// Build a discovery [`ConfigMap`] containing information about how to connect to a certain
 /// [`v1alpha1::HiveCluster`].
 ///
-/// `hosts` will usually come from the cluster role service or [`nodeport_hosts`].
+/// `hosts` will usually come from the cluster role service or [`listener_hosts`].
 fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
@@ -140,52 +133,29 @@ fn build_discovery_configmap(
         })
 }
 
-/// Lists all nodes currently hosting Pods participating in the [`Service`]
-async fn nodeport_hosts(
-    client: &stackable_operator::client::Client,
-    svc: &Service,
+fn listener_hosts(
+    listeners: &[listener::v1alpha1::Listener],
     port_name: &str,
 ) -> Result<impl IntoIterator<Item = (String, u16)>, Error> {
-    let svc_port = svc
-        .spec
-        .as_ref()
-        .and_then(|svc_spec| {
-            svc_spec
-                .ports
-                .as_ref()?
-                .iter()
-                .find(|port| port.name.as_deref() == Some(HIVE_PORT_NAME))
+    listeners
+        .iter()
+        .flat_map(|listener| {
+            listener
+                .status
+                .as_ref()
+                .and_then(|s| s.ingress_addresses.as_deref())
         })
-        .context(NoServicePortSnafu {
-            port_name,
-            obj_ref: ObjectRef::from_obj(svc),
-        })?;
-
-    let node_port = svc_port.node_port.context(NoNodePortSnafu {
-        port_name,
-        obj_ref: ObjectRef::from_obj(svc),
-    })?;
-    let endpoints = client
-        .get::<Endpoints>(
-            svc.metadata.name.as_deref().context(NoNameSnafu)?,
-            svc.metadata
-                .namespace
-                .as_deref()
-                .context(NoNamespaceSnafu)?,
-        )
-        .await
-        .with_context(|_| FindEndpointsSnafu {
-            svc: ObjectRef::from_obj(svc),
-        })?;
-    let nodes = endpoints
-        .subsets
-        .into_iter()
         .flatten()
-        .flat_map(|subset| subset.addresses)
-        .flatten()
-        .flat_map(|addr| addr.node_name);
-    let addrs = nodes
-        .map(|node| Ok((node, node_port.try_into().context(InvalidNodePortSnafu)?)))
-        .collect::<Result<BTreeSet<_>, _>>()?;
-    Ok(addrs)
+        .map(|addr| {
+            Ok((
+                addr.address.clone(),
+                addr.ports
+                    .get(port_name)
+                    .copied()
+                    .context(NoServicePortSnafu { port_name })?
+                    .try_into()
+                    .context(InvalidNodePortSnafu)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()
 }

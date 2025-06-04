@@ -449,7 +449,7 @@ pub async fn reconcile_hive(
         .context(ApplyRoleBindingSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-
+    let mut listeners = Vec::<Listener>::new();
     // for each rg a service needs to be build for hive
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
@@ -480,14 +480,14 @@ pub async fn reconcile_hive(
             &rbac_sa.name_any(),
         )?;
 
-        let rg_group_listener = build_group_listener(
+        let rg_group_listener: Listener = build_group_listener(
             hive,
             &resolved_product_image,
             &rolegroup,
             config.listener_class,
         )?;
-
-        cluster_resources
+        // TODO: Listener name might be wrong
+        let listener = cluster_resources
             .add(client, rg_group_listener)
             .await
             .with_context(|_| ApplyGroupListenerSnafu {
@@ -500,6 +500,8 @@ pub async fn reconcile_hive(
             .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
+
+        listeners.push(listener);
 
         cluster_resources
             .add(client, rg_configmap)
@@ -531,8 +533,9 @@ pub async fn reconcile_hive(
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
+
     for discovery_cm in
-        discovery::build_discovery_configmaps(client, hive, hive, &resolved_product_image, None)
+        discovery::build_discovery_configmaps(hive, hive, &resolved_product_image, None, &listeners)
             .await
             .context(BuildDiscoveryConfigSnafu)?
     {
