@@ -56,7 +56,7 @@ pub enum Error {
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
     },
-    #[snafu(display("failed to apply group listener for {rolegroup}"))]
+    #[snafu(display("{rolegroup} listener has no adress"))]
     RoleGroupListenerHasNoAddress { rolegroup: String },
 }
 
@@ -90,7 +90,7 @@ pub async fn build_discovery_configmaps(
 /// Build a discovery [`ConfigMap`] containing information about how to connect to a certain
 /// [`v1alpha1::HiveCluster`].
 ///
-/// `hosts` will usually come from the cluster role service or [`listener_hosts`].
+/// Data is coming from the [`Listener`] objects. Connection string is only build by [`build_listener_connection_string`]
 fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
@@ -120,28 +120,11 @@ fn build_discovery_configmap(
     );
 
     for (rolegroup, listener_ref) in listener_refs {
-        let listener_address = listener_ref
-            .status
-            .and_then(|s| s.ingress_addresses?.into_iter().next())
-            .context(RoleGroupListenerHasNoAddressSnafu { rolegroup })?;
-        let mut conn_str = format!(
-            "thrift://{}:{}",
-            listener_address.address,
-            listener_address
-                .ports
-                .get(HIVE_PORT_NAME)
-                .copied()
-                .context(NoServicePortSnafu {
-                    port_name: HIVE_PORT_NAME
-                })?
+        // Names are equal to role group listener name test
+        discovery_configmap.add_data(
+            rolegroup,
+            build_listener_connection_string(listener_ref, rolegroup, chroot)?,
         );
-        if let Some(chroot) = chroot {
-            if !chroot.starts_with('/') {
-                return RelativeChrootSnafu { chroot }.fail();
-            }
-            conn_str.push_str(chroot);
-        }
-        discovery_configmap.add_data(rolegroup, conn_str);
     }
 
     discovery_configmap
@@ -149,4 +132,35 @@ fn build_discovery_configmap(
         .with_context(|_| DiscoveryConfigMapSnafu {
             obj_ref: ObjectRef::from_obj(hive),
         })
+}
+
+// Builds the connection string with respect to the listener provided objects
+fn build_listener_connection_string(
+    listener_ref: Listener,
+    rolegroup: &String,
+    chroot: Option<&str>,
+) -> Result<String, Error> {
+    // We'd need only the first address corresponding to the rolegroup
+    let listener_address = listener_ref
+        .status
+        .and_then(|s| s.ingress_addresses?.into_iter().next())
+        .context(RoleGroupListenerHasNoAddressSnafu { rolegroup })?;
+    let mut conn_str = format!(
+        "thrift://{}:{}",
+        listener_address.address,
+        listener_address
+            .ports
+            .get(HIVE_PORT_NAME)
+            .copied()
+            .context(NoServicePortSnafu {
+                port_name: HIVE_PORT_NAME
+            })?
+    );
+    if let Some(chroot) = chroot {
+        if !chroot.starts_with('/') {
+            return RelativeChrootSnafu { chroot }.fail();
+        }
+        conn_str.push_str(chroot);
+    }
+    Ok(conn_str)
 }
