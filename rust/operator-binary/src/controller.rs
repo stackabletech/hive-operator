@@ -449,8 +449,8 @@ pub async fn reconcile_hive(
         .context(ApplyRoleBindingSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-    let mut listeners = Vec::<Listener>::new();
-    // for each rg a service needs to be build for hive
+    // Collecting listener objects with corresponding rolegroup to fill the discovery configMap later on
+    let mut listener_refs = BTreeMap::<&String, Listener>::new();
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
@@ -486,7 +486,7 @@ pub async fn reconcile_hive(
             &rolegroup,
             config.listener_class,
         )?;
-        // TODO: Listener name might be wrong
+
         let listener = cluster_resources
             .add(client, rg_group_listener)
             .await
@@ -501,7 +501,7 @@ pub async fn reconcile_hive(
                 rolegroup: rolegroup.clone(),
             })?;
 
-        listeners.push(listener);
+        listener_refs.insert(rolegroup_name, listener);
 
         cluster_resources
             .add(client, rg_configmap)
@@ -534,10 +534,15 @@ pub async fn reconcile_hive(
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    for discovery_cm in
-        discovery::build_discovery_configmaps(hive, hive, &resolved_product_image, None, &listeners)
-            .await
-            .context(BuildDiscoveryConfigSnafu)?
+    for discovery_cm in discovery::build_discovery_configmaps(
+        hive,
+        hive,
+        &resolved_product_image,
+        None,
+        listener_refs,
+    )
+    .await
+    .context(BuildDiscoveryConfigSnafu)?
     {
         let discovery_cm = cluster_resources
             .add(client, discovery_cm)
