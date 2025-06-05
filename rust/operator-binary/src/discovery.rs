@@ -90,7 +90,7 @@ pub async fn build_discovery_configmaps(
 /// Build a discovery [`ConfigMap`] containing information about how to connect to a certain
 /// [`v1alpha1::HiveCluster`].
 ///
-/// Data is coming from the [`Listener`] objects. Connection string is only build by [`build_listener_connection_string`]
+/// Data is coming from the [`Listener`] objects. Connection string is only build by [`build_listener_connection_string`].
 fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
@@ -140,7 +140,7 @@ fn build_listener_connection_string(
     rolegroup: &String,
     chroot: Option<&str>,
 ) -> Result<String, Error> {
-    // We'd need only the first address corresponding to the rolegroup
+    // We only need the first address corresponding to the rolegroup
     let listener_address = listener_ref
         .status
         .and_then(|s| s.ingress_addresses?.into_iter().next())
