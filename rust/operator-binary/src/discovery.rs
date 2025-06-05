@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, num::TryFromIntError};
+use std::num::TryFromIntError;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
