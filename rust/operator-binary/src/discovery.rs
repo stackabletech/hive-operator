@@ -5,7 +5,7 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
     crd::listener,
-    k8s_openapi::api::core::v1::{ConfigMap, Endpoints, Service},
+    k8s_openapi::api::core::v1::{ConfigMap, Service},
     kube::{Resource, runtime::reflector::ObjectRef},
 };
 
@@ -79,7 +79,7 @@ pub async fn build_discovery_configmaps(
         hive,
         resolved_product_image,
         chroot,
-        listener_hosts(listeners, &HIVE_PORT_NAME)?,
+        listener_hosts(listeners, HIVE_PORT_NAME)?,
     )?];
 
     Ok(discovery_configmaps)
