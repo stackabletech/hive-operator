@@ -16,10 +16,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object has no name associated"))]
-    NoName,
-    #[snafu(display("object has no namespace associated"))]
-    NoNamespace,
     #[snafu(display("object is missing metadata to build owner reference {hive}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
@@ -32,10 +28,10 @@ pub enum Error {
         source: stackable_operator::builder::configmap::Error,
         obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
-    #[snafu(display("could not find port [{port_name}]"))]
+    #[snafu(display("could not find port [{port_name}] for rolegroup listener {rolegroup}"))]
     NoServicePort {
         port_name: String,
-        //obj_ref: ObjectRef<Service>,
+        rolegroup: String,
     },
     #[snafu(display("service [{obj_ref}] port [{port_name}] does not have a nodePort "))]
     NoNodePort {
@@ -153,7 +149,8 @@ fn build_listener_connection_string(
             .get(HIVE_PORT_NAME)
             .copied()
             .context(NoServicePortSnafu {
-                port_name: HIVE_PORT_NAME
+                port_name: HIVE_PORT_NAME,
+                rolegroup
             })?
     );
     if let Some(chroot) = chroot {

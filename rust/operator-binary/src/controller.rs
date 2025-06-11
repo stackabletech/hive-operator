@@ -131,9 +131,6 @@ pub enum Error {
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
 
-    #[snafu(display("failed to calculate global service name"))]
-    GlobalServiceNameNotFound,
-
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
     RoleGroupServiceNameNotFound {
         rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
