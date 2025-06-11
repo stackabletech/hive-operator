@@ -107,7 +107,7 @@ tests:
       - openshift
   - name: external-access
     dimensions:
-      - hive-latest
+      - hive
       - openshift
 suites:
   - name: nightly
