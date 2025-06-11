@@ -164,3 +164,7 @@ fn build_listener_connection_string(
     }
     Ok(conn_str)
 }
+
+pub fn build_headless_listener_service_name(name: String) -> String {
+    format!("{name}-metrics", name = name)
+}

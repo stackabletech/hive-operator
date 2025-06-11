@@ -97,7 +97,7 @@ use crate::{
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME, v1alpha1,
     },
-    discovery,
+    discovery::{self, build_headless_listener_service_name},
     kerberos::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
@@ -770,7 +770,9 @@ fn build_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(format!("{name}-metrics", name = rolegroup.object_name()))
+            .name(build_headless_listener_service_name(
+                rolegroup.object_name(),
+            ))
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -1145,9 +1147,8 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(format!(
-                "{name}-metrics",
-                name = rolegroup_ref.object_name()
+            service_name: Some(build_headless_listener_service_name(
+                rolegroup_ref.object_name(),
             )),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
