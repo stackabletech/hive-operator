@@ -14,7 +14,6 @@ metadata:
 status:
   readyReplicas: 2
   replicas: 2
-
 ---
 apiVersion: apps/v1
 kind: StatefulSet
