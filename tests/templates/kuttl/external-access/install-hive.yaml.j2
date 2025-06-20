@@ -21,19 +21,11 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   metastore:
-    config:
-      listenerClass: test-external-stable-$NAMESPACE
+    roleConfig:
+      listenerClass: test-cluster-internal-$NAMESPACE
     roleGroups:
       default:
-        replicas: 2
-      external-unstable:
         replicas: 1
-        config:
-          listenerClass: test-external-unstable-$NAMESPACE
-      cluster-internal:
-        replicas: 1
-        config:
-          listenerClass: test-cluster-internal-$NAMESPACE
 ---
 apiVersion: v1
 kind: Secret

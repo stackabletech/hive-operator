@@ -12,22 +12,6 @@ kind: StatefulSet
 metadata:
   name: test-hive-metastore-default
 status:
-  readyReplicas: 2
-  replicas: 2
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: test-hive-metastore-external-unstable
-status:
-  readyReplicas: 1
-  replicas: 1
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: test-hive-metastore-cluster-internal
-status:
   readyReplicas: 1
   replicas: 1
 ---
@@ -36,27 +20,14 @@ kind: PodDisruptionBudget
 metadata:
   name: test-hive-metastore
 status:
-  expectedPods: 4
-  currentHealthy: 4
+  expectedPods: 1
+  currentHealthy: 1
   disruptionsAllowed: 1
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: test-hive-metastore-cluster-internal
+  name: test-hive-metastore
 spec:
   type: ClusterIP # cluster-internal
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-hive-metastore-default
-spec:
-  type: NodePort # external-stable
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-hive-metastore-external-unstable
-spec:
-  type: NodePort # external-unstable
+
