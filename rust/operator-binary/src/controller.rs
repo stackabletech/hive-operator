@@ -983,13 +983,12 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
-    let recommended_object_labels: ObjectLabels<'_, v1alpha1::HiveCluster> =
-        build_recommended_labels(
-            hive,
-            &resolved_product_image.app_version_label,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        );
+    let recommended_object_labels = build_recommended_labels(
+        hive,
+        &resolved_product_image.app_version_label,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    );
     // Used for PVC templates that cannot be modified once they are deployed
     let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
         hive,
