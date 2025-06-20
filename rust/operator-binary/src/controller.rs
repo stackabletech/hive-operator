@@ -1013,7 +1013,7 @@ fn build_metastore_rolegroup_statefulset(
         .build();
 
     let pvc = ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(hive.group_listener_name(&hive_role)),
+        &ListenerReference::ListenerName(hive.group_listener_name(hive_role)),
         &unversioned_recommended_labels,
     )
     .context(BuildListenerVolumeSnafu)?
