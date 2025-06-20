@@ -30,4 +30,3 @@ metadata:
   name: test-hive-metastore
 spec:
   type: ClusterIP # cluster-internal
-

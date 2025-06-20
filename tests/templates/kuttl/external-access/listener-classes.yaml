@@ -5,4 +5,3 @@ metadata:
   name: test-cluster-internal-$NAMESPACE
 spec:
   serviceType: ClusterIP
-
