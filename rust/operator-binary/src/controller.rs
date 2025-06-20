@@ -452,8 +452,7 @@ pub async fn reconcile_hive(
         .context(ApplyRoleBindingSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-    // Collecting listener objects with corresponding rolegroup to fill the discovery configMap later on
-    // let mut listener_refs = BTreeMap::<&String, Listener>::new();
+
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
@@ -489,8 +488,6 @@ pub async fn reconcile_hive(
             .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
-
-        // listener_refs.insert(rolegroup_name, listener);
 
         cluster_resources
             .add(client, rg_configmap)
