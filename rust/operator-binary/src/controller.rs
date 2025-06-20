@@ -22,8 +22,14 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder, volume::VolumeBuilder,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, VolumeBuilder,
+            },
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -31,7 +37,10 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
         tls_verification::TlsClientDetailsError,
     },
-    crd::s3,
+    crd::{
+        listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
+        s3,
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -82,12 +91,14 @@ use crate::{
     crd::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
         HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
-        METRICS_PORT, METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR,
-        STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME,
+        MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
-        STACKABLE_LOG_DIR_NAME, v1alpha1,
+        STACKABLE_LOG_DIR_NAME,
+        v1alpha1::{self, HiveMetastoreRoleConfig},
     },
-    discovery,
+    discovery::{self, build_headless_listener_service_name},
     kerberos::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
@@ -120,9 +131,6 @@ pub enum Error {
 
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
-
-    #[snafu(display("failed to calculate global service name"))]
-    GlobalServiceNameNotFound,
 
     #[snafu(display("failed to calculate service name for role {rolegroup}"))]
     RoleGroupServiceNameNotFound {
@@ -327,6 +335,16 @@ pub enum Error {
 
     #[snafu(display("failed to construct JVM arguments"))]
     ConstructJvmArguments { source: crate::config::jvm::Error },
+
+    #[snafu(display("failed to apply group listener for {role}"))]
+    ApplyGroupListener {
+        source: stackable_operator::cluster_resources::Error,
+        role: String,
+    },
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -423,18 +441,11 @@ pub async fn reconcile_hive(
         .add(client, rbac_sa)
         .await
         .context(ApplyServiceAccountSnafu)?;
+
     cluster_resources
         .add(client, rbac_rolebinding)
         .await
         .context(ApplyRoleBindingSnafu)?;
-
-    let metastore_role_service = build_metastore_role_service(hive, &resolved_product_image)?;
-
-    // we have to get the assigned ports
-    let metastore_role_service = cluster_resources
-        .add(client, metastore_role_service)
-        .await
-        .context(ApplyRoleServiceSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
@@ -492,8 +503,11 @@ pub async fn reconcile_hive(
     }
 
     let role_config = hive.role_config(&hive_role);
-    if let Some(GenericRoleConfig {
-        pod_disruption_budget: pdb,
+    if let Some(HiveMetastoreRoleConfig {
+        common: GenericRoleConfig {
+            pod_disruption_budget: pdb,
+        },
+        ..
     }) = role_config
     {
         add_pdbs(pdb, hive, &hive_role, client, &mut cluster_resources)
@@ -504,23 +518,35 @@ pub async fn reconcile_hive(
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
-    for discovery_cm in discovery::build_discovery_configmaps(
-        client,
-        hive,
-        hive,
-        &resolved_product_image,
-        &metastore_role_service,
-        None,
-    )
-    .await
-    .context(BuildDiscoveryConfigSnafu)?
-    {
-        let discovery_cm = cluster_resources
-            .add(client, discovery_cm)
+
+    if let Some(HiveMetastoreRoleConfig { listener_class, .. }) = role_config {
+        let group_listener: Listener =
+            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)?;
+        let listener = cluster_resources
+            .add(client, group_listener)
             .await
-            .context(ApplyDiscoveryConfigSnafu)?;
-        if let Some(generation) = discovery_cm.metadata.resource_version {
-            discovery_hash.write(generation.as_bytes())
+            .context(ApplyGroupListenerSnafu {
+                role: hive_role.to_string(),
+            })?;
+
+        for discovery_cm in discovery::build_discovery_configmaps(
+            hive,
+            hive,
+            hive_role,
+            &resolved_product_image,
+            None,
+            listener,
+        )
+        .await
+        .context(BuildDiscoveryConfigSnafu)?
+        {
+            let discovery_cm = cluster_resources
+                .add(client, discovery_cm)
+                .await
+                .context(ApplyDiscoveryConfigSnafu)?;
+            if let Some(generation) = discovery_cm.metadata.resource_version {
+                discovery_hash.write(generation.as_bytes())
+            }
         }
     }
 
@@ -547,43 +573,49 @@ pub async fn reconcile_hive(
     Ok(Action::await_change())
 }
 
-/// The server-role service is the primary endpoint that should be used by clients that do not
-/// perform internal load balancing including targets outside of the cluster.
-pub fn build_metastore_role_service(
+// Designed to build a listener per role
+// In case of Hive we expect only one role: Metastore
+pub fn build_group_listener(
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
-) -> Result<Service> {
-    let role_name = HiveRole::MetaStore.to_string();
+    hive_role: &HiveRole,
+    listener_class: &String,
+) -> Result<Listener> {
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hive)
+        .name(hive.group_listener_name(hive_role))
+        .ownerreference_from_resource(hive, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(build_recommended_labels(
+            hive,
+            &resolved_product_image.app_version_label,
+            &hive_role.to_string(),
+            "none",
+        ))
+        .context(MetadataBuildSnafu)?
+        .build();
 
-    let role_svc_name = hive
-        .metastore_role_service_name()
-        .context(GlobalServiceNameNotFoundSnafu)?;
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hive)
-            .name(role_svc_name)
-            .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                hive,
-                &resolved_product_image.app_version_label,
-                &role_name,
-                "global",
-            ))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        spec: Some(ServiceSpec {
-            type_: Some(hive.spec.cluster_config.listener_class.k8s_service_type()),
-            ports: Some(service_ports()),
-            selector: Some(
-                Labels::role_selector(hive, APP_NAME, &role_name)
-                    .context(LabelBuildSnafu)?
-                    .into(),
-            ),
-            ..ServiceSpec::default()
-        }),
+    let spec = ListenerSpec {
+        class_name: Some(listener_class.to_owned()),
+        ports: Some(listener_ports()),
+        ..Default::default()
+    };
+
+    let listener = Listener {
+        metadata,
+        spec,
         status: None,
-    })
+    };
+
+    Ok(listener)
+}
+
+fn listener_ports() -> Vec<ListenerPort> {
+    vec![ListenerPort {
+        name: HIVE_PORT_NAME.to_owned(),
+        port: HIVE_PORT.into(),
+        protocol: Some("TCP".to_owned()),
+    }]
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
@@ -737,7 +769,9 @@ fn build_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(rolegroup.object_name())
+            .name(build_headless_listener_service_name(
+                rolegroup.object_name(),
+            ))
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -949,15 +983,38 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    let recommended_object_labels = build_recommended_labels(
+        hive,
+        &resolved_product_image.app_version_label,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    );
+    // Used for PVC templates that cannot be modified once they are deployed
+    let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
+        hive,
+        // A version value is required, and we do want to use the "recommended" format for the other desired labels
+        "none",
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    ))
+    .context(LabelBuildSnafu)?;
+
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(build_recommended_labels(
-            hive,
-            &resolved_product_image.app_version_label,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        ))
+        .with_recommended_labels(recommended_object_labels.clone())
         .context(MetadataBuildSnafu)?
         .build();
+
+    let pvc = ListenerOperatorVolumeSourceBuilder::new(
+        &ListenerReference::ListenerName(hive.group_listener_name(hive_role)),
+        &unversioned_recommended_labels,
+    )
+    .context(BuildListenerVolumeSnafu)?
+    .build_pvc(LISTENER_VOLUME_NAME.to_owned())
+    .context(BuildListenerVolumeSnafu)?;
+
+    container_builder
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .context(AddVolumeMountSnafu)?;
 
     pod_builder
         .metadata(metadata)
@@ -1069,12 +1126,7 @@ fn build_metastore_rolegroup_statefulset(
             .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                hive,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
+            .with_recommended_labels(recommended_object_labels)
             .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(StatefulSetSpec {
@@ -1093,8 +1145,11 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(rolegroup_ref.object_name()),
+            service_name: Some(build_headless_listener_service_name(
+                rolegroup_ref.object_name(),
+            )),
             template: pod_template,
+            volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -1114,20 +1169,12 @@ pub fn error_policy(
 }
 
 pub fn service_ports() -> Vec<ServicePort> {
-    vec![
-        ServicePort {
-            name: Some(HIVE_PORT_NAME.to_string()),
-            port: HIVE_PORT.into(),
-            protocol: Some("TCP".to_string()),
-            ..ServicePort::default()
-        },
-        ServicePort {
-            name: Some(METRICS_PORT_NAME.to_string()),
-            port: METRICS_PORT.into(),
-            protocol: Some("TCP".to_string()),
-            ..ServicePort::default()
-        },
-    ]
+    vec![ServicePort {
+        name: Some(METRICS_PORT_NAME.to_string()),
+        port: METRICS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
+    }]
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources
