@@ -1,11 +1,9 @@
-use std::num::TryFromIntError;
-
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
     crd::listener::v1alpha1::Listener,
-    k8s_openapi::api::core::v1::{ConfigMap, Service},
+    k8s_openapi::api::core::v1::ConfigMap,
     kube::{Resource, runtime::reflector::ObjectRef},
 };
 
@@ -30,18 +28,7 @@ pub enum Error {
     },
     #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
     NoServicePort { port_name: String, role: String },
-    #[snafu(display("service [{obj_ref}] port [{port_name}] does not have a nodePort "))]
-    NoNodePort {
-        port_name: String,
-        obj_ref: ObjectRef<Service>,
-    },
-    #[snafu(display("could not find Endpoints for {svc}"))]
-    FindEndpoints {
-        source: stackable_operator::client::Error,
-        svc: ObjectRef<Service>,
-    },
-    #[snafu(display("nodePort was out of range"))]
-    InvalidNodePort { source: TryFromIntError },
+
     #[snafu(display("invalid owner name for discovery ConfigMap"))]
     InvalidOwnerNameForDiscoveryConfigMap,
 

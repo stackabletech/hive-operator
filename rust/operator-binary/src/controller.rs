@@ -92,7 +92,7 @@ use crate::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
         HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME,
-        MetaStoreConfig, MetaStoreConfigFragment, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
@@ -501,52 +501,52 @@ pub async fn reconcile_hive(
                 })?,
         );
     }
-    // Init listener struct. Collect listener after applied to cluster_resources
-    // to use listener object in later created discovery configMap
-    let mut listener = Listener::new("name", ListenerSpec::default());
+
     let role_config = hive.role_config(&hive_role);
     if let Some(HiveMetastoreRoleConfig {
         common: GenericRoleConfig {
             pod_disruption_budget: pdb,
         },
-        listener_class,
+        ..
     }) = role_config
     {
         add_pdbs(pdb, hive, &hive_role, client, &mut cluster_resources)
             .await
             .context(FailedToCreatePdbSnafu)?;
-
-        let group_listener: Listener =
-            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)?;
-        listener = cluster_resources
-            .add(client, group_listener)
-            .await
-            .with_context(|_| ApplyGroupListenerSnafu {
-                role: hive_role.to_string(),
-            })?;
     }
 
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    for discovery_cm in discovery::build_discovery_configmaps(
-        hive,
-        hive,
-        hive_role,
-        &resolved_product_image,
-        None,
-        listener,
-    )
-    .await
-    .context(BuildDiscoveryConfigSnafu)?
-    {
-        let discovery_cm = cluster_resources
-            .add(client, discovery_cm)
+    if let Some(HiveMetastoreRoleConfig { listener_class, .. }) = role_config {
+        let group_listener: Listener =
+            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)?;
+        let listener = cluster_resources
+            .add(client, group_listener)
             .await
-            .context(ApplyDiscoveryConfigSnafu)?;
-        if let Some(generation) = discovery_cm.metadata.resource_version {
-            discovery_hash.write(generation.as_bytes())
+            .context(ApplyGroupListenerSnafu {
+                role: hive_role.to_string(),
+            })?;
+
+        for discovery_cm in discovery::build_discovery_configmaps(
+            hive,
+            hive,
+            hive_role,
+            &resolved_product_image,
+            None,
+            listener,
+        )
+        .await
+        .context(BuildDiscoveryConfigSnafu)?
+        {
+            let discovery_cm = cluster_resources
+                .add(client, discovery_cm)
+                .await
+                .context(ApplyDiscoveryConfigSnafu)?;
+            if let Some(generation) = discovery_cm.metadata.resource_version {
+                discovery_hash.write(generation.as_bytes())
+            }
         }
     }
 
