@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, num::TryFromIntError};
+use std::num::TryFromIntError;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -28,11 +28,8 @@ pub enum Error {
         source: stackable_operator::builder::configmap::Error,
         obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
-    #[snafu(display("could not find port [{port_name}] for rolegroup listener {rolegroup}"))]
-    NoServicePort {
-        port_name: String,
-        rolegroup: String,
-    },
+    #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
+    NoServicePort { port_name: String, role: String },
     #[snafu(display("service [{obj_ref}] port [{port_name}] does not have a nodePort "))]
     NoNodePort {
         port_name: String,
@@ -52,8 +49,8 @@ pub enum Error {
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
     },
-    #[snafu(display("{rolegroup} listener has no adress"))]
-    RoleGroupListenerHasNoAddress { rolegroup: String },
+    #[snafu(display("{role} listener has no adress"))]
+    RoleGroupListenerHasNoAddress { role: String },
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
@@ -61,9 +58,10 @@ pub enum Error {
 pub async fn build_discovery_configmaps(
     owner: &impl Resource<DynamicType = ()>,
     hive: &v1alpha1::HiveCluster,
+    hive_role: HiveRole,
     resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
-    listener_refs: BTreeMap<&String, Listener>,
+    listener: Listener,
 ) -> Result<Vec<ConfigMap>, Error> {
     let name = owner
         .meta()
@@ -75,9 +73,10 @@ pub async fn build_discovery_configmaps(
         name,
         owner,
         hive,
+        hive_role,
         resolved_product_image,
         chroot,
-        listener_refs,
+        listener,
     )?];
 
     Ok(discovery_configmaps)
@@ -91,9 +90,10 @@ fn build_discovery_configmap(
     name: &str,
     owner: &impl Resource<DynamicType = ()>,
     hive: &v1alpha1::HiveCluster,
+    hive_role: HiveRole,
     resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
-    listener_refs: BTreeMap<&String, Listener>,
+    listener: Listener,
 ) -> Result<ConfigMap, Error> {
     let mut discovery_configmap = ConfigMapBuilder::new();
 
@@ -108,20 +108,17 @@ fn build_discovery_configmap(
             .with_recommended_labels(build_recommended_labels(
                 hive,
                 &resolved_product_image.app_version_label,
-                &HiveRole::MetaStore.to_string(),
+                &hive_role.to_string(),
                 "discovery",
             ))
             .context(MetadataBuildSnafu)?
             .build(),
     );
 
-    for (rolegroup, listener_ref) in listener_refs {
-        // Names are equal to role group listener name test
-        discovery_configmap.add_data(
-            rolegroup,
-            build_listener_connection_string(listener_ref, rolegroup, chroot)?,
-        );
-    }
+    discovery_configmap.add_data(
+        "HIVE".to_string(),
+        build_listener_connection_string(listener, &hive_role.to_string(), chroot)?,
+    );
 
     discovery_configmap
         .build()
@@ -133,14 +130,14 @@ fn build_discovery_configmap(
 // Builds the connection string with respect to the listener provided objects
 fn build_listener_connection_string(
     listener_ref: Listener,
-    rolegroup: &String,
+    role: &String,
     chroot: Option<&str>,
 ) -> Result<String, Error> {
-    // We only need the first address corresponding to the rolegroup
+    // We only need the first address corresponding to the role
     let listener_address = listener_ref
         .status
         .and_then(|s| s.ingress_addresses?.into_iter().next())
-        .context(RoleGroupListenerHasNoAddressSnafu { rolegroup })?;
+        .context(RoleGroupListenerHasNoAddressSnafu { role })?;
     let mut conn_str = format!(
         "thrift://{}:{}",
         listener_address.address,
@@ -150,7 +147,7 @@ fn build_listener_connection_string(
             .copied()
             .context(NoServicePortSnafu {
                 port_name: HIVE_PORT_NAME,
-                rolegroup
+                role
             })?
     );
     if let Some(chroot) = chroot {

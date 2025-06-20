@@ -30,6 +30,7 @@ use stackable_operator::{
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use v1alpha1::HiveMetastoreRoleConfig;
 
 use crate::crd::affinity::get_affinity;
 
@@ -134,7 +135,20 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub metastore: Option<Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        pub metastore:
+            Option<Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>>,
+    }
+
+    // TODO: move generic version to op-rs?
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveMetastoreRoleConfig {
+        #[serde(flatten)]
+        pub common: GenericRoleConfig,
+
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the coordinator.
+        #[serde(default = "metastore_default_listener_class")]
+        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -162,6 +176,19 @@ pub mod versioned {
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
         pub authentication: Option<AuthenticationConfig>,
     }
+}
+
+impl Default for v1alpha1::HiveMetastoreRoleConfig {
+    fn default() -> Self {
+        v1alpha1::HiveMetastoreRoleConfig {
+            listener_class: metastore_default_listener_class(),
+            common: Default::default(),
+        }
+    }
+}
+
+fn metastore_default_listener_class() -> String {
+    "cluster-internal".to_string()
 }
 
 impl HasStatusCondition for v1alpha1::HiveCluster {
@@ -211,7 +238,8 @@ impl v1alpha1::HiveCluster {
     pub fn role(
         &self,
         role_variant: &HiveRole,
-    ) -> Result<&Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>, Error> {
+    ) -> Result<&Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>, Error>
+    {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
         }
@@ -220,11 +248,14 @@ impl v1alpha1::HiveCluster {
         })
     }
 
-    /// The name of the group-listener provided for a specific role-group.
-    /// The UI will use this group listener so that only one load balancer
-    /// is needed (per role group).
-    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
-        rolegroup.object_name()
+    /// The name of the group-listener provided for a specific role.
+    /// returns a name <cluster>-<role>
+    pub fn group_listener_name(&self, hive_role: &HiveRole) -> String {
+        format!(
+            "{name}-{role}",
+            name = self.name_any(),
+            role = hive_role.to_string()
+        )
     }
 
     pub fn rolegroup(
@@ -246,7 +277,7 @@ impl v1alpha1::HiveCluster {
             .cloned()
     }
 
-    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
+    pub fn role_config(&self, role: &HiveRole) -> Option<&HiveMetastoreRoleConfig> {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
         }
@@ -417,10 +448,9 @@ pub struct MetaStoreConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
-
-    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the webserver.
-    #[serde(default)]
-    pub listener_class: String,
+    // This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the webserver.
+    // #[serde(default)]
+    // pub listener_class: String,
 }
 
 impl MetaStoreConfig {
@@ -462,7 +492,6 @@ impl MetaStoreConfig {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
-            listener_class: Some("cluster-internal".to_owned()),
         }
     }
 }

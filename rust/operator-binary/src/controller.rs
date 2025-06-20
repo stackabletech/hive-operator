@@ -92,10 +92,11 @@ use crate::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
         HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME,
-        MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        MetaStoreConfig, MetaStoreConfigFragment, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
-        STACKABLE_LOG_DIR_NAME, v1alpha1,
+        STACKABLE_LOG_DIR_NAME,
+        v1alpha1::{self, HiveMetastoreRoleConfig},
     },
     discovery::{self, build_headless_listener_service_name},
     kerberos::{
@@ -335,10 +336,10 @@ pub enum Error {
     #[snafu(display("failed to construct JVM arguments"))]
     ConstructJvmArguments { source: crate::config::jvm::Error },
 
-    #[snafu(display("failed to apply group listener for {rolegroup}"))]
+    #[snafu(display("failed to apply group listener for {role}"))]
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
+        role: String,
     },
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
@@ -370,7 +371,11 @@ pub async fn reconcile_hive(
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
-    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
+    let role: &stackable_operator::role_utils::Role<
+        MetaStoreConfigFragment,
+        v1alpha1::HiveMetastoreRoleConfig,
+        stackable_operator::role_utils::JavaCommonConfig,
+    > = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
     let hive_role = HiveRole::MetaStore;
 
     let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =
@@ -440,6 +445,7 @@ pub async fn reconcile_hive(
         .add(client, rbac_sa)
         .await
         .context(ApplyServiceAccountSnafu)?;
+
     cluster_resources
         .add(client, rbac_rolebinding)
         .await
@@ -447,7 +453,7 @@ pub async fn reconcile_hive(
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
     // Collecting listener objects with corresponding rolegroup to fill the discovery configMap later on
-    let mut listener_refs = BTreeMap::<&String, Listener>::new();
+    // let mut listener_refs = BTreeMap::<&String, Listener>::new();
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
@@ -477,20 +483,6 @@ pub async fn reconcile_hive(
             &rbac_sa.name_any(),
         )?;
 
-        let rg_group_listener: Listener = build_group_listener(
-            hive,
-            &resolved_product_image,
-            &rolegroup,
-            config.listener_class,
-        )?;
-
-        let listener = cluster_resources
-            .add(client, rg_group_listener)
-            .await
-            .with_context(|_| ApplyGroupListenerSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-
         cluster_resources
             .add(client, rg_service)
             .await
@@ -498,7 +490,7 @@ pub async fn reconcile_hive(
                 rolegroup: rolegroup.clone(),
             })?;
 
-        listener_refs.insert(rolegroup_name, listener);
+        // listener_refs.insert(rolegroup_name, listener);
 
         cluster_resources
             .add(client, rg_configmap)
@@ -516,15 +508,29 @@ pub async fn reconcile_hive(
                 })?,
         );
     }
-
+    // Init listener struct. Collect listener after applied to cluster_resources
+    // to use listener object in later created discovery configMap
+    let mut listener = Listener::new("name", ListenerSpec::default());
     let role_config = hive.role_config(&hive_role);
-    if let Some(GenericRoleConfig {
-        pod_disruption_budget: pdb,
+    if let Some(HiveMetastoreRoleConfig {
+        common: GenericRoleConfig {
+            pod_disruption_budget: pdb,
+        },
+        listener_class,
     }) = role_config
     {
         add_pdbs(pdb, hive, &hive_role, client, &mut cluster_resources)
             .await
             .context(FailedToCreatePdbSnafu)?;
+
+        let group_listener: Listener =
+            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)?;
+        listener = cluster_resources
+            .add(client, group_listener)
+            .await
+            .with_context(|_| ApplyGroupListenerSnafu {
+                role: hive_role.to_string(),
+            })?;
     }
 
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
@@ -534,9 +540,10 @@ pub async fn reconcile_hive(
     for discovery_cm in discovery::build_discovery_configmaps(
         hive,
         hive,
+        hive_role,
         &resolved_product_image,
         None,
-        listener_refs,
+        listener,
     )
     .await
     .context(BuildDiscoveryConfigSnafu)?
@@ -573,28 +580,30 @@ pub async fn reconcile_hive(
     Ok(Action::await_change())
 }
 
+// Designed to build a listener per role
+// In case of Hive we expect only one role: Metastore
 pub fn build_group_listener(
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-    listener_class: String,
+    hive_role: &HiveRole,
+    listener_class: &String,
 ) -> Result<Listener> {
     let metadata = ObjectMetaBuilder::new()
         .name_and_namespace(hive)
-        .name(hive.group_listener_name(rolegroup))
+        .name(hive.group_listener_name(hive_role))
         .ownerreference_from_resource(hive, None, Some(true))
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
         .with_recommended_labels(build_recommended_labels(
             hive,
             &resolved_product_image.app_version_label,
-            &rolegroup.role,
-            &rolegroup.role_group,
+            &hive_role.to_string(),
+            "none",
         ))
         .context(MetadataBuildSnafu)?
         .build();
 
     let spec = ListenerSpec {
-        class_name: Some(listener_class),
+        class_name: Some(listener_class.to_owned()),
         ports: Some(listener_ports()),
         ..Default::default()
     };
@@ -1004,7 +1013,7 @@ fn build_metastore_rolegroup_statefulset(
         .build();
 
     let pvc = ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(hive.group_listener_name(rolegroup_ref)),
+        &ListenerReference::ListenerName(hive.group_listener_name(&hive_role)),
         &unversioned_recommended_labels,
     )
     .context(BuildListenerVolumeSnafu)?
