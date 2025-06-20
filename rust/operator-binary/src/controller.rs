@@ -371,11 +371,7 @@ pub async fn reconcile_hive(
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
-    let role: &stackable_operator::role_utils::Role<
-        MetaStoreConfigFragment,
-        v1alpha1::HiveMetastoreRoleConfig,
-        stackable_operator::role_utils::JavaCommonConfig,
-    > = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
+    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
     let hive_role = HiveRole::MetaStore;
 
     let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =

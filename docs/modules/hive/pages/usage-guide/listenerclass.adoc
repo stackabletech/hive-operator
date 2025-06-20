@@ -2,9 +2,9 @@
 :description: Configure the Hive service exposure with listener classes: cluster-internal, external-unstable or external-stable
 
 Apache Hive offers an API.
-The operator deploys a xref:listener-operator:listener.adoc[Listener] for the Nodes pod.
+The operator deploys a xref:listener-operator:listener.adoc[Listener] for the Metastore pods.
 
-The listener defaults to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.nodes.roleConfig.listenerClass`:
+The listener defaults to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.metastore.roleConfig.listenerClass`:
 
 [source,yaml]
 ----
