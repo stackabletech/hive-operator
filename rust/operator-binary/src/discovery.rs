@@ -37,7 +37,7 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
     #[snafu(display("{role} listener has no adress"))]
-    RoleGroupListenerHasNoAddress { role: String },
+    RoleListenerHasNoAddress { role: String },
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
@@ -124,7 +124,7 @@ fn build_listener_connection_string(
     let listener_address = listener_ref
         .status
         .and_then(|s| s.ingress_addresses?.into_iter().next())
-        .context(RoleGroupListenerHasNoAddressSnafu { role })?;
+        .context(RoleListenerHasNoAddressSnafu { role })?;
     let mut conn_str = format!(
         "thrift://{}:{}",
         listener_address.address,
