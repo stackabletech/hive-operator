@@ -5,7 +5,7 @@ timeout: 600
 metadata:
   name: install-hive
 commands:
-  - script: kubectl -n $NAMESPACE wait --for=condition=available hiveclusters.hive.stackable.tech/test-hive --timeout 601s
+  - script: kubectl -n "$NAMESPACE" wait --for=condition=available hiveclusters.hive.stackable.tech/test-hive --timeout 601s
 ---
 apiVersion: apps/v1
 kind: StatefulSet

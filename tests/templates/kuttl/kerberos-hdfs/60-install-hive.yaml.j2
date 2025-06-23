@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: |
-        kubectl apply -n $NAMESPACE -f - <<EOF
+        kubectl apply -n "$NAMESPACE" -f - <<EOF
         ---
         apiVersion: hive.stackable.tech/v1alpha1
         kind: HiveCluster

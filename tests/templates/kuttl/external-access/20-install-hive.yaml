@@ -5,4 +5,4 @@ timeout: 600
 commands:
   - script: >
       envsubst < install-hive.yaml |
-      kubectl apply -n $NAMESPACE -f -
+      kubectl apply -n "$NAMESPACE" -f -

@@ -5,6 +5,6 @@ commands:
   - script: >-
       helm install postgresql
       --version={{ test_scenario['values']['postgres'] }}
-      --namespace $NAMESPACE
+      --namespace "$NAMESPACE"
       -f helm-bitnami-postgresql-values.yaml
       --repo https://charts.bitnami.com/bitnami postgresql

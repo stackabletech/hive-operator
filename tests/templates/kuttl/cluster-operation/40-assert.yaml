@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 commands:
-  - script: kubectl -n $NAMESPACE wait --for=condition=available hiveclusters.hive.stackable.tech/test-hive --timeout 601s
+  - script: kubectl -n "$NAMESPACE" wait --for=condition=available hiveclusters.hive.stackable.tech/test-hive --timeout 601s
 ---
 apiVersion: apps/v1
 kind: StatefulSet

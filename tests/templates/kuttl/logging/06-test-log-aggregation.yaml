@@ -3,4 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: |
-      kubectl cp ./test_log_aggregation.py $NAMESPACE/hive-test-runner-0:/tmp
+      kubectl cp ./test_log_aggregation.py "$NAMESPACE/hive-test-runner-0:/tmp"

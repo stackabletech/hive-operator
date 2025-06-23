@@ -4,6 +4,6 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - script: kubectl patch namespace $NAMESPACE -p '{"metadata":{"labels":{"pod-security.kubernetes.io/enforce":"privileged"}}}'
+  - script: kubectl patch namespace "$NAMESPACE" -p '{"metadata":{"labels":{"pod-security.kubernetes.io/enforce":"privileged"}}}'
     timeout: 120
 {% endif %}
