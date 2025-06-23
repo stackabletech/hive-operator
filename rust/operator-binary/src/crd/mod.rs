@@ -240,9 +240,9 @@ impl v1alpha1::HiveCluster {
         })
     }
 
-    /// The name of the group-listener provided for a specific role.
+    /// The name of the role-listener provided for a specific role.
     /// returns a name `<cluster>-<role>`
-    pub fn group_listener_name(&self, hive_role: &HiveRole) -> String {
+    pub fn role_listener_name(&self, hive_role: &HiveRole) -> String {
         format!("{name}-{role}", name = self.name_any(), role = hive_role)
     }
 

@@ -77,7 +77,7 @@ pub fn build_role_listener(
 ) -> Result<Listener, Error> {
     let metadata = ObjectMetaBuilder::new()
         .name_and_namespace(hive)
-        .name(hive.group_listener_name(hive_role))
+        .name(hive.role_listener_name(hive_role))
         .ownerreference_from_resource(hive, None, Some(true))
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
         .with_recommended_labels(build_recommended_labels(

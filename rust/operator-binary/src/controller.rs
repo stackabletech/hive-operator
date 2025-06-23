@@ -520,15 +520,14 @@ pub async fn reconcile_hive(
     let mut discovery_hash = FnvHasher::with_key(0);
 
     if let Some(HiveMetastoreRoleConfig { listener_class, .. }) = role_config {
-        let group_listener: Listener =
+        let role_listener: Listener =
             build_role_listener(hive, &resolved_product_image, &hive_role, listener_class)
                 .context(ListenerConfigurationSnafu)?;
-        let listener = cluster_resources
-            .add(client, group_listener)
-            .await
-            .context(ApplyGroupListenerSnafu {
+        let listener = cluster_resources.add(client, role_listener).await.context(
+            ApplyGroupListenerSnafu {
                 role: hive_role.to_string(),
-            })?;
+            },
+        )?;
 
         for discovery_cm in discovery::build_discovery_configmaps(
             hive,
@@ -961,7 +960,7 @@ fn build_metastore_rolegroup_statefulset(
         .build();
 
     let pvc = ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(hive.group_listener_name(hive_role)),
+        &ListenerReference::ListenerName(hive.role_listener_name(hive_role)),
         &unversioned_recommended_labels,
     )
     .context(BuildListenerVolumeSnafu)?
