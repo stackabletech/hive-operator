@@ -113,5 +113,5 @@ fn build_discovery_configmap(
 }
 
 pub fn build_headless_role_group_metrics_service_name(name: String) -> String {
-    format!("{name}-metrics", name = name)
+    format!("{name}-metrics")
 }
