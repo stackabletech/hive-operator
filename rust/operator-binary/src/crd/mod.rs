@@ -65,6 +65,9 @@ pub const METRICS_PORT: u16 = 9084;
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
+// Listener defaults
+pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+
 // Certificates and trust stores
 pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
@@ -188,7 +191,7 @@ impl Default for v1alpha1::HiveMetastoreRoleConfig {
 }
 
 fn metastore_default_listener_class() -> String {
-    "cluster-internal".to_string()
+    DEFAULT_LISTENER_CLASS.to_owned()
 }
 
 impl HasStatusCondition for v1alpha1::HiveCluster {
