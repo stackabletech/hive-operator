@@ -9,7 +9,8 @@ use stackable_operator::{
 
 use crate::{
     controller::build_recommended_labels,
-    crd::{HIVE_PORT_NAME, HiveRole, v1alpha1},
+    crd::{HiveRole, v1alpha1},
+    listener::build_listener_connection_string,
 };
 
 #[derive(Snafu, Debug)]
@@ -19,16 +20,12 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
         hive: ObjectRef<v1alpha1::HiveCluster>,
     },
-    #[snafu(display("chroot path {chroot} was relative (must be absolute)"))]
-    RelativeChroot { chroot: String },
+
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
     DiscoveryConfigMap {
         source: stackable_operator::builder::configmap::Error,
         obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
-    #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
-    NoServicePort { port_name: String, role: String },
-
     #[snafu(display("invalid owner name for discovery ConfigMap"))]
     InvalidOwnerNameForDiscoveryConfigMap,
 
@@ -36,8 +33,8 @@ pub enum Error {
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
     },
-    #[snafu(display("{role} listener has no adress"))]
-    RoleListenerHasNoAddress { role: String },
+    #[snafu(display("failed to configure listener discovery configmap"))]
+    ListenerConfiguration { source: crate::listener::Error },
 }
 
 /// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
@@ -104,7 +101,8 @@ fn build_discovery_configmap(
 
     discovery_configmap.add_data(
         "HIVE".to_string(),
-        build_listener_connection_string(listener, &hive_role.to_string(), chroot)?,
+        build_listener_connection_string(listener, &hive_role.to_string(), chroot)
+            .context(ListenerConfigurationSnafu)?,
     );
 
     discovery_configmap
@@ -112,38 +110,6 @@ fn build_discovery_configmap(
         .with_context(|_| DiscoveryConfigMapSnafu {
             obj_ref: ObjectRef::from_obj(hive),
         })
-}
-
-// Builds the connection string with respect to the listener provided objects
-fn build_listener_connection_string(
-    listener_ref: Listener,
-    role: &String,
-    chroot: Option<&str>,
-) -> Result<String, Error> {
-    // We only need the first address corresponding to the role
-    let listener_address = listener_ref
-        .status
-        .and_then(|s| s.ingress_addresses?.into_iter().next())
-        .context(RoleListenerHasNoAddressSnafu { role })?;
-    let mut conn_str = format!(
-        "thrift://{address}:{port}",
-        address = listener_address.address,
-        port = listener_address
-            .ports
-            .get(HIVE_PORT_NAME)
-            .copied()
-            .context(NoServicePortSnafu {
-                port_name: HIVE_PORT_NAME,
-                role
-            })?
-    );
-    if let Some(chroot) = chroot {
-        if !chroot.starts_with('/') {
-            return RelativeChrootSnafu { chroot }.fail();
-        }
-        conn_str.push_str(chroot);
-    }
-    Ok(conn_str)
 }
 
 pub fn build_headless_role_group_metrics_service_name(name: String) -> String {

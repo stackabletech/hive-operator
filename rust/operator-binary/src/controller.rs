@@ -37,10 +37,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
         tls_verification::TlsClientDetailsError,
     },
-    crd::{
-        listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
-        s3,
-    },
+    crd::{listener::v1alpha1::Listener, s3},
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -91,9 +88,8 @@ use crate::{
     crd::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
         HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
-        LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME,
-        MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
-        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        METRICS_PORT, METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR,
+        STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
         v1alpha1::{self, HiveMetastoreRoleConfig},
@@ -103,6 +99,7 @@ use crate::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
     },
+    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
 };
@@ -341,6 +338,9 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
         role: String,
     },
+    #[snafu(display("failed to configure listener"))]
+    ListenerConfiguration { source: crate::listener::Error },
+
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
@@ -521,7 +521,8 @@ pub async fn reconcile_hive(
 
     if let Some(HiveMetastoreRoleConfig { listener_class, .. }) = role_config {
         let group_listener: Listener =
-            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)?;
+            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)
+                .context(ListenerConfigurationSnafu)?;
         let listener = cluster_resources
             .add(client, group_listener)
             .await
@@ -571,51 +572,6 @@ pub async fn reconcile_hive(
         .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
-}
-
-// Designed to build a listener per role
-// In case of Hive we expect only one role: Metastore
-pub fn build_group_listener(
-    hive: &v1alpha1::HiveCluster,
-    resolved_product_image: &ResolvedProductImage,
-    hive_role: &HiveRole,
-    listener_class: &String,
-) -> Result<Listener> {
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(hive)
-        .name(hive.group_listener_name(hive_role))
-        .ownerreference_from_resource(hive, None, Some(true))
-        .context(ObjectMissingMetadataForOwnerRefSnafu)?
-        .with_recommended_labels(build_recommended_labels(
-            hive,
-            &resolved_product_image.app_version_label,
-            &hive_role.to_string(),
-            "none",
-        ))
-        .context(MetadataBuildSnafu)?
-        .build();
-
-    let spec = ListenerSpec {
-        class_name: Some(listener_class.to_owned()),
-        ports: Some(listener_ports()),
-        ..Default::default()
-    };
-
-    let listener = Listener {
-        metadata,
-        spec,
-        status: None,
-    };
-
-    Ok(listener)
-}
-
-fn listener_ports() -> Vec<ListenerPort> {
-    vec![ListenerPort {
-        name: HIVE_PORT_NAME.to_owned(),
-        port: HIVE_PORT.into(),
-        protocol: Some("TCP".to_owned()),
-    }]
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator

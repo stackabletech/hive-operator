@@ -32,7 +32,7 @@ use stackable_operator::{
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 use v1alpha1::HiveMetastoreRoleConfig;
 
-use crate::crd::affinity::get_affinity;
+use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_class};
 
 pub mod affinity;
 pub mod security;
@@ -60,13 +60,6 @@ pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 9084;
-
-// Listener volumes
-pub const LISTENER_VOLUME_NAME: &str = "listener";
-pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
-
-// Listener defaults
-pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 // Certificates and trust stores
 pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
@@ -188,10 +181,6 @@ impl Default for v1alpha1::HiveMetastoreRoleConfig {
             common: Default::default(),
         }
     }
-}
-
-fn metastore_default_listener_class() -> String {
-    DEFAULT_LISTENER_CLASS.to_owned()
 }
 
 impl HasStatusCondition for v1alpha1::HiveCluster {
