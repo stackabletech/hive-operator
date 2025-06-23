@@ -92,7 +92,7 @@ data:
         @staticmethod
         def _init_protocol(host: str, port: int) -> TBinaryProtocol:
             transport = TSocket.TSocket(host, int(port))
-            # host is something like "hive-metastore..kuttl-test-brave-caribou.svc.cluster.local"
+            # host is something like "hive-metastore.kuttl-test-brave-caribou.svc.cluster.local"
             # We need to change it to the host part of the HMS principal e.g. "hive.kuttl-test-brave-caribou.svc.cluster.local"
             host = host.replace("hive-metastore", "hive")
             transport = TTransport.TSaslClientTransport(transport,
