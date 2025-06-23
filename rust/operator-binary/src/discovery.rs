@@ -126,9 +126,9 @@ fn build_listener_connection_string(
         .and_then(|s| s.ingress_addresses?.into_iter().next())
         .context(RoleListenerHasNoAddressSnafu { role })?;
     let mut conn_str = format!(
-        "thrift://{}:{}",
-        listener_address.address,
-        listener_address
+        "thrift://{address}:{port}",
+        address = listener_address.address,
+        port = listener_address
             .ports
             .get(HIVE_PORT_NAME)
             .copied()
