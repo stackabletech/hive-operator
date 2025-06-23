@@ -98,7 +98,7 @@ use crate::{
         STACKABLE_LOG_DIR_NAME,
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
-    discovery::{self, build_headless_listener_service_name},
+    discovery::{self, build_headless_role_group_metrics_service_name},
     kerberos::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
@@ -769,7 +769,7 @@ fn build_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            .name(build_headless_listener_service_name(
+            .name(build_headless_role_group_metrics_service_name(
                 rolegroup.object_name(),
             ))
             .ownerreference_from_resource(hive, None, Some(true))
@@ -1145,7 +1145,7 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(build_headless_listener_service_name(
+            service_name: Some(build_headless_role_group_metrics_service_name(
                 rolegroup_ref.object_name(),
             )),
             template: pod_template,

@@ -30,3 +30,10 @@ metadata:
   name: test-hive-metastore
 spec:
   type: ClusterIP # cluster-internal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-hive-metastore-default-metrics 
+spec:
+  type: ClusterIP # exposed metrics
