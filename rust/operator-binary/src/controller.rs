@@ -99,7 +99,7 @@ use crate::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
     },
-    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener},
+    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
 };
@@ -521,7 +521,7 @@ pub async fn reconcile_hive(
 
     if let Some(HiveMetastoreRoleConfig { listener_class, .. }) = role_config {
         let group_listener: Listener =
-            build_group_listener(hive, &resolved_product_image, &hive_role, listener_class)
+            build_role_listener(hive, &resolved_product_image, &hive_role, listener_class)
                 .context(ListenerConfigurationSnafu)?;
         let listener = cluster_resources
             .add(client, group_listener)

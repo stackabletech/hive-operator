@@ -69,7 +69,7 @@ pub fn build_listener_connection_string(
 
 // Designed to build a listener per role
 // In case of Hive we expect only one role: Metastore
-pub fn build_group_listener(
+pub fn build_role_listener(
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     hive_role: &HiveRole,
