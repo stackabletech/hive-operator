@@ -4,6 +4,7 @@ mod controller;
 mod crd;
 mod discovery;
 mod kerberos;
+mod listener;
 mod operations;
 mod product_logging;
 

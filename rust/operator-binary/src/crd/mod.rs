@@ -30,8 +30,9 @@ use stackable_operator::{
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use v1alpha1::HiveMetastoreRoleConfig;
 
-use crate::crd::affinity::get_affinity;
+use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_class};
 
 pub mod affinity;
 pub mod security;
@@ -130,7 +131,20 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub metastore: Option<Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        pub metastore:
+            Option<Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>>,
+    }
+
+    // TODO: move generic version to op-rs?
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveMetastoreRoleConfig {
+        #[serde(flatten)]
+        pub common: GenericRoleConfig,
+
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the coordinator.
+        #[serde(default = "metastore_default_listener_class")]
+        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -155,22 +169,17 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// This field controls which type of Service the Operator creates for this HiveCluster:
-        ///
-        /// * cluster-internal: Use a ClusterIP service
-        ///
-        /// * external-unstable: Use a NodePort service
-        ///
-        /// * external-stable: Use a LoadBalancer service
-        ///
-        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-        #[serde(default)]
-        pub listener_class: CurrentlySupportedListenerClasses,
-
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
         pub authentication: Option<AuthenticationConfig>,
+    }
+}
+
+impl Default for v1alpha1::HiveMetastoreRoleConfig {
+    fn default() -> Self {
+        v1alpha1::HiveMetastoreRoleConfig {
+            listener_class: metastore_default_listener_class(),
+            common: Default::default(),
+        }
     }
 }
 
@@ -184,11 +193,6 @@ impl HasStatusCondition for v1alpha1::HiveCluster {
 }
 
 impl v1alpha1::HiveCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn metastore_role_service_name(&self) -> Option<&str> {
-        self.metadata.name.as_deref()
-    }
-
     /// Metadata about a metastore rolegroup
     pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
         RoleGroupRef {
@@ -226,13 +230,20 @@ impl v1alpha1::HiveCluster {
     pub fn role(
         &self,
         role_variant: &HiveRole,
-    ) -> Result<&Role<MetaStoreConfigFragment, GenericRoleConfig, JavaCommonConfig>, Error> {
+    ) -> Result<&Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>, Error>
+    {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
         }
         .with_context(|| CannotRetrieveHiveRoleSnafu {
             role: role_variant.to_string(),
         })
+    }
+
+    /// The name of the role-listener provided for a specific role.
+    /// returns a name `<cluster>-<role>`
+    pub fn role_listener_name(&self, hive_role: &HiveRole) -> String {
+        format!("{name}-{role}", name = self.name_any(), role = hive_role)
     }
 
     pub fn rolegroup(
@@ -254,7 +265,7 @@ impl v1alpha1::HiveCluster {
             .cloned()
     }
 
-    pub fn role_config(&self, role: &HiveRole) -> Option<&GenericRoleConfig> {
+    pub fn role_config(&self, role: &HiveRole) -> Option<&HiveMetastoreRoleConfig> {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
         }
@@ -304,29 +315,6 @@ impl v1alpha1::HiveCluster {
 
         tracing::debug!("Merged config: {:?}", conf_role_group);
         fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
-    }
-}
-
-// TODO: Temporary solution until listener-operator is finished
-#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
-    #[default]
-    #[serde(rename = "cluster-internal")]
-    ClusterInternal,
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-    #[serde(rename = "external-stable")]
-    ExternalStable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-            CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
-        }
     }
 }
 
@@ -490,20 +478,6 @@ impl MetaStoreConfig {
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
-    }
-}
-
-// TODO: Temporary solution until listener-operator is finished
-#[derive(Clone, Debug, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum ServiceType {
-    NodePort,
-    ClusterIP,
-}
-
-impl Default for ServiceType {
-    fn default() -> Self {
-        Self::NodePort
     }
 }
 

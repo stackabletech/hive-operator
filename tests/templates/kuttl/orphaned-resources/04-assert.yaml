@@ -23,4 +23,4 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: test-hive-metastore-newrolegroup
+  name: test-hive-metastore
