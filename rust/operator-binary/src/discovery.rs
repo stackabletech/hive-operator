@@ -111,7 +111,3 @@ fn build_discovery_configmap(
             obj_ref: ObjectRef::from_obj(hive),
         })
 }
-
-pub fn build_headless_role_group_metrics_service_name(name: String) -> String {
-    format!("{name}-metrics")
-}

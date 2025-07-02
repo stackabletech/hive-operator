@@ -104,7 +104,7 @@ pub fn build_role_listener(
     Ok(listener)
 }
 
-fn listener_ports() -> Vec<ListenerPort> {
+pub fn listener_ports() -> Vec<ListenerPort> {
     vec![ListenerPort {
         name: HIVE_PORT_NAME.to_owned(),
         port: HIVE_PORT.into(),

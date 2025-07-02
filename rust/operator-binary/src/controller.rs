@@ -94,12 +94,12 @@ use crate::{
         STACKABLE_LOG_DIR_NAME,
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
-    discovery::{self, build_headless_role_group_metrics_service_name},
+    discovery::{self},
     kerberos::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
     },
-    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
+    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener, listener_ports},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
 };
@@ -456,7 +456,7 @@ pub async fn reconcile_hive(
             .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
-        let rg_service = build_rolegroup_service(hive, &resolved_product_image, &rolegroup)?;
+        let rg_services = build_rolegroup_service(hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             hive,
             &hive_namespace,
@@ -478,12 +478,13 @@ pub async fn reconcile_hive(
             &rbac_sa.name_any(),
         )?;
 
-        cluster_resources
-            .add(client, rg_service)
-            .await
-            .context(ApplyRoleGroupServiceSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
+        for rg_service in rg_services {
+            cluster_resources.add(client, rg_service).await.context(
+                ApplyRoleGroupServiceSnafu {
+                    rolegroup: rolegroup.clone(),
+                },
+            )?;
+        }
 
         cluster_resources
             .add(client, rg_configmap)
@@ -720,39 +721,84 @@ fn build_rolegroup_service(
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-) -> Result<Service> {
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hive)
-            .name(build_headless_role_group_metrics_service_name(
-                rolegroup.object_name(),
-            ))
-            .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                hive,
-                &resolved_product_image.app_version_label,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            ))
-            .context(MetadataBuildSnafu)?
-            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
-            .build(),
-        spec: Some(ServiceSpec {
-            // Internal communication does not need to be exposed
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
-            ports: Some(service_ports()),
-            selector: Some(
-                Labels::role_group_selector(hive, APP_NAME, &rolegroup.role, &rolegroup.role_group)
+) -> Result<Vec<Service>> {
+    let services = vec![
+        Service {
+            metadata: ObjectMetaBuilder::new()
+                .name_and_namespace(hive)
+                // TODO: Use method on RoleGroupRef once op-rs is released
+                .name(hive.rolegroup_headless_metrics_service_name(rolegroup))
+                .ownerreference_from_resource(hive, None, Some(true))
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .with_recommended_labels(build_recommended_labels(
+                    hive,
+                    &resolved_product_image.app_version_label,
+                    &rolegroup.role,
+                    &rolegroup.role_group,
+                ))
+                .context(MetadataBuildSnafu)?
+                .with_label(
+                    Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?,
+                )
+                .build(),
+            spec: Some(ServiceSpec {
+                // Internal communication does not need to be exposed
+                type_: Some("ClusterIP".to_string()),
+                cluster_ip: Some("None".to_string()),
+                ports: Some(hive.metrics_ports()),
+                selector: Some(
+                    Labels::role_group_selector(
+                        hive,
+                        APP_NAME,
+                        &rolegroup.role,
+                        &rolegroup.role_group,
+                    )
                     .context(LabelBuildSnafu)?
                     .into(),
-            ),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
-        status: None,
-    })
+                ),
+                publish_not_ready_addresses: Some(true),
+                ..ServiceSpec::default()
+            }),
+            status: None,
+        },
+        Service {
+            metadata: ObjectMetaBuilder::new()
+                .name_and_namespace(hive)
+                // TODO: Use method on RoleGroupRef once op-rs is released
+                .name(hive.rolegroup_headless_service_name(rolegroup))
+                .ownerreference_from_resource(hive, None, Some(true))
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .with_recommended_labels(build_recommended_labels(
+                    hive,
+                    &resolved_product_image.app_version_label,
+                    &rolegroup.role,
+                    &rolegroup.role_group,
+                ))
+                .context(MetadataBuildSnafu)?
+                .build(),
+            spec: Some(ServiceSpec {
+                // Internal communication does not need to be exposed
+                type_: Some("ClusterIP".to_string()),
+                cluster_ip: Some("None".to_string()),
+                // Expecting same ports as on listener service, just as a headless, internal service
+                ports: Some(hive.service_ports()),
+                selector: Some(
+                    Labels::role_group_selector(
+                        hive,
+                        APP_NAME,
+                        &rolegroup.role,
+                        &rolegroup.role_group,
+                    )
+                    .context(LabelBuildSnafu)?
+                    .into(),
+                ),
+                publish_not_ready_addresses: Some(true),
+                ..ServiceSpec::default()
+            }),
+            status: None,
+        },
+    ];
+    Ok(services)
 }
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
@@ -1100,9 +1146,8 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(build_headless_role_group_metrics_service_name(
-                rolegroup_ref.object_name(),
-            )),
+            // TODO: Use method on RoleGroupRef once op-rs is released
+            service_name: Some(hive.rolegroup_headless_metrics_service_name(rolegroup_ref)),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
@@ -1121,15 +1166,6 @@ pub fn error_policy(
         Error::InvalidHiveCluster { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
     }
-}
-
-pub fn service_ports() -> Vec<ServicePort> {
-    vec![ServicePort {
-        name: Some(METRICS_PORT_NAME.to_string()),
-        port: METRICS_PORT.into(),
-        protocol: Some("TCP".to_string()),
-        ..ServicePort::default()
-    }]
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources
