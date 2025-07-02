@@ -44,7 +44,7 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
-                ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -99,7 +99,7 @@ use crate::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
     },
-    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener, listener_ports},
+    listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
 };
