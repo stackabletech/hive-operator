@@ -456,7 +456,7 @@ pub async fn reconcile_hive(
             .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
-        let rg_services = build_rolegroup_service(hive, &resolved_product_image, &rolegroup)?;
+        let rg_services = build_rolegroup_services(hive, &resolved_product_image, &rolegroup)?;
         let rg_configmap = build_metastore_rolegroup_config_map(
             hive,
             &hive_namespace,
@@ -717,7 +717,7 @@ fn build_metastore_rolegroup_config_map(
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
-fn build_rolegroup_service(
+fn build_rolegroup_services(
     hive: &v1alpha1::HiveCluster,
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
