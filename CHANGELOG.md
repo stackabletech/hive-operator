@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - BREAKING: Add Listener support for Hive ([#605]).
+- Add internal headless service in addition to the metrics service ([#613]).
 
 ### Changed
 
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#603]: https://github.com/stackabletech/hive-operator/pull/603
 [#604]: https://github.com/stackabletech/hive-operator/pull/604
 [#605]: https://github.com/stackabletech/hive-operator/pull/605
+[#613]: https://github.com/stackabletech/hive-operator/pull/613
 
 ## [25.3.0] - 2025-03-21
 
