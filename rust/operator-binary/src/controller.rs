@@ -737,7 +737,7 @@ fn build_metastore_rolegroup_config_map(
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
-/// corresponding [`Service`](`stackable_operator::k8s_openapi::api::core::v1::Service`) (from [`build_rolegroup_headless_service`] and [`build_rolegroup_metrics_service`]).
+/// corresponding [`Service`](`stackable_operator::k8s_openapi::api::core::v1::Service`) (via [`build_rolegroup_headless_service`] and metrics from [`build_rolegroup_metrics_service`]).
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
     hive: &v1alpha1::HiveCluster,
@@ -1080,7 +1080,7 @@ fn build_metastore_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             // TODO: Use method on RoleGroupRef once op-rs is released
-            service_name: Some(rolegroup_metrics_service_name(rolegroup_ref)),
+            service_name: Some(rolegroup_headless_service_name(rolegroup_ref)),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
