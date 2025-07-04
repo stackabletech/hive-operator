@@ -104,7 +104,7 @@ use crate::{
     product_logging::extend_role_group_config_map,
     service::{
         build_rolegroup_headless_service, build_rolegroup_metrics_service,
-        rolegroup_metrics_service_name,
+        rolegroup_headless_service_name,
     },
 };
 
