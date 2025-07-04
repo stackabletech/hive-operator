@@ -3,3 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
   - script: kubectl exec -n "$NAMESPACE" test-metastore-0 -- python /tmp/test_metastore.py -m hive-metastore.$NAMESPACE.svc.cluster.local
+  - script: kubectl exec -n "$NAMESPACE" test-metastore-0 -- python /tmp/test_metastore.py -m hive-metastore-default-headless.$NAMESPACE.svc.cluster.local

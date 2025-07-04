@@ -43,8 +43,8 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, Service,
-                ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, TCPSocketAction,
+                Volume,
             },
         },
         apimachinery::pkg::{
@@ -56,7 +56,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
-    kvp::{Label, Labels, ObjectLabels},
+    kvp::{Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
@@ -94,7 +94,7 @@ use crate::{
         STACKABLE_LOG_DIR_NAME,
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
-    discovery::{self, build_headless_role_group_metrics_service_name},
+    discovery::{self},
     kerberos::{
         self, add_kerberos_pod_config, kerberos_config_properties,
         kerberos_container_start_commands,
@@ -102,6 +102,10 @@ use crate::{
     listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
+    service::{
+        build_rolegroup_headless_service, build_rolegroup_metrics_service,
+        rolegroup_headless_service_name,
+    },
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -345,6 +349,9 @@ pub enum Error {
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
+
+    #[snafu(display("faild to configure service"))]
+    ServiceConfiguration { source: crate::service::Error },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -456,7 +463,14 @@ pub async fn reconcile_hive(
             .merged_config(&HiveRole::MetaStore, &rolegroup)
             .context(FailedToResolveResourceConfigSnafu)?;
 
-        let rg_service = build_rolegroup_service(hive, &resolved_product_image, &rolegroup)?;
+        let rg_metrics_service =
+            build_rolegroup_metrics_service(hive, &resolved_product_image, &rolegroup)
+                .context(ServiceConfigurationSnafu)?;
+
+        let rg_headless_service =
+            build_rolegroup_headless_service(hive, &resolved_product_image, &rolegroup)
+                .context(ServiceConfigurationSnafu)?;
+
         let rg_configmap = build_metastore_rolegroup_config_map(
             hive,
             &hive_namespace,
@@ -479,7 +493,14 @@ pub async fn reconcile_hive(
         )?;
 
         cluster_resources
-            .add(client, rg_service)
+            .add(client, rg_metrics_service)
+            .await
+            .context(ApplyRoleGroupServiceSnafu {
+                rolegroup: rolegroup.clone(),
+            })?;
+
+        cluster_resources
+            .add(client, rg_headless_service)
             .await
             .context(ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
@@ -713,52 +734,10 @@ fn build_metastore_rolegroup_config_map(
         })
 }
 
-/// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
-///
-/// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
-fn build_rolegroup_service(
-    hive: &v1alpha1::HiveCluster,
-    resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-) -> Result<Service> {
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hive)
-            .name(build_headless_role_group_metrics_service_name(
-                rolegroup.object_name(),
-            ))
-            .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                hive,
-                &resolved_product_image.app_version_label,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            ))
-            .context(MetadataBuildSnafu)?
-            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
-            .build(),
-        spec: Some(ServiceSpec {
-            // Internal communication does not need to be exposed
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
-            ports: Some(service_ports()),
-            selector: Some(
-                Labels::role_group_selector(hive, APP_NAME, &rolegroup.role, &rolegroup.role_group)
-                    .context(LabelBuildSnafu)?
-                    .into(),
-            ),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
-        status: None,
-    })
-}
-
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
-/// corresponding [`Service`] (from [`build_rolegroup_service`]).
+/// corresponding [`Service`](`stackable_operator::k8s_openapi::api::core::v1::Service`) (via [`build_rolegroup_headless_service`] and metrics from [`build_rolegroup_metrics_service`]).
 #[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
     hive: &v1alpha1::HiveCluster,
@@ -1100,9 +1079,8 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(build_headless_role_group_metrics_service_name(
-                rolegroup_ref.object_name(),
-            )),
+            // TODO: Use method on RoleGroupRef once op-rs is released
+            service_name: Some(rolegroup_headless_service_name(rolegroup_ref)),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
@@ -1121,15 +1099,6 @@ pub fn error_policy(
         Error::InvalidHiveCluster { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
     }
-}
-
-pub fn service_ports() -> Vec<ServicePort> {
-    vec![ServicePort {
-        name: Some(METRICS_PORT_NAME.to_string()),
-        port: METRICS_PORT.into(),
-        protocol: Some("TCP".to_string()),
-        ..ServicePort::default()
-    }]
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources
