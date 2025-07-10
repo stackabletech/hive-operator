@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - BREAKING: Add Listener support for Hive ([#605]).
 - Add internal headless service in addition to the metrics service ([#613]).
+- Add RBAC rule to helm template for automatic cluster domain detection ([#xxx]).
 
 ### Changed
 
