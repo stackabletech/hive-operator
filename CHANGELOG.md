@@ -30,11 +30,21 @@ All notable changes to this project will be documented in this file.
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
 - Use versioned common structs ([#604]).
+- BREAKING: Bump stackable-operator to 0.94.0 and update other dependencies ([#xxx]).
+  - The default Kubernetes cluster domain name is now fetched from the kubelet API unless explicitly configured.
+  - This requires operators to have the RBAC permission to get nodes/proxy in the apiGroup "". The helm-chart takes care of this.
+  - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
 
 ### Fixed
 
 - Use `json` file extension for log files ([#591]).
 - Fix a bug where changes to ConfigMaps that are referenced in the HiveCluster spec didn't trigger a reconciliation ([#589]).
+- Allow uppercase characters in domain names ([#xxx]).
+
+### Removed
+
+- Remove the `lastUpdateTime` field from the stacklet status ([#xxx]).
+- Remove role binding to legacy service accounts ([#xxx]).
 
 [#585]: https://github.com/stackabletech/hive-operator/pull/585
 [#589]: https://github.com/stackabletech/hdfs-operator/pull/589
@@ -46,6 +56,7 @@ All notable changes to this project will be documented in this file.
 [#604]: https://github.com/stackabletech/hive-operator/pull/604
 [#605]: https://github.com/stackabletech/hive-operator/pull/605
 [#613]: https://github.com/stackabletech/hive-operator/pull/613
+[#xxx]: https://github.com/stackabletech/hive-operator/pull/xxx
 
 ## [25.3.0] - 2025-03-21
 
