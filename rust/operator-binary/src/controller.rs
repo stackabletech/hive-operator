@@ -942,7 +942,6 @@ fn build_metastore_rolegroup_statefulset(
         &ListenerReference::ListenerName(hive.role_listener_name(hive_role)),
         &unversioned_recommended_labels,
     )
-    .context(BuildListenerVolumeSnafu)?
     .build_pvc(LISTENER_VOLUME_NAME.to_owned())
     .context(BuildListenerVolumeSnafu)?;
 

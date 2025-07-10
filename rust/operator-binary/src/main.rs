@@ -1,3 +1,7 @@
+// TODO: Look into how to properly resolve `clippy::large_enum_variant`.
+// This will need changes in our and upstream error types.
+#![allow(clippy::result_large_err)]
+
 mod command;
 mod config;
 mod controller;
@@ -37,7 +41,7 @@ use stackable_operator::{
 
 use crate::{
     controller::HIVE_FULL_CONTROLLER_NAME,
-    crd::{HiveCluster, v1alpha1},
+    crd::{HiveCluster, HiveClusterVersion, v1alpha1},
 };
 
 mod built_info {
@@ -57,7 +61,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => HiveCluster::merged_crd(HiveCluster::V1Alpha1)?
+        Command::Crd => HiveCluster::merged_crd(HiveClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(ProductOperatorRun {
             product_config,

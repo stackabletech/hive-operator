@@ -97,23 +97,26 @@ pub enum Error {
     },
 }
 
-#[versioned(version(name = "v1alpha1"))]
+#[versioned(
+    version(name = "v1alpha1"),
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        kube_client = "stackable_operator::kube::client",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars",
+        versioned = "stackable_operator::versioned"
+    )
+)]
 pub mod versioned {
     /// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
-    #[versioned(k8s(
+    #[versioned(crd(
         group = "hive.stackable.tech",
-        kind = "HiveCluster",
         plural = "hiveclusters",
         shortname = "hive",
         status = "HiveClusterStatus",
-        namespaced,
-        crates(
-            kube_core = "stackable_operator::kube::core",
-            k8s_openapi = "stackable_operator::k8s_openapi",
-            schemars = "stackable_operator::schemars"
-        )
+        namespaced
     ))]
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
