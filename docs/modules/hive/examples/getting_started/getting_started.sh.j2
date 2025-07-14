@@ -115,4 +115,4 @@ kubectl rollout status --watch --timeout=5m statefulset/hive-test-helper
 # Only for testing the cluster (not required for documentation)
 echo "Running test scripts"
 kubectl cp -n default ../../../../../tests/templates/kuttl/smoke/test_metastore.py hive-test-helper-0:/tmp
-kubectl exec -n default hive-test-helper-0 -- python /tmp/test_metastore.py -m hive-postgres-s3-metastore-default-0.hive-postgres-s3-metastore-default.default.svc.cluster.local
+kubectl exec -n default hive-test-helper-0 -- python /tmp/test_metastore.py -m hive-postgres-s3-metastore
