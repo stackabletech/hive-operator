@@ -1,4 +1,20 @@
 ---
+global:
+  security:
+    allowInsecureImages: true # needed starting with Chart version 14.9.0 if modifying images
+
+image:
+  repository: bitnamilegacy/minio
+clientImage:
+  repository: bitnamilegacy/minio-client
+defaultInitContainers:
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
+console:
+  image:
+    repository: bitnamilegacy/minio-object-browser
+
 mode: standalone
 disableWebUI: false
 extraEnvVars:
