@@ -8,7 +8,8 @@ image:
 clientImage:
   repository: bitnamilegacy/minio-client
 defaultInitContainers:
-  volumePermissions:
+  volumePermissions: # volumePermissions moved under defaultInitContainers starting with Chart version 17.0.0
+    enabled: false
     image:
       repository: bitnamilegacy/os-shell
 console:
@@ -43,8 +44,11 @@ provisioning:
   containerSecurityContext:
     enabled: false
 
+# volumePermissions can be removed starting with Chart version 17.0.0, moved under defaultInitContainers
 volumePermissions:
   enabled: false
+  image:
+  repository: bitnamilegacy/os-shell
 
 podSecurityContext:
   enabled: false
