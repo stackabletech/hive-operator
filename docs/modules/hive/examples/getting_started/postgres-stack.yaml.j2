@@ -6,10 +6,20 @@ repo:
   url: https://charts.bitnami.com/bitnami/
 version: {{ versions.postgresql }}
 options:
+  global:
+    security:
+      allowInsecureImages: true
+  image:
+    repository: bitnamilegacy/postgresql
   volumePermissions:
     enabled: false
+    image:
+      repository: bitnamilegacy/os-shell
     securityContext:
       runAsUser: auto
+  metrics:
+    image:
+      repository: bitnamilegacy/postgres-exporter
   primary:
     extendedConfiguration: |
       password_encryption=md5
