@@ -45,6 +45,11 @@ To create a single node Apache Hive Metastore (v4.0.1) cluster with derby and S3
 helm install minio \
     minio \
     --repo https://charts.bitnami.com/bitnami \
+    --set image.repository=bitnamilegacy/minio \
+    --set clientImage.repository=bitnamilegacy/minio-client \
+    --set defaultInitContainers.volumePermissions.image.repository=bitnamilegacy/os-shell \
+    --set console.image.repository=bitnamilegacy/minio-object-browser \
+    --set global.security.allowInsecureImages=true \
     --set auth.rootUser=minio-access-key \
     --set auth.rootPassword=minio-secret-key
 ----
@@ -129,6 +134,10 @@ This installs PostgreSQL in version 10 to work around the issue mentioned above:
 [source,bash]
 ----
 helm install hive bitnami/postgresql --version=12.1.5 \
+--set image.repository=bitnamilegacy/postgresql \
+--set volumePermissions.image.repository=bitnamilegacy/os-shell \
+--set metrics.image.repository=bitnamilegacy/postgres-exporter \
+--set global.security.allowInsecureImages=true \
 --set postgresqlUsername=hive \
 --set postgresqlPassword=hive \
 --set postgresqlDatabase=hive

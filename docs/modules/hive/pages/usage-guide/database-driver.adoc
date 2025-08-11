@@ -10,6 +10,11 @@ To use another supported database it is necessary to make the relevant drivers a
 [source,bash]
 ----
 helm install mysql oci://registry-1.docker.io/bitnamicharts/mysql \
+--version=13.0.4 \
+--set image.repository=bitnamilegacy/mysql \
+--set volumePermissions.image.repository=bitnamilegacy/os-shell \
+--set metrics.image.repository=bitnamilegacy/mysqld-exporter \
+--set global.security.allowInsecureImages=true \
 --set auth.database=hive \
 --set auth.username=hive \
 --set auth.password=hive
