@@ -53,6 +53,10 @@ echo "Install postgres for Hive"
 helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
   --version 16.5.0 \
   --namespace default \
+  --set image.repository=bitnamilegacy/postgresql \
+  --set volumePermissions.image.repository=bitnamilegacy/os-shell \
+  --set metrics.image.repository=bitnamilegacy/postgres-exporter \
+  --set global.security.allowInsecureImages=true \
   --set auth.username=hive \
   --set auth.password=hive \
   --set auth.database=hive \
