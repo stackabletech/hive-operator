@@ -82,7 +82,7 @@ pub fn build_role_listener(
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
         .with_recommended_labels(build_recommended_labels(
             hive,
-            &resolved_product_image.app_version_label,
+            &resolved_product_image.app_version_label_value,
             &hive_role.to_string(),
             "none",
         ))
