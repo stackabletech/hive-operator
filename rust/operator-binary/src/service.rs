@@ -45,7 +45,7 @@ pub fn build_rolegroup_headless_service(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 hive,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &rolegroup.role,
                 &rolegroup.role_group,
             ))
@@ -85,7 +85,7 @@ pub fn build_rolegroup_metrics_service(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 hive,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &rolegroup.role,
                 &rolegroup.role_group,
             ))
