@@ -2,6 +2,18 @@
 // This is a separate file, since it is used by both the direct Hive-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-- 4.0.1 (experimental) - Spark Iceberg jobs may fail as described https://github.com/stackabletech/spark-k8s-operator/issues/537[here]
+- 4.0.1 (experimental)
 - 4.0.0 (LTS)
 - 3.1.3 (deprecated)
+
+== Hive 4 issues
+
+As of SDP 25.7, Hive 4 is still relatively new and there are some known issues, especially when using it with Iceberg and Trino.
+The missing comppatibilty with Iceberg also means that Spark jobs using this storage may fail.
+
+For more details, see:
+
+* https://github.com/stackabletech/hive-operator/issues/626[The stackable tracking issue]
+* https://github.com/trinodb/trino/issues/26214[Trino issue]
+* https://github.com/apache/iceberg/issues/12878[Spark with Iceberg issue]
+
