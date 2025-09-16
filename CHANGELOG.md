@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Helm: Allow Pod `priorityClassName` to be configured ([#633]).
+
+[#633]: https://github.com/stackabletech/hive-operator/pull/633
+
 ## [25.7.0] - 2025-07-23
 
 ## [25.7.0-rc1] - 2025-07-18
