@@ -44,9 +44,10 @@ pub fn build_container_command_args(
     }
 
     if let Some(s3) = s3_connection_spec {
-        if let Some(ca_cert) = s3.tls.tls_ca_cert_mount_path() {
-            // The alias can not clash, as we only support a single S3Connection
-            args.push(format!("keytool -importcert -file {ca_cert} -alias stackable-s3-ca-cert -keystore {STACKABLE_TRUST_STORE} -storepass {STACKABLE_TRUST_STORE_PASSWORD} -noprompt"));
+        if let Some(ca_cert_file) = s3.tls.tls_ca_cert_mount_path() {
+            args.push(format!(
+                "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_file} --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"
+            ));
         }
     }
 
