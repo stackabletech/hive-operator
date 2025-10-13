@@ -103,10 +103,7 @@ use crate::{
     listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
-    service::{
-        build_rolegroup_headless_service, build_rolegroup_metrics_service,
-        rolegroup_headless_service_name,
-    },
+    service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -1085,8 +1082,7 @@ fn build_metastore_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            // TODO: Use method on RoleGroupRef once op-rs is released
-            service_name: Some(rolegroup_headless_service_name(rolegroup_ref)),
+            service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
