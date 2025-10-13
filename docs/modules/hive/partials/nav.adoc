@@ -23,3 +23,4 @@
 ** xref:hive:reference/discovery.adoc[]
 ** xref:hive:reference/commandline-parameters.adoc[]
 ** xref:hive:reference/environment-variables.adoc[]
+* xref:hive:troubleshooting/index.adoc[]
