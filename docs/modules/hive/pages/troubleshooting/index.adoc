@@ -1,0 +1,27 @@
+= Troubleshooting
+
+== Probe error 'Thrift Error' while using Kerberos authentication
+
+In Hive 4.0.1 with Kerberos enabled, health checks cause excessive error logs:
+
+[source]
+----
+ERROR [Metastore-Handler-Pool: Thread-65] server.TThreadPoolServer: Thrift Error occurred during processing of message.
+----
+
+This is because the health check doesn’t complete SASL authentication. The error is ignorable, though it can be hidden with the following configuration:
+
+[source,yaml]
+----
+spec:
+  metastore:
+    config:
+      logging:
+        containers:
+          hive:
+            loggers:
+              org.apache.thrift.server.TThreadPoolServer:
+                level: NONE
+----
+
+NOTE: This will suppress all logging from TThreadPoolServer, including log events that might be useful for diagnosing issues.
