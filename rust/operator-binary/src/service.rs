@@ -39,8 +39,7 @@ pub fn build_rolegroup_headless_service(
     let headless_service = Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            // TODO: Use method on RoleGroupRef once op-rs is released
-            .name(rolegroup_headless_service_name(rolegroup))
+            .name(rolegroup.rolegroup_headless_service_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -79,8 +78,7 @@ pub fn build_rolegroup_metrics_service(
     let metrics_service = Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hive)
-            // TODO: Use method on RoleGroupRef once op-rs is released
-            .name(rolegroup_metrics_service_name(rolegroup))
+            .name(rolegroup.rolegroup_metrics_service_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -109,18 +107,6 @@ pub fn build_rolegroup_metrics_service(
         status: None,
     };
     Ok(metrics_service)
-}
-
-/// Headless service for cluster internal purposes only.
-// TODO: Move to operator-rs
-pub fn rolegroup_headless_service_name(rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>) -> String {
-    format!("{name}-headless", name = rolegroup.object_name())
-}
-
-/// Headless metrics service exposes Prometheus endpoint only
-// TODO: Move to operator-rs
-pub fn rolegroup_metrics_service_name(rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>) -> String {
-    format!("{name}-metrics", name = rolegroup.object_name())
 }
 
 fn metrics_ports() -> Vec<ServicePort> {
