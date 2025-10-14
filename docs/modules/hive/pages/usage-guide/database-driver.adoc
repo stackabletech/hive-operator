@@ -147,7 +147,7 @@ metadata:
   name: hive-with-drivers
 spec:
   image:
-    productVersion: 4.0.1
+    productVersion: 4.1.0
   clusterConfig:
     database:
       connString: jdbc:mysql://mysql:3306/hive  # <1>
@@ -200,7 +200,7 @@ If you have access to a registry to store custom images, another approach is to 
 .Copy the driver
 [source]
 ----
-FROM oci.stackable.tech/sdp/hive:4.0.1-stackable0.0.0-dev
+FROM oci.stackable.tech/sdp/hive:4.1.0-stackable0.0.0-dev
 
 RUN curl --fail -L https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.31/mysql-connector-j-8.0.31.jar -o /stackable/mysql-connector-j-8.0.31.jar
 ----
@@ -208,7 +208,7 @@ RUN curl --fail -L https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.
 .Build and tag the image
 [source]
 ----
-docker build -f ./Dockerfile -t oci.stackable.tech/sdp/hive:4.0.1-stackable0.0.0-dev-mysql .
+docker build -f ./Dockerfile -t oci.stackable.tech/sdp/hive:4.1.0-stackable0.0.0-dev-mysql .
 ----
 
 .Reference the new path to the driver without the need for using a volume mounted from a PVC
@@ -221,8 +221,8 @@ metadata:
   name: hive
 spec:
   image:
-    custom: oci.stackable.tech/sdp/hive:4.0.1-stackable0.0.0-dev-mysql  # <1>
-    productVersion: 4.0.1
+    custom: oci.stackable.tech/sdp/hive:4.1.0-stackable0.0.0-dev-mysql  # <1>
+    productVersion: 4.1.0
   clusterConfig:
     database:
       ...

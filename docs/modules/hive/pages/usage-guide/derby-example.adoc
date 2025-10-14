@@ -16,7 +16,7 @@ metadata:
   name: simple-hive-derby
 spec:
   image:
-    productVersion: 4.0.1
+    productVersion: 4.1.0
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
@@ -39,7 +39,7 @@ stringData:
 
 WARNING: You should not use the `Derby` database in production. Derby stores data locally which does not work in high availability setups (multiple replicas) and all data is lost after Pod restarts.
 
-To create a single node Apache Hive Metastore (v4.0.1) cluster with derby and S3 access, deploy a minio (or use any available S3 bucket):
+To create a single node Apache Hive Metastore (v4.1.0) cluster with derby and S3 access, deploy a minio (or use any available S3 bucket):
 [source,bash]
 ----
 helm install minio \
@@ -71,7 +71,7 @@ metadata:
   name: simple-hive-derby
 spec:
   image:
-    productVersion: 4.0.1
+    productVersion: 4.1.0
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
@@ -152,7 +152,7 @@ metadata:
   name: simple-hive-postgres
 spec:
   image:
-    productVersion: 4.0.1
+    productVersion: 4.1.0
   clusterConfig:
     database:
       connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
