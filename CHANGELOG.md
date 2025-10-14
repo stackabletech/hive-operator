@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#633]).
+- Add `prometheus.io/path|port|scheme` annotations to metrics service ([#641]).
 
 ### Fixed
 
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 [#633]: https://github.com/stackabletech/hive-operator/pull/633
 [#636]: https://github.com/stackabletech/hive-operator/pull/636
+[#641]: https://github.com/stackabletech/hive-operator/pull/641
 
 ## [25.7.0] - 2025-07-23
 
