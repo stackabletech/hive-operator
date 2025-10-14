@@ -2,7 +2,7 @@
 
 == Probe error 'Thrift Error' while using Kerberos authentication
 
-In Hive 4.0.1 with Kerberos enabled, health checks cause excessive error logs:
+In Hive 4.x with Kerberos enabled, health checks cause excessive error logs:
 
 [source]
 ----
