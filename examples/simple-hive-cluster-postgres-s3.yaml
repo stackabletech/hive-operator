@@ -25,7 +25,7 @@ metadata:
   name: simple-hive-postgres
 spec:
   image:
-    productVersion: 4.0.1
+    productVersion: 4.1.0
     stackableVersion: 0.0.0-dev
   clusterConfig:
     database:
