@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - Helm: Allow Pod `priorityClassName` to be configured ([#633]).
 - Add `prometheus.io/path|port|scheme` annotations to metrics service ([#641]).
 
+### Changed
+
+- Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#646]).
+
 ### Fixed
 
 - Previously we had a bug that could lead to missing certificates ([#636]).
@@ -20,6 +24,7 @@ All notable changes to this project will be documented in this file.
 [#633]: https://github.com/stackabletech/hive-operator/pull/633
 [#636]: https://github.com/stackabletech/hive-operator/pull/636
 [#641]: https://github.com/stackabletech/hive-operator/pull/641
+[#646]: https://github.com/stackabletech/hive-operator/pull/646
 
 ## [25.7.0] - 2025-07-23
 
