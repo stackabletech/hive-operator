@@ -16,10 +16,11 @@ mod service;
 use std::sync::Arc;
 
 use clap::Parser;
-use futures::stream::StreamExt;
+use futures::{FutureExt, StreamExt};
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
+    eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
@@ -67,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
             operator_environment: _,
             watch_namespace,
             product_config,
-            maintenance: _,
+            maintenance,
             common,
         }) => {
             // NOTE (@NickLarsenNZ): Before stackable-telemetry was used:
@@ -86,6 +87,11 @@ async fn main() -> anyhow::Result<()> {
                 "Starting {description}",
                 description = built_info::PKG_DESCRIPTION
             );
+
+            let eos_checker =
+                EndOfSupportChecker::new(built_info::BUILT_TIME_UTC, maintenance.end_of_support)?
+                    .run()
+                    .map(anyhow::Ok);
 
             let product_config = product_config.load(&[
                 "deploy/config-spec/properties.yaml",
@@ -110,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             );
             let config_map_store = hive_controller.store();
-            hive_controller
+            let hive_controller = hive_controller
                 .owns(
                     watch_namespace.get_api::<Service>(&client),
                     watcher::Config::default(),
@@ -160,7 +166,9 @@ async fn main() -> anyhow::Result<()> {
                         }
                     },
                 )
-                .await;
+                .map(anyhow::Ok);
+
+            futures::try_join!(hive_controller, eos_checker)?;
         }
     }
 
