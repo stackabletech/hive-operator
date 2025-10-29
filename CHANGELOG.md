@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#633]).
 - Add `prometheus.io/path|port|scheme` annotations to metrics service ([#641]).
+- Add end-of-support checker ([#647]).
+  - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
+  - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
+  - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
 
 ### Fixed
 
@@ -20,6 +24,7 @@ All notable changes to this project will be documented in this file.
 [#633]: https://github.com/stackabletech/hive-operator/pull/633
 [#636]: https://github.com/stackabletech/hive-operator/pull/636
 [#641]: https://github.com/stackabletech/hive-operator/pull/641
+[#647]: https://github.com/stackabletech/hive-operator/pull/647
 
 ## [25.7.0] - 2025-07-23
 
