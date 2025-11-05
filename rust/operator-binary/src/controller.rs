@@ -131,16 +131,6 @@ pub enum Error {
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
 
-    #[snafu(display("failed to calculate service name for role {rolegroup}"))]
-    RoleGroupServiceNameNotFound {
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
-    },
-
-    #[snafu(display("failed to apply global Service"))]
-    ApplyRoleService {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
         source: stackable_operator::cluster_resources::Error,
@@ -198,9 +188,6 @@ pub enum Error {
         source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
     },
 
-    #[snafu(display("failed to configure S3 TLS client details"))]
-    ConfigureS3TlsClientDetails { source: TlsClientDetailsError },
-
     #[snafu(display(
         "Hive does not support skipping the verification of the tls enabled S3 server"
     ))]
@@ -208,15 +195,6 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge resource config for role and role group"))]
     FailedToResolveResourceConfig { source: crate::crd::Error },
-
-    #[snafu(display("invalid java heap config - missing default or value in crd?"))]
-    InvalidJavaHeapConfig,
-
-    #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
-    FailedToConvertJavaHeap {
-        source: stackable_operator::memory::Error,
-        unit: String,
-    },
 
     #[snafu(display("failed to create hive container [{name}]"))]
     FailedToCreateHiveContainer {
@@ -258,9 +236,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("internal operator failure"))]
-    InternalOperatorError { source: crate::crd::Error },
-
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
         rolegroup
@@ -280,16 +255,6 @@ pub enum Error {
         source: crate::operations::graceful_shutdown::Error,
     },
 
-    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
-    TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
-    },
-
-    #[snafu(display("failed to build S3 credentials SecretClass Volume"))]
-    S3CredentialsSecretClassVolumeBuild {
-        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
-    },
-
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
         source: stackable_operator::kvp::LabelError,
@@ -304,13 +269,6 @@ pub enum Error {
     GetRequiredLabels {
         source:
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
-    },
-
-    #[snafu(display(
-        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and Containers"
-    ))]
-    AddLdapVolumes {
-        source: stackable_operator::crd::authentication::ldap::v1alpha1::Error,
     },
 
     #[snafu(display("failed to add kerberos config"))]
