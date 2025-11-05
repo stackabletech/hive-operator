@@ -49,6 +49,33 @@ spec:
                       required:
                         - kerberos
                       type: object
+                    authorization:
+                      description: |-
+                        Authorization options for Hive.
+                        Learn more in the [Hive authorization usage guide](https://docs.stackable.tech/home/nightly/hive/usage-guide/security#authorization).
+                      nullable: true
+                      properties:
+                        opa:
+                          description: |-
+                            Configure the OPA stacklet [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery)
+                            and the name of the Rego package containing your authorization rules.
+                            Consult the [OPA authorization documentation](https://docs.stackable.tech/home/nightly/concepts/opa)
+                            to learn how to deploy Rego authorization rules with OPA.
+                          nullable: true
+                          properties:
+                            configMapName:
+                              description: |-
+                                The [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery)
+                                for the OPA stacklet that should be used for authorization requests.
+                              type: string
+                            package:
+                              description: The name of the Rego package containing the Rego rules for the product.
+                              nullable: true
+                              type: string
+                          required:
+                            - configMapName
+                          type: object
+                      type: object
                     database:
                       description: Database connection specification for the metadata database.
                       properties:

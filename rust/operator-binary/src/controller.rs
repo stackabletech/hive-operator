@@ -36,7 +36,6 @@ use stackable_operator::{
     commons::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
-        tls_verification::TlsClientDetailsError,
     },
     crd::{listener::v1alpha1::Listener, s3},
     k8s_openapi::{
@@ -85,7 +84,10 @@ use tracing::warn;
 use crate::{
     OPERATOR_NAME,
     command::build_container_command_args,
-    config::jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
+    config::{
+        jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
+        opa::HiveOpaConfig,
+    },
     crd::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
         HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
@@ -236,6 +238,9 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
+    #[snafu(display("internal operator failure"))]
+    InternalOperatorFailure { source: crate::crd::Error },
+
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
         rolegroup
@@ -312,6 +317,11 @@ pub enum Error {
     #[snafu(display("failed to resolve product image"))]
     ResolveProductImage {
         source: product_image_selection::Error,
+    },
+
+    #[snafu(display("invalid OpaConfig"))]
+    InvalidOpaConfig {
+        source: stackable_operator::commons::opa::Error,
     },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -416,6 +426,15 @@ pub async fn reconcile_hive(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
+    let hive_opa_config = match hive.get_opa_config() {
+        Some(opa_config) => Some(
+            HiveOpaConfig::from_opa_config(client, hive, opa_config)
+                .await
+                .context(InvalidOpaConfigSnafu)?,
+        ),
+        None => None,
+    };
+
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
@@ -442,6 +461,7 @@ pub async fn reconcile_hive(
             s3_connection_spec.as_ref(),
             &config,
             &client.kubernetes_cluster_info,
+            hive_opa_config.as_ref(),
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             hive,
@@ -567,6 +587,7 @@ fn build_metastore_rolegroup_config_map(
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     cluster_info: &KubernetesClusterInfo,
+    hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
 
@@ -621,6 +642,17 @@ fn build_metastore_rolegroup_config_map(
                     kerberos_config_properties(hive, hive_namespace, cluster_info)
                 {
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
+                }
+
+                // OPA settings
+                if let Some(opa_config) = hive_opa_config {
+                    data.extend(
+                        opa_config
+                            .as_config(&resolved_product_image.product_version)
+                            .into_iter()
+                            .map(|(k, v)| (k, Some(v)))
+                            .collect::<BTreeMap<String, Option<String>>>(),
+                    );
                 }
 
                 // overrides
@@ -711,10 +743,10 @@ fn build_metastore_rolegroup_statefulset(
     merged_config: &MetaStoreConfig,
     sa_name: &str,
 ) -> Result<StatefulSet> {
-    let role = hive.role(hive_role).context(InternalOperatorSnafu)?;
+    let role = hive.role(hive_role).context(InternalOperatorFailureSnafu)?;
     let rolegroup = hive
         .rolegroup(rolegroup_ref)
-        .context(InternalOperatorSnafu)?;
+        .context(InternalOperatorFailureSnafu)?;
 
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {

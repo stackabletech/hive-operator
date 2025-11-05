@@ -7,6 +7,7 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
+        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -151,6 +152,13 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
+        pub authentication: Option<AuthenticationConfig>,
+
+        /// Authorization options for Hive.
+        /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
+        pub authorization: Option<security::AuthorizationConfig>,
+
         // no doc - docs in DatabaseConnectionSpec struct.
         pub database: DatabaseConnectionSpec,
 
@@ -169,9 +177,6 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
-
-        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
-        pub authentication: Option<AuthenticationConfig>,
     }
 }
 
@@ -287,6 +292,14 @@ impl v1alpha1::HiveCluster {
 
     pub fn db_type(&self) -> &DbType {
         &self.spec.cluster_config.database.db_type
+    }
+
+    pub fn get_opa_config(&self) -> Option<&OpaConfig> {
+        self.spec
+            .cluster_config
+            .authorization
+            .as_ref()
+            .and_then(|a| a.opa.as_ref())
     }
 
     /// Retrieve and merge resource configs for role and role groups
