@@ -48,22 +48,36 @@ data:
     default partition_allow = false
     default user_allow = false
 
+    stackable_user := "stackable"
+    db_name := "test_metastore"
+
     database_allow if {
-      input.identity.username == "stackable"
+      input.identity.username == stackable_user
+      input.resources.database.name == db_name
     }
 
     table_allow if {
-      input.identity.username == "stackable"
+      input.identity.username == stackable_user
+      input.resources.table.dbName == db_name
+      input.privileges.writeRequiredPriv[0].priv == "CREATE"
+      input.resources.table.tableName in ["s3_one_column_table", "one_column_table"]
+    }
+
+    table_allow if {
+      input.identity.username == stackable_user
+      input.resources.table.dbName == db_name
+      input.privileges.readRequiredPriv[0].priv == "SELECT"
+      input.resources.table.tableName in ["s3_one_column_table", "one_column_table"]
     }
 
     column_allow if {
-      input.identity.username == "stackable"
+      input.identity.username == stackable_user
     }
 
     partition_allow if {
-      input.identity.username == "stackable"
+      input.identity.username == stackable_user
     }
 
     user_allow if {
-      input.identity.username == "stackable"
+      input.identity.username == stackable_user
     }
