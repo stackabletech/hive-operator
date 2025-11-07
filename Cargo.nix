@@ -8005,7 +8005,7 @@ rec {
       };
       "stackable-hive-operator" = rec {
         crateName = "stackable-hive-operator";
-        version = "25.11.0-rc1";
+        version = "25.11.0";
         edition = "2021";
         crateBin = [
           {
