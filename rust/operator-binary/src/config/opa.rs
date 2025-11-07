@@ -37,23 +37,8 @@ pub const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
 
 pub struct HiveOpaConfig {
     /// Endpoint for OPA, e.g.
-    /// `http://localhost:8081/v1/data/hms/allow`
+    /// `http://localhost:8081/v1/data/<package>`
     pub(crate) base_endpoint: String,
-    /// Policy to check database authorization, e.g.
-    /// `http://localhost:8081/v1/data/hms/database_allow`
-    pub(crate) policy_url_database: String,
-    /// Policy to check table authorization, e.g.
-    /// `http://localhost:8081/v1/data/hms/table_allow`
-    pub(crate) policy_url_table: String,
-    /// Policy to check column authorization, e.g.
-    /// `http://localhost:8081/v1/data/hms/column_allow`
-    pub(crate) policy_url_column: String,
-    /// Policy to check partition authorization, e.g.
-    /// `http://localhost:8081/v1/data/hms/partition_allow`
-    pub(crate) policy_url_partition: String,
-    /// Policy to check user authorization, e.g.
-    /// `http://localhost:8081/v1/data/hms/user_allow`
-    pub(crate) policy_url_user: String,
     /// Optional TLS secret class for OPA communication.
     /// If set, the CA certificate from this secret class will be added
     /// to hive's truststore to make it trust OPA's TLS certificate.
@@ -67,40 +52,8 @@ impl HiveOpaConfig {
         opa_config: &OpaConfig,
     ) -> Result<Self, stackable_operator::commons::opa::Error> {
         // See: https://github.com/boschglobal/hive-metastore-opa-authorizer?tab=readme-ov-file#configuration
-        // TODO: get document root once (client call) and build the other strings
         let base_endpoint = opa_config
-            .full_document_url_from_config_map(client, hive, Some("allow"), OpaApiVersion::V1)
-            .await?;
-
-        let policy_url_database = opa_config
-            .full_document_url_from_config_map(
-                client,
-                hive,
-                Some("database_allow"),
-                OpaApiVersion::V1,
-            )
-            .await?;
-        let policy_url_table = opa_config
-            .full_document_url_from_config_map(client, hive, Some("table_allow"), OpaApiVersion::V1)
-            .await?;
-        let policy_url_column = opa_config
-            .full_document_url_from_config_map(
-                client,
-                hive,
-                Some("column_allow"),
-                OpaApiVersion::V1,
-            )
-            .await?;
-        let policy_url_partition = opa_config
-            .full_document_url_from_config_map(
-                client,
-                hive,
-                Some("partition_allow"),
-                OpaApiVersion::V1,
-            )
-            .await?;
-        let policy_url_user = opa_config
-            .full_document_url_from_config_map(client, hive, Some("user_allow"), OpaApiVersion::V1)
+            .full_document_url_from_config_map(client, hive, None, OpaApiVersion::V1)
             .await?;
 
         let tls_secret_class = client
@@ -115,11 +68,6 @@ impl HiveOpaConfig {
 
         Ok(HiveOpaConfig {
             base_endpoint,
-            policy_url_database,
-            policy_url_table,
-            policy_url_column,
-            policy_url_partition,
-            policy_url_user,
             tls_secret_class,
         })
     }
@@ -152,23 +100,23 @@ impl HiveOpaConfig {
             ),
             (
                 OPA_AUTHORIZATION_POLICY_URL_DATA_BASE.to_string(),
-                self.policy_url_database.to_owned(),
+                "database_allow".to_string(),
             ),
             (
                 OPA_AUTHORIZATION_POLICY_URL_TABLE.to_string(),
-                self.policy_url_table.to_owned(),
+                "table_allow".to_string(),
             ),
             (
                 OPA_AUTHORIZATION_POLICY_URL_COLUMN.to_string(),
-                self.policy_url_column.to_owned(),
+                "column_allow".to_string(),
             ),
             (
                 OPA_AUTHORIZATION_POLICY_URL_PARTITION.to_string(),
-                self.policy_url_partition.to_owned(),
+                "partition_allow".to_string(),
             ),
             (
                 OPA_AUTHORIZATION_POLICY_URL_USER.to_string(),
-                self.policy_url_user.to_owned(),
+                "user_allow".to_string(),
             ),
         ])
     }

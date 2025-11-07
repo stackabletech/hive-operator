@@ -1,0 +1,69 @@
+---
+apiVersion: opa.stackable.tech/v1alpha1
+kind: OpaCluster
+metadata:
+  name: opa
+spec:
+  image:
+{% if test_scenario['values']['opa-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['opa-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['opa-latest'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['opa-latest'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  servers:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          opa:
+            console:
+              level: INFO
+            file:
+              level: INFO
+            loggers:
+              decision:
+                level: INFO
+    roleGroups:
+      default: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-opa-bundle
+  labels:
+    opa.stackable.tech/bundle: "hms"
+data:
+  trino.rego: |
+    package hms
+
+    default database_allow = false
+    default table_allow = false
+    default column_allow = false
+    default partition_allow = false
+    default user_allow = false
+
+    database_allow if {
+      input.identity.username == "stackable"
+    }
+
+    table_allow if {
+      input.identity.username == "stackable"
+    }
+
+    column_allow if {
+      input.identity.username == "stackable"
+    }
+
+    partition_allow if {
+      input.identity.username == "stackable"
+    }
+
+    user_allow if {
+      input.identity.username == "stackable"
+    }
