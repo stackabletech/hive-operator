@@ -36,7 +36,9 @@ def table(db_name, table_name, location):
 
 
 if __name__ == "__main__":
-    all_args = argparse.ArgumentParser(description="Test hive-metastore-opa-authorizer and rego rules.")
+    all_args = argparse.ArgumentParser(
+        description="Test hive-metastore-opa-authorizer and rego rules."
+    )
     all_args.add_argument("-p", "--port", help="Metastore server port", default="9083")
     all_args.add_argument(
         "-d", "--database", help="Test DB name", default="db_not_allowed"
@@ -53,15 +55,21 @@ if __name__ == "__main__":
     # Creating database object using builder
     database = DatabaseBuilder(database_name).build()
 
-    print(f"[INFO] Trying to access '{database_name}' which is expected to fail due to 'database_allow' authorization policy...!")
+    print(
+        f"[INFO] Trying to access '{database_name}' which is expected to fail due to 'database_allow' authorization policy...!"
+    )
 
     with HiveMetastoreClient(host, port) as hive_client:
         try:
             hive_client.create_database_if_not_exists(database)
         except Exception as e:
             print(f"[DENIED] {e}")
-            print(f"[SUCCESS] Test hive-metastore-opa-authorizer succeeded. Could not access database '{database_name}'!")
+            print(
+                f"[SUCCESS] Test hive-metastore-opa-authorizer succeeded. Could not access database '{database_name}'!"
+            )
             exit(0)
 
-        print(f"[ERROR] Test hive-metastore-opa-authorizer failed. Could access database '{database_name}'!")
+        print(
+            f"[ERROR] Test hive-metastore-opa-authorizer failed. Could access database '{database_name}'!"
+        )
         exit(-1)

@@ -1,36 +1,58 @@
 ---
-apiVersion: opa.stackable.tech/v1alpha1
-kind: OpaCluster
-metadata:
-  name: opa
-spec:
-  image:
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: opa.stackable.tech/v1alpha1
+      kind: OpaCluster
+      metadata:
+        name: opa
+      spec:
+        image:
 {% if test_scenario['values']['opa-latest'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['opa-latest'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['opa-latest'].split(',')[0] }}"
+          custom: "{{ test_scenario['values']['opa-latest'].split(',')[1] }}"
+          productVersion: "{{ test_scenario['values']['opa-latest'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['opa-latest'] }}"
+          productVersion: "{{ test_scenario['values']['opa-latest'] }}"
 {% endif %}
-    pullPolicy: IfNotPresent
-  clusterConfig:
+          pullPolicy: IfNotPresent
+        clusterConfig:
+          tls:
+            serverSecretClass: opa-tls-$NAMESPACE
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    vectorAggregatorConfigMapName: vector-aggregator-discovery
+          vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  servers:
-    config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-        containers:
-          opa:
-            console:
-              level: INFO
-            file:
-              level: INFO
-            loggers:
-              decision:
-                level: INFO
-    roleGroups:
-      default: {}
+        servers:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+              containers:
+                opa:
+                  console:
+                    level: INFO
+                  file:
+                    level: INFO
+                  loggers:
+                    decision:
+                      level: INFO
+          roleGroups:
+            default: {}
+      ---
+      apiVersion: secrets.stackable.tech/v1alpha1
+      kind: SecretClass
+      metadata:
+        name: opa-tls-$NAMESPACE
+      spec:
+        backend:
+          autoTls:
+            ca:
+              autoGenerate: true
+              secret:
+                name: opa-tls-ca-$NAMESPACE
+                namespace: $NAMESPACE
+
 ---
 apiVersion: v1
 kind: ConfigMap

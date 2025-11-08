@@ -121,7 +121,7 @@ impl HiveOpaConfig {
         ])
     }
 
-    pub fn tls_mount_path(&self) -> Option<String> {
+    pub fn tls_ca_cert_mount_path(&self) -> Option<String> {
         self.tls_secret_class
             .as_ref()
             .map(|_| format!("/stackable/secrets/{OPA_TLS_VOLUME_NAME}"))

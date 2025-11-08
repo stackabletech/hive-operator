@@ -28,7 +28,7 @@ use stackable_operator::{
             security::PodSecurityContextBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-                ListenerReference, VolumeBuilder,
+                ListenerReference, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
             },
         },
     },
@@ -86,7 +86,7 @@ use crate::{
     command::build_container_command_args,
     config::{
         jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
-        opa::HiveOpaConfig,
+        opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
     crd::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
@@ -323,6 +323,11 @@ pub enum Error {
     InvalidOpaConfig {
         source: stackable_operator::commons::opa::Error,
     },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -472,6 +477,7 @@ pub async fn reconcile_hive(
             s3_connection_spec.as_ref(),
             &config,
             &rbac_sa.name_any(),
+            hive_opa_config.as_ref(),
         )?;
 
         cluster_resources
@@ -742,6 +748,7 @@ fn build_metastore_rolegroup_statefulset(
     s3_connection: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     sa_name: &str,
+    hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Result<StatefulSet> {
     let role = hive.role(hive_role).context(InternalOperatorFailureSnafu)?;
     let rolegroup = hive
@@ -815,6 +822,32 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    // Add OPA TLS certs if configured
+    if let Some((tls_secret_class, tls_mount_path)) =
+        hive_opa_config.as_ref().and_then(|opa_config| {
+            opa_config
+                .tls_secret_class
+                .as_ref()
+                .zip(opa_config.tls_ca_cert_mount_path())
+        })
+    {
+        container_builder
+            .add_volume_mount(OPA_TLS_VOLUME_NAME, &tls_mount_path)
+            .context(AddVolumeMountSnafu)?;
+
+        let opa_tls_volume = VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+            .ephemeral(
+                SecretOperatorVolumeSourceBuilder::new(tls_secret_class)
+                    .build()
+                    .context(TlsCertSecretClassVolumeBuildSnafu)?,
+            )
+            .build();
+
+        pod_builder
+            .add_volume(opa_tls_volume)
+            .context(AddVolumeSnafu)?;
+    }
+
     let db_type = hive.db_type();
     let start_command = if resolved_product_image.product_version.starts_with("3.") {
         // The schematool version in 3.1.x does *not* support the `-initOrUpgradeSchema` flag yet, so we can not use that.
@@ -866,6 +899,7 @@ fn build_metastore_rolegroup_statefulset(
                     create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
             },
             s3_connection,
+            hive_opa_config,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?
