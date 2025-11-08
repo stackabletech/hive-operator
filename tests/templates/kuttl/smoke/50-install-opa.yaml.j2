@@ -19,8 +19,10 @@ commands:
 {% endif %}
           pullPolicy: IfNotPresent
         clusterConfig:
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
           tls:
             serverSecretClass: opa-tls-$NAMESPACE
+{% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -39,6 +41,7 @@ commands:
                       level: INFO
           roleGroups:
             default: {}
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
       ---
       apiVersion: secrets.stackable.tech/v1alpha1
       kind: SecretClass
@@ -52,7 +55,7 @@ commands:
               secret:
                 name: opa-tls-ca-$NAMESPACE
                 namespace: $NAMESPACE
-
+{% endif %}
 ---
 apiVersion: v1
 kind: ConfigMap

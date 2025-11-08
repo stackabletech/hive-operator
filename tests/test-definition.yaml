@@ -53,6 +53,10 @@ dimensions:
     values:
       - "true"
       - "false"
+  - name: opa-use-tls
+    values:
+      - "true"
+      - "false"
   - name: kerberos-realm
     values:
       - "PROD.MYCORP"
@@ -66,6 +70,7 @@ tests:
       - hive
       - opa-latest
       - s3-use-tls
+      - opa-use-tls
       - openshift
   - name: upgrade
     dimensions:
