@@ -45,3 +45,117 @@ The `kerberos.secretClass` is used to give Hive the possibility to request keyta
 === 5. Access Hive
 In case you want to access Hive it is recommended to start up a client Pod that connects to Hive, rather than shelling into the master.
 We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos/70-install-access-hive.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
+
+
+== Authorization
+The Stackable Operator for Apache Hive supports the following authorization methods.
+
+=== Open Policy Agent (OPA)
+The Apache Hive metastore can be configured to delegate authorization decisions to an Open Policy Agent (OPA) instance.
+More information on the setup and configuration of OPA can be found in the xref:opa:index.adoc[OPA Operator documentation].
+A Hive cluster can be configured using OPA authorization by adding this section to the configuration:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    authorization:
+      opa:
+        configMapName: opa # <1>
+        package: hms # <2>
+----
+<1> The name of your OPA Stacklet (`opa` in this case)
+<2> The rego rule package to use for policy decisions.
+This is optional and defaults to the name of the Hive Stacklet.
+
+==== Defining rego rules
+For a general explanation of how rules are written, please refer to the {opa-rego-docs}[OPA documentation].
+Authorization with OPA is done using the https://github.com/boschglobal/hive-metastore-opa-authorizer[hive-metastore-opa-authorizer] plugin.
+
+===== OPA Inputs
+The payload sent by Hive with each request to OPA, that is accessible within the rego rules, has the following structure:
+
+[source,json]
+----
+{
+  "identity": {
+    "username": "<user>",
+    "groups": ["<group1>", "<group2>"]
+  },
+  "resources": {
+    "database": null,
+    "table": null,
+    "partition": null,
+    "columns": ["col1", "col2"]
+  },
+  "privileges": {
+    "readRequiredPriv": [],
+    "writeRequiredPriv": [],
+    "inputs": null,
+    "outputs": null
+  }
+}
+----
+* `identity`: Contains user information.
+** `username`: The name of the user.
+** `groups`: A list of groups the user belongs to.
+* `resources`: Specifies the resources involved in the request.
+** `database`: The database object.
+** `table`: The table object.
+** `partition`: The partition object.
+** `columns`: A list of column names involved in the request.
+* `privileges`: Details the privileges required for the request.
+** `readRequiredPriv`: A list of required read privileges.
+** `writeRequiredPriv`: A list of required write privileges.
+** `inputs`: Input tables for the request.
+** `outputs`: Output tables for the request.
+
+===== Example OPA Rego Rule
+Below is a basic rego rule that demonstrates how to handle input dictionary sent from the hive authorizer to OPA:
+
+[source,rego]
+----
+package hms
+
+default database_allow = false
+default table_allow = false
+default column_allow = false
+default partition_allow = false
+default user_allow = false
+
+database_allow if {
+  input.identity.username == "stackable"
+  input.resources.database.name == "test_db"
+}
+
+table_allow if {
+  input.identity.username == "stackable"
+  input.resources.table.dbName == "test_db"
+  input.resources.table.tableName == "test_table"
+  input.privileges.readRequiredPriv[0].priv == "SELECT"
+}
+
+table_allow if {
+  input.identity.username == "stackable"
+  input.resources.table.dbName == "test_db"
+  input.privileges.writeRequiredPriv[0].priv == "CREATE"
+}
+----
+* `database_allow` grants access if the user is `stackable` and the database is `test_db`.
+* `table_allow` grants access if the user is `stackable`, the database is `test_db` and:
+** the table is `test_table` and the required read privilege is `SELECT`.
+** the required write privilege is `CREATE` without any table restriction.
+
+==== Configuring policy URLs
+
+The `database_allow`, `table_allow`, `column_allow`, `partition_allow`, and `user_allow` policy URLs can be (config) overriden using the properties in `hive-site.xml`:
+* `com.bosch.bdps.opa.authorization.policy.url.database`
+* `com.bosch.bdps.opa.authorization.policy.url.table`
+* `com.bosch.bdps.opa.authorization.policy.url.column`
+* `com.bosch.bdps.opa.authorization.policy.url.partition`
+* `com.bosch.bdps.opa.authorization.policy.url.user`
+
+==== TLS secured OPA cluster
+
+Stackable OPA clusters secured via TLS are supported and no further configuration is required. 
+The Stackable Hive operator automatically adds the certificate from the SecretClass used to secure the OPA cluster to its trust.
