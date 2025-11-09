@@ -158,5 +158,5 @@ The `database_allow`, `table_allow`, `column_allow`, `partition_allow`, and `use
 
 ==== TLS secured OPA cluster
 
-Stackable OPA clusters secured via TLS are supported and no further configuration is required. 
+Stackable OPA clusters secured via TLS are supported and no further configuration is required.
 The Stackable Hive operator automatically adds the certificate from the SecretClass used to secure the OPA cluster to its trust.
