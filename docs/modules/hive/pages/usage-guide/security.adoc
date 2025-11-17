@@ -149,7 +149,7 @@ table_allow if {
 
 ==== Configuring policy URLs
 
-The `database_allow`, `table_allow`, `column_allow`, `partition_allow`, and `user_allow` policy URLs can be (config) overriden using the properties in `hive-site.xml`:
+The `database_allow`, `table_allow`, `column_allow`, `partition_allow`, and `user_allow` policy URLs can be xref:usage-guide/overrides.adoc#_configuration_properties[config overridden] using the properties in `hive-site.xml`:
 
 * `com.bosch.bdps.opa.authorization.policy.url.database`
 * `com.bosch.bdps.opa.authorization.policy.url.table`
