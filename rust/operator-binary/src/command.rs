@@ -1,16 +1,20 @@
 use stackable_operator::crd::s3;
 
-use crate::crd::{
-    DB_PASSWORD_ENV, DB_PASSWORD_PLACEHOLDER, DB_USERNAME_ENV, DB_USERNAME_PLACEHOLDER,
-    HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR,
-    STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE,
-    STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,
+use crate::{
+    config::opa::HiveOpaConfig,
+    crd::{
+        DB_PASSWORD_ENV, DB_PASSWORD_PLACEHOLDER, DB_USERNAME_ENV, DB_USERNAME_PLACEHOLDER,
+        HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR,
+        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE,
+        STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,
+    },
 };
 
 pub fn build_container_command_args(
     hive: &v1alpha1::HiveCluster,
     start_command: String,
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
+    hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Vec<String> {
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set s3 access and secret keys
@@ -47,6 +51,14 @@ pub fn build_container_command_args(
         if let Some(ca_cert_file) = s3.tls.tls_ca_cert_mount_path() {
             args.push(format!(
                 "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_file} --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"
+            ));
+        }
+    }
+
+    if let Some(opa) = hive_opa_config {
+        if let Some(ca_cert_dir) = opa.tls_ca_cert_mount_path() {
+            args.push(format!(
+                "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_dir}/ca.crt --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"
             ));
         }
     }
