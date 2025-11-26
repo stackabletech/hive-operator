@@ -1,0 +1,91 @@
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCluster
+metadata:
+  name: simple
+spec:
+  image:
+    productVersion: "477"
+  clusterConfig:
+    catalogLabelSelector:
+      matchLabels:
+        trino: trino
+  coordinators:
+    roleConfig:
+      listenerClass: external-stable
+    roleGroups:
+      default:
+        replicas: 1
+  workers:
+    config:
+      resources:
+        memory:
+          limit: 12Gi
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCatalog
+metadata:
+  name: lakehouse
+  labels:
+    trino: trino
+spec:
+  connector:
+    generic:
+      connectorName: iceberg
+      properties:
+        iceberg.catalog.type:
+          value: rest
+        iceberg.rest-catalog.uri:
+          value: http://hive-postgres-s3-metastore-default-headless:9001/iceberg/
+        iceberg.rest-catalog.security:
+          value: NONE
+        # iceberg.rest-catalog.warehouse:
+          # value: d1e852f0-b774-48e7-a484-fa857a0973e0/lakehouse
+        # iceberg.rest-catalog.warehouse:
+        #   value: s3://lakehouse/lakehouse/
+        fs.native-s3.enabled:
+          value: "true"
+        s3.endpoint:
+          value: https://minio:9000
+        s3.region:
+          value: us-east-1
+        s3.path-style-access:
+          value: "true"
+        s3.aws-access-key:
+          valueFromSecret:
+            name: minio-credentials
+            key: accessKey
+        s3.aws-secret-key:
+          valueFromSecret:
+            name: minio-credentials
+            key: secretKey
+        iceberg.security:
+          value: allow-all
+---
+# We only have this dummy to trick trino-operator into loading our S3 certificate into the JVM
+# truststore.
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCatalog
+metadata:
+  name: dummy-dont-use
+  labels:
+    trino: trino
+spec:
+  connector:
+    hive:
+      metastore:
+        configMap: hive-postgres-s3
+      s3:
+        reference: minio
+---
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCatalog
+metadata:
+  name: tpch
+  labels:
+    trino: trino
+spec:
+  connector:
+    tpch: {}

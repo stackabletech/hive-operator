@@ -1,0 +1,40 @@
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive-postgres-s3
+spec:
+  image:
+    productVersion: 4.2.0
+    custom: foo:bar # oci.stackable.tech/sandbox/malte/hive:4.2.0-stackable0.0.0-dev
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    database:
+      connString: jdbc:postgresql://postgresql:5432/hive
+      credentialsSecret: hive-credentials
+      dbType: postgres
+    s3:
+      reference: minio
+  metastore:
+    configOverrides:
+      hive-site.xml:
+        metastore.catalog.servlet.port: "9001"
+        metastore.catalog.servlet.auth: none
+        hive.metastore.warehouse.dir: s3a://trino/
+        hive.metastore.warehouse.external.dir: s3a://trino/
+        # Caused by: java.io.IOException: Invalid value of property: hive.metastore.authentication.jwt.jwks.url
+    roleGroups:
+      default:
+        replicas: 1
+# curl http://localhost:9001/iceberg/v1/config
+# curl -X POST http://localhost:9001/iceberg/v1/namespaces/default/tables -H "Content-Type: application/json" -d '{"name": "test", "location":"s3a://trino/default/test", "schema": {"type": "struct", "fields": [{"id": 1, "name": "id", "type": "long", "required": true}]}, "write-disposition": "create"}'
+# curl -X DELETE http://localhost:9001/iceberg/v1/namespaces/default/tables/test -H "Content-Type: application/json"
+# curl http://localhost:9001/iceberg/v1/namespaces/default/tables/test
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive
