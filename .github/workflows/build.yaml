@@ -55,6 +55,7 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+          depth: 0
       - shell: bash
         run: |
           git log --name-only --pretty=format: "${BASE_SHA}..${HEAD_SHA}"
