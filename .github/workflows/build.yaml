@@ -38,7 +38,6 @@ env:
   PYTHON_VERSION: "3.14"
   CARGO_TERM_COLOR: always
   BASE_SHA: ${{ github.event.pull_request.base.sha }}
-  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
 jobs:
   # This workflow contains a "required job", and GitHub Actions isn't clever
@@ -58,7 +57,7 @@ jobs:
           depth: 0
       - shell: bash
         run: |
-          git diff --name-only "${BASE_SHA}..${HEAD_SHA}"
+          git diff --name-only "${BASE_SHA}.."
 
   # cargo-udeps:
   #   name: Run cargo-udeps
