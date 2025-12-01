@@ -12,11 +12,11 @@ on:
     branches:
       - main
     tags:
-      - '[0-9][0-9].[0-9]+.[0-9]+-rc[0-9]+'
-      - '[0-9][0-9].[0-9]+.[0-9]+'
+      - "[0-9][0-9].[0-9]+.[0-9]+-rc[0-9]+"
+      - "[0-9][0-9].[0-9]+.[0-9]+"
   schedule:
     # Run every Saturday morning: https://crontab.guru/#15_3_*_*_6
-    - cron: '15 3 * * 6'
+    - cron: "15 3 * * 6"
   pull_request:
     # paths:
     #   - '.github/workflows/build.yaml'
@@ -55,36 +55,22 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - id: check
-        shell: bash
-        run: |
-          set -x
-          # - '.github/workflows/build.yaml'
-          # - 'rust-toolchain.toml'
-          # - '.dockerignore'
-          # - 'deploy/**'
-          # - '.cargo/**'
-          # - 'docker/**'
-          # - 'Cargo.*'
-          # - '*.rs'
 
-          # Temp globs
-          # The action will need to get this from inputs somehow
-          # This is cursed... we use `.[] | .` to remove quotes and any yaml formatting.
-          readarray -t GLOBS < <(yq --null-input '["*.rs", ".cargo/**"]' | yq '.[] | .')
-
-          MATCHED="false"
-          for GLOB in "${GLOBS[@]}"; do
-              if ! git diff --exit-code --name-only "${BASE_SHA}.." -- "$GLOB"; then
-                # When git diff exist with an error, that means there was a diff
-                # for the glob.
-                MATCHED="true"
-              fi
-          done
-
-          echo "MATCHED=$MATCHED" | tee -a "$GITHUB_OUTPUT"
+      - name: Check for changed files
+        id: check
+        uses: ./.github/actions/path-filter
+        with:
+          patterns: |
+            - '.github/workflows/build.yaml'
+            - 'rust-toolchain.toml'
+            - '.dockerignore'
+            - 'deploy/**'
+            - '.cargo/**'
+            - 'docker/**'
+            - 'Cargo.*'
+            - '*.rs'
     outputs:
-      matched: ${{ steps.check.outputs.MATCHED }}
+      matched: ${{ steps.check.outputs.matched }}
 
   cargo-udeps:
     name: Run cargo-udeps

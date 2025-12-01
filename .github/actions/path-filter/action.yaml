@@ -1,0 +1,34 @@
+name: path-filter
+description: Detect changed files by provideding a list of glob patterns
+inputs:
+  patterns:
+    description: A list of glob patterns to check for changes. Defaults to '*'.
+    default: "*"
+outputs:
+  matched:
+    description: Returns if any changed files were matched by the provided glob patterns.
+    value: ${{ steps.check.outputs.MATCHED }}
+runs:
+  using: composite
+  steps:
+    - name: Check for changed files
+      id: check
+      shell: bash
+      env:
+        PATTERNS: ${{ inputs.patterns }}
+      run: |
+        set -euo pipefail
+
+        # This is cursed... we use `.[] | .` to remove quotes and any yaml formatting.
+        readarray -t GLOBS < <(echo -n "$PATTERNS" | yq '.[] | .')
+
+        MATCHED="false"
+        for GLOB in "${GLOBS[@]}"; do
+            if ! git diff --exit-code --name-only "${BASE_SHA}.." -- "$GLOB"; then
+              # When git diff exist with an error, that means there was a diff
+              # for the glob.
+              MATCHED="true"
+            fi
+        done
+
+        echo "MATCHED=$MATCHED" | tee -a "$GITHUB_OUTPUT"
