@@ -69,7 +69,7 @@ jobs:
 
           # Temp globs
           # The action will need to get this from inputs somehow
-          readarray GLOBS < <(yq --output-format=json --indent=0 --null-input '["*.adoc", ".github/**"]')
+          readarray GLOBS < <(yq --output-format=tsv --null-input '["*.adoc", ".github/**"]')
 
           for GLOB in "${GLOBS[@]}"; do
               echo "$GLOB"
