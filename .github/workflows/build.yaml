@@ -57,6 +57,7 @@ jobs:
           depth: 0
       - shell: bash
         run: |
+          git branch -a
           git diff --name-only "${BASE_SHA}.."
 
   # cargo-udeps:
