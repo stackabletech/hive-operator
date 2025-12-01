@@ -57,6 +57,7 @@ jobs:
           depth: 0
       - shell: bash
         run: |
+          git fetch
           git branch -a
           git diff --name-only "${BASE_SHA}.."
 
