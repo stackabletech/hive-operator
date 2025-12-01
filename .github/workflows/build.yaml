@@ -58,7 +58,7 @@ jobs:
 
       - name: Check for changed files
         id: check
-        uses: ./.github/actions/path-filter
+        uses: stackabletech/actions/detect-changes@9905bf868e085ec530e6e5b35065023669432123 # vx.x.x
         with:
           patterns: |
             - '.github/workflows/build.yaml'
@@ -70,7 +70,7 @@ jobs:
             - 'Cargo.*'
             - '*.rs'
     outputs:
-      matched: ${{ steps.check.outputs.matched }}
+      matched: ${{ steps.check.outputs.detected }}
 
   cargo-udeps:
     name: Run cargo-udeps
