@@ -54,10 +54,9 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
-          depth: 0
+          fetch-depth: 0
       - shell: bash
         run: |
-          git fetch
           git branch -a
           git diff --name-only "${BASE_SHA}.."
 
