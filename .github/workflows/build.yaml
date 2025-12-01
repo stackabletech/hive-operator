@@ -59,16 +59,6 @@ jobs:
       - name: Check for changed files
         id: check
         uses: stackabletech/actions/detect-changes@9584f617fe2a114a789f90281fe0abd73f3c91b5 # vx.x.x
-        with:
-          patterns: |
-            - '.github/workflows/build.yaml'
-            - 'rust-toolchain.toml'
-            - '.dockerignore'
-            - 'deploy/**'
-            - '.cargo/**'
-            - 'docker/**'
-            - 'Cargo.*'
-            - '*.rs'
     outputs:
       matched: ${{ steps.check.outputs.detected }}
 
