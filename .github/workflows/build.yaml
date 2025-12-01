@@ -11,13 +11,15 @@ on:
   push:
     branches:
       - main
+      - ci/fix-path-filter
     tags:
       - "[0-9][0-9].[0-9]+.[0-9]+-rc[0-9]+"
       - "[0-9][0-9].[0-9]+.[0-9]+"
   schedule:
     # Run every Saturday morning: https://crontab.guru/#15_3_*_*_6
     - cron: "15 3 * * 6"
-  pull_request:
+  # pull_request:
+    # We cannot use path filters here, because this workflow contains a "required job".
     # paths:
     #   - '.github/workflows/build.yaml'
     #   - 'rust-toolchain.toml'
@@ -37,7 +39,6 @@ env:
   HADOLINT_VERSION: "v2.14.0"
   PYTHON_VERSION: "3.14"
   CARGO_TERM_COLOR: always
-  BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
 jobs:
   # This workflow contains a "required job", and GitHub Actions isn't clever
