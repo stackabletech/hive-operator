@@ -58,7 +58,7 @@ jobs:
           depth: 0
       - shell: bash
         run: |
-          git log --name-only --pretty=format: "${BASE_SHA}..${HEAD_SHA}"
+          git diff --name-only "${BASE_SHA}..${HEAD_SHA}"
 
   # cargo-udeps:
   #   name: Run cargo-udeps
