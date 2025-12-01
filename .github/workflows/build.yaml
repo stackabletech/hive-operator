@@ -57,6 +57,7 @@ jobs:
           fetch-depth: 0
       - shell: bash
         run: |
+          set -x
           # - '.github/workflows/build.yaml'
           # - 'rust-toolchain.toml'
           # - '.dockerignore'
