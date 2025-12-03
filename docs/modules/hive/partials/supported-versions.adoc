@@ -13,7 +13,10 @@
 Hive 4 has known compatibility issues, especially when using it with Iceberg or Trino.
 The missing compatibility with Iceberg also means that Spark jobs using this storage may fail.
 
-**Workaround:** If you encounter issues with Hive 4, use Hive 3.1.3 instead until these upstream issues are resolved.
+Be aware of upgrading Hive (e.g. 4.0.0 to 4.0.1 or 4.0.1 to Hive 4.1.0), as this upgrade is not easily reversible.
+Test the new version before upgrading your production workloads and take backups of your database.
+
+**Workaround:** If you encounter issues with Hive 4.x, use Hive 3.1.3 instead until these upstream issues are resolved.
 
 For more details, see:
 
