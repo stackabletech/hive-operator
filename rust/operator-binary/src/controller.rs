@@ -607,6 +607,15 @@ fn build_metastore_rolegroup_config_map(
                     Some("/stackable/warehouse".to_string()),
                 );
 
+                data.insert(
+                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+                    Some(
+                        hive.db_type()
+                            .get_jdbc_driver_class(&resolved_product_image.product_version)
+                            .to_string(),
+                    ),
+                );
+
                 if let Some(s3) = s3_connection_spec {
                     data.insert(
                         MetaStoreConfig::S3_ENDPOINT.to_string(),

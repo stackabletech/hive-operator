@@ -84,7 +84,10 @@ properties:
         unit: *unitClassName
       roles:
         - name: "metastore"
-          required: true
+          # This property *is* required. It changed for derby in version 4.2.0
+          # which we check in code and add in the ConfigMap builder instead of
+          # the compute_files() method in crd.rs. 
+          required: false
       asOfVersion: "0.0.0"
   - property:
       propertyNames:

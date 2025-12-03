@@ -521,9 +521,16 @@ pub enum DbType {
 }
 
 impl DbType {
-    pub fn get_jdbc_driver_class(&self) -> &str {
+    pub fn get_jdbc_driver_class(&self, product_version: &str) -> &str {
         match self {
-            DbType::Derby => "org.apache.derby.jdbc.EmbeddedDriver",
+            DbType::Derby => {
+                // The driver class changed for hive 4.2.0
+                if ["3.1.3", "4.0.0", "4.0.1", "4.1.0"].contains(&product_version) {
+                    "org.apache.derby.jdbc.EmbeddedDriver"
+                } else {
+                    "org.apache.derby.iapi.jdbc.AutoloadedDriver"
+                }
+            }
             DbType::Mysql => "com.mysql.jdbc.Driver",
             DbType::Postgres => "org.postgresql.Driver",
             DbType::Mssql => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
@@ -598,11 +605,6 @@ impl Configuration for MetaStoreConfigFragment {
                 MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
                 Some(DB_PASSWORD_PLACEHOLDER.into()),
             );
-            result.insert(
-                MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                Some(hive.db_type().get_jdbc_driver_class().to_string()),
-            );
-
             result.insert(
                 MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
                 Some("true".to_string()),
