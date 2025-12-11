@@ -87,7 +87,7 @@ properties:
         - name: "metastore"
           # This property *is* required even though it is set to `false` here.
           # The required value changed in Derby in version 4.2.0.
-          # We now set this value depending on the Hive version (and its corresponding Derby version) and add it to the ConfigMap programatically.```
+          # We now set this value depending on the Hive version (and its corresponding Derby version) and add it to the ConfigMap programatically.
           required: false
       asOfVersion: "0.0.0"
   - property:
