@@ -85,9 +85,9 @@ properties:
         unit: *unitClassName
       roles:
         - name: "metastore"
-          # This property *is* required. It changed for derby in version 4.2.0
-          # which we check in code and add in the ConfigMap builder instead of
-          # the compute_files() method in crd.rs.
+          # This property *is* required even though it is set to `false` here.
+          # The required value changed in Derby in version 4.2.0.
+          # We now set this value depending on the Hive version (and its corresponding Derby version) and add it to the ConfigMap programatically.```
           required: false
       asOfVersion: "0.0.0"
   - property:
