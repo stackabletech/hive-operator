@@ -13,6 +13,10 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
+    authorization:
+      opa:
+        configMapName: opa
+        package: hms
     database:
       connString: jdbc:postgresql://postgresql:5432/hive
       credentialsSecret: hive-credentials

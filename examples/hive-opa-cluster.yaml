@@ -1,0 +1,89 @@
+# helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
+#   --version 16.5.0 \
+#   --namespace default \
+#   --set image.repository=bitnamilegacy/postgresql \
+#   --set volumePermissions.image.repository=bitnamilegacy/os-shell \
+#   --set metrics.image.repository=bitnamilegacy/postgres-exporter \
+#   --set global.security.allowInsecureImages=true \
+#   --set auth.username=hive \
+#   --set auth.password=hive \
+#   --set auth.database=hive \
+#   --set primary.extendedConfiguration="password_encryption=md5" \
+#   --wait
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  image:
+    productVersion: 4.1.0
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    authorization:
+      opa:
+        configMapName: opa
+        package: hms
+    database:
+      connString: jdbc:postgresql://postgresql:5432/hive
+      credentialsSecret: hive-postgresql-credentials
+      dbType: postgres
+  metastore:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          resources:
+            cpu:
+              min: 300m
+              max: "2"
+            memory:
+              limit: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-postgresql-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive
+---
+apiVersion: opa.stackable.tech/v1alpha1
+kind: OpaCluster
+metadata:
+  name: opa
+spec:
+  image:
+    productVersion: 1.8.0
+  servers:
+    config:
+      logging:
+        enableVectorAgent: false
+        containers:
+          opa:
+            console:
+              level: INFO
+            file:
+              level: INFO
+            loggers:
+              decision:
+                level: INFO
+    roleGroups:
+      default: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-opa-bundle
+  labels:
+    opa.stackable.tech/bundle: "hms"
+data:
+  hive.rego: |
+    package hms
+
+    database_allow = true
+    table_allow = true
+    column_allow = true
+    partition_allow = true
+    user_allow = true

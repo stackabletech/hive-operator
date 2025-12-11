@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add OPA authorization using the operator-rs `OpaConfig` ([#652]).
+
+[#652]: https://github.com/stackabletech/hive-operator/pull/652
+
 ## [25.11.0] - 2025-11-07
 
 ## [25.11.0-rc1] - 2025-11-06

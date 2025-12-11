@@ -28,7 +28,7 @@ use stackable_operator::{
             security::PodSecurityContextBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-                ListenerReference, VolumeBuilder,
+                ListenerReference, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
             },
         },
     },
@@ -36,7 +36,6 @@ use stackable_operator::{
     commons::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
-        tls_verification::TlsClientDetailsError,
     },
     crd::{listener::v1alpha1::Listener, s3},
     k8s_openapi::{
@@ -85,7 +84,10 @@ use tracing::warn;
 use crate::{
     OPERATOR_NAME,
     command::build_container_command_args,
-    config::jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
+    config::{
+        jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
+        opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
+    },
     crd::{
         APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
         HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
@@ -130,16 +132,6 @@ pub enum Error {
 
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
-
-    #[snafu(display("failed to calculate service name for role {rolegroup}"))]
-    RoleGroupServiceNameNotFound {
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
-    },
-
-    #[snafu(display("failed to apply global Service"))]
-    ApplyRoleService {
-        source: stackable_operator::cluster_resources::Error,
-    },
 
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
@@ -198,9 +190,6 @@ pub enum Error {
         source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
     },
 
-    #[snafu(display("failed to configure S3 TLS client details"))]
-    ConfigureS3TlsClientDetails { source: TlsClientDetailsError },
-
     #[snafu(display(
         "Hive does not support skipping the verification of the tls enabled S3 server"
     ))]
@@ -208,15 +197,6 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge resource config for role and role group"))]
     FailedToResolveResourceConfig { source: crate::crd::Error },
-
-    #[snafu(display("invalid java heap config - missing default or value in crd?"))]
-    InvalidJavaHeapConfig,
-
-    #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
-    FailedToConvertJavaHeap {
-        source: stackable_operator::memory::Error,
-        unit: String,
-    },
 
     #[snafu(display("failed to create hive container [{name}]"))]
     FailedToCreateHiveContainer {
@@ -259,7 +239,7 @@ pub enum Error {
     },
 
     #[snafu(display("internal operator failure"))]
-    InternalOperatorError { source: crate::crd::Error },
+    InternalOperatorFailure { source: crate::crd::Error },
 
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
@@ -280,16 +260,6 @@ pub enum Error {
         source: crate::operations::graceful_shutdown::Error,
     },
 
-    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
-    TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
-    },
-
-    #[snafu(display("failed to build S3 credentials SecretClass Volume"))]
-    S3CredentialsSecretClassVolumeBuild {
-        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
-    },
-
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
         source: stackable_operator::kvp::LabelError,
@@ -304,13 +274,6 @@ pub enum Error {
     GetRequiredLabels {
         source:
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
-    },
-
-    #[snafu(display(
-        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and Containers"
-    ))]
-    AddLdapVolumes {
-        source: stackable_operator::crd::authentication::ldap::v1alpha1::Error,
     },
 
     #[snafu(display("failed to add kerberos config"))]
@@ -354,6 +317,16 @@ pub enum Error {
     #[snafu(display("failed to resolve product image"))]
     ResolveProductImage {
         source: product_image_selection::Error,
+    },
+
+    #[snafu(display("invalid OpaConfig"))]
+    InvalidOpaConfig {
+        source: stackable_operator::commons::opa::Error,
+    },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
     },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -458,6 +431,15 @@ pub async fn reconcile_hive(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
+    let hive_opa_config = match hive.get_opa_config() {
+        Some(opa_config) => Some(
+            HiveOpaConfig::from_opa_config(client, hive, opa_config)
+                .await
+                .context(InvalidOpaConfigSnafu)?,
+        ),
+        None => None,
+    };
+
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
@@ -484,6 +466,7 @@ pub async fn reconcile_hive(
             s3_connection_spec.as_ref(),
             &config,
             &client.kubernetes_cluster_info,
+            hive_opa_config.as_ref(),
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             hive,
@@ -494,6 +477,7 @@ pub async fn reconcile_hive(
             s3_connection_spec.as_ref(),
             &config,
             &rbac_sa.name_any(),
+            hive_opa_config.as_ref(),
         )?;
 
         cluster_resources
@@ -609,6 +593,7 @@ fn build_metastore_rolegroup_config_map(
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     cluster_info: &KubernetesClusterInfo,
+    hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Result<ConfigMap> {
     let mut hive_site_data = String::new();
 
@@ -620,6 +605,15 @@ fn build_metastore_rolegroup_config_map(
                 data.insert(
                     MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
                     Some("/stackable/warehouse".to_string()),
+                );
+
+                data.insert(
+                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+                    Some(
+                        hive.db_type()
+                            .get_jdbc_driver_class(&resolved_product_image.product_version)
+                            .to_string(),
+                    ),
                 );
 
                 if let Some(s3) = s3_connection_spec {
@@ -663,6 +657,17 @@ fn build_metastore_rolegroup_config_map(
                     kerberos_config_properties(hive, hive_namespace, cluster_info)
                 {
                     data.insert(property_name.to_string(), Some(property_value.to_string()));
+                }
+
+                // OPA settings
+                if let Some(opa_config) = hive_opa_config {
+                    data.extend(
+                        opa_config
+                            .as_config(&resolved_product_image.product_version)
+                            .into_iter()
+                            .map(|(k, v)| (k, Some(v)))
+                            .collect::<BTreeMap<String, Option<String>>>(),
+                    );
                 }
 
                 // overrides
@@ -752,11 +757,12 @@ fn build_metastore_rolegroup_statefulset(
     s3_connection: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     sa_name: &str,
+    hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Result<StatefulSet> {
-    let role = hive.role(hive_role).context(InternalOperatorSnafu)?;
+    let role = hive.role(hive_role).context(InternalOperatorFailureSnafu)?;
     let rolegroup = hive
         .rolegroup(rolegroup_ref)
-        .context(InternalOperatorSnafu)?;
+        .context(InternalOperatorFailureSnafu)?;
 
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
@@ -825,6 +831,32 @@ fn build_metastore_rolegroup_statefulset(
         }
     }
 
+    // Add OPA TLS certs if configured
+    if let Some((tls_secret_class, tls_mount_path)) =
+        hive_opa_config.as_ref().and_then(|opa_config| {
+            opa_config
+                .tls_secret_class
+                .as_ref()
+                .zip(opa_config.tls_ca_cert_mount_path())
+        })
+    {
+        container_builder
+            .add_volume_mount(OPA_TLS_VOLUME_NAME, &tls_mount_path)
+            .context(AddVolumeMountSnafu)?;
+
+        let opa_tls_volume = VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+            .ephemeral(
+                SecretOperatorVolumeSourceBuilder::new(tls_secret_class)
+                    .build()
+                    .context(TlsCertSecretClassVolumeBuildSnafu)?,
+            )
+            .build();
+
+        pod_builder
+            .add_volume(opa_tls_volume)
+            .context(AddVolumeSnafu)?;
+    }
+
     let db_type = hive.db_type();
     let start_command = if resolved_product_image.product_version.starts_with("3.") {
         // The schematool version in 3.1.x does *not* support the `-initOrUpgradeSchema` flag yet, so we can not use that.
@@ -876,6 +908,7 @@ fn build_metastore_rolegroup_statefulset(
                     create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
             },
             s3_connection,
+            hive_opa_config,
         ))
         .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?

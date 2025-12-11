@@ -7,6 +7,7 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
+        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -151,6 +152,13 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
+        pub authentication: Option<AuthenticationConfig>,
+
+        /// Authorization options for Hive.
+        /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
+        pub authorization: Option<security::AuthorizationConfig>,
+
         // no doc - docs in DatabaseConnectionSpec struct.
         pub database: DatabaseConnectionSpec,
 
@@ -169,9 +177,6 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
-
-        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
-        pub authentication: Option<AuthenticationConfig>,
     }
 }
 
@@ -287,6 +292,14 @@ impl v1alpha1::HiveCluster {
 
     pub fn db_type(&self) -> &DbType {
         &self.spec.cluster_config.database.db_type
+    }
+
+    pub fn get_opa_config(&self) -> Option<&OpaConfig> {
+        self.spec
+            .cluster_config
+            .authorization
+            .as_ref()
+            .and_then(|a| a.opa.as_ref())
     }
 
     /// Retrieve and merge resource configs for role and role groups
@@ -508,9 +521,16 @@ pub enum DbType {
 }
 
 impl DbType {
-    pub fn get_jdbc_driver_class(&self) -> &str {
+    pub fn get_jdbc_driver_class(&self, product_version: &str) -> &str {
         match self {
-            DbType::Derby => "org.apache.derby.jdbc.EmbeddedDriver",
+            DbType::Derby => {
+                // The driver class changed for hive 4.2.0
+                if ["3.1.3", "4.0.0", "4.0.1", "4.1.0"].contains(&product_version) {
+                    "org.apache.derby.jdbc.EmbeddedDriver"
+                } else {
+                    "org.apache.derby.iapi.jdbc.AutoloadedDriver"
+                }
+            }
             DbType::Mysql => "com.mysql.jdbc.Driver",
             DbType::Postgres => "org.postgresql.Driver",
             DbType::Mssql => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
@@ -585,11 +605,6 @@ impl Configuration for MetaStoreConfigFragment {
                 MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
                 Some(DB_PASSWORD_PLACEHOLDER.into()),
             );
-            result.insert(
-                MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                Some(hive.db_type().get_jdbc_driver_class().to_string()),
-            );
-
             result.insert(
                 MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
                 Some("true".to_string()),
