@@ -8,7 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Add OPA authorization using the operator-rs `OpaConfig` ([#652]).
 
+### Changed
+
+- Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#664]).
+
 [#652]: https://github.com/stackabletech/hive-operator/pull/652
+[#664]: https://github.com/stackabletech/hive-operator/pull/664
 
 ## [25.11.0] - 2025-11-07
 
