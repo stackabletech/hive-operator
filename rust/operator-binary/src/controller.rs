@@ -409,6 +409,7 @@ pub async fn reconcile_hive(
         HIVE_CONTROLLER_NAME,
         &hive.object_ref(&()),
         ClusterResourceApplyStrategy::from(&hive.spec.cluster_operation),
+        &hive.spec.object_overrides,
     )
     .context(CreateClusterResourcesSnafu)?;
 
