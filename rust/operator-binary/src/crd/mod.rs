@@ -19,6 +19,7 @@ use stackable_operator::{
         merge::Merge,
     },
     crd::s3,
+    deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     product_config_utils::{self, Configuration},
@@ -127,6 +128,10 @@ pub mod versioned {
         // no doc - docs in ClusterOperation struct.
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
+
+        // no doc - docs in ObjectOverrides struct.
+        #[serde(default)]
+        pub object_overrides: ObjectOverrides,
 
         // no doc - docs in ProductImage struct.
         pub image: ProductImage,
