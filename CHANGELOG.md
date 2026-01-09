@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Add OPA authorization using the operator-rs `OpaConfig` ([#652]).
 - Support objectOverrides using `.spec.objectOverrides`.
-  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#XXX]).
+  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#665]).
 
 ### Changed
 
@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#652]: https://github.com/stackabletech/hive-operator/pull/652
 [#664]: https://github.com/stackabletech/hive-operator/pull/664
-[#XXX]: https://github.com/stackabletech/hive-operator/pull/XXX
+[#665]: https://github.com/stackabletech/hive-operator/pull/665
 
 ## [25.11.0] - 2025-11-07
 
