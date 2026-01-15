@@ -37,6 +37,7 @@ use stackable_operator::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
     },
+    constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::{listener::v1alpha1::Listener, s3},
     k8s_openapi::{
         DeepMerge,
@@ -502,6 +503,9 @@ pub async fn reconcile_hive(
                 rolegroup: rolegroup.clone(),
             })?;
 
+        // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
+        // to prevent unnecessary Pod restarts.
+        // See https://github.com/stackabletech/commons-operator/issues/111 for details.
         ss_cond_builder.add(
             cluster_resources
                 .add(client, rg_statefulset)
@@ -1099,6 +1103,7 @@ fn build_metastore_rolegroup_statefulset(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(recommended_object_labels)
             .context(MetadataBuildSnafu)?
+            .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),

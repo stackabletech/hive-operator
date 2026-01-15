@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Add OPA authorization using the operator-rs `OpaConfig` ([#652]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#665]).
+- Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#XXX]).
 
 ### Changed
 
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 [#652]: https://github.com/stackabletech/hive-operator/pull/652
 [#664]: https://github.com/stackabletech/hive-operator/pull/664
 [#665]: https://github.com/stackabletech/hive-operator/pull/665
+[#XXX]: https://github.com/stackabletech/hive-operator/pull/XXX
 
 ## [25.11.0] - 2025-11-07
 
