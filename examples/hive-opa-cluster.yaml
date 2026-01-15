@@ -61,7 +61,7 @@ metadata:
   name: opa
 spec:
   image:
-    productVersion: 1.8.0
+    productVersion: 1.12.2
   servers:
     config:
       logging:
