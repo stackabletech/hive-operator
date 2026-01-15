@@ -9,10 +9,12 @@ All notable changes to this project will be documented in this file.
 - Add OPA authorization using the operator-rs `OpaConfig` ([#652]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#665]).
+- Add support for `4.2.0`
 
 ### Changed
 
 - Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#664]).
+- Deprecate support for `4.1.0`
 
 [#652]: https://github.com/stackabletech/hive-operator/pull/652
 [#664]: https://github.com/stackabletech/hive-operator/pull/664

@@ -1,3 +1,7 @@
+# helm install listener-operator \
+#     oci://oci.stackable.tech/sdp-charts/listener-operator
+# helm install hive-operator \
+#     oci://oci.stackable.tech/sdp-charts/hive-operator
 ---
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
@@ -5,8 +9,7 @@ metadata:
   name: simple-hive-derby
 spec:
   image:
-    productVersion: 4.1.0
-    stackableVersion: 0.0.0-dev
+    productVersion: 4.2.0
   clusterConfig:
     database:
       connString: jdbc:derby:;databaseName=/tmp/hive;create=true
