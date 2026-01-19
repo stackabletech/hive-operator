@@ -1,3 +1,9 @@
+# helm install listener-operator \
+#     oci://oci.stackable.tech/sdp-charts/listener-operator
+# helm install hive-operator \
+#     oci://oci.stackable.tech/sdp-charts/hive-operator
+# helm install opa-operator \
+#     oci://oci.stackable.tech/sdp-charts/opa-operator
 # helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
 #   --version 16.5.0 \
 #   --namespace default \
@@ -17,7 +23,7 @@ metadata:
   name: hive
 spec:
   image:
-    productVersion: 4.1.0
+    productVersion: 4.2.0
     pullPolicy: IfNotPresent
   clusterConfig:
     authorization:

@@ -10,15 +10,18 @@ All notable changes to this project will be documented in this file.
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#665]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#666]).
+- Add support for `4.2.0` ([#668]).
 
 ### Changed
 
 - Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#664]).
+- Deprecate support for `4.1.0` ([#668]).
 
 [#652]: https://github.com/stackabletech/hive-operator/pull/652
 [#664]: https://github.com/stackabletech/hive-operator/pull/664
 [#665]: https://github.com/stackabletech/hive-operator/pull/665
 [#666]: https://github.com/stackabletech/hive-operator/pull/666
+[#668]: https://github.com/stackabletech/hive-operator/pull/668
 
 ## [25.11.0] - 2025-11-07
 
