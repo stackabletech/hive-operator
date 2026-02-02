@@ -21,6 +21,9 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   metastore:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleConfig:
       listenerClass: test-cluster-internal-$NAMESPACE
     roleGroups:
