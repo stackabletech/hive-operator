@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#670]).
 - Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#664]).
 - Deprecate support for `4.1.0` ([#668]).
 
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#665]: https://github.com/stackabletech/hive-operator/pull/665
 [#666]: https://github.com/stackabletech/hive-operator/pull/666
 [#668]: https://github.com/stackabletech/hive-operator/pull/668
+[#670]: https://github.com/stackabletech/hive-operator/pull/670
 
 ## [25.11.0] - 2025-11-07
 
