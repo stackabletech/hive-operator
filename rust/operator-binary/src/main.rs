@@ -38,6 +38,7 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
+    utils::signal::SignalWatcher,
 };
 
 use crate::{
@@ -88,9 +89,13 @@ async fn main() -> anyhow::Result<()> {
                 description = built_info::PKG_DESCRIPTION
             );
 
+            // Watches for the SIGTERM signal and sends a signal to all receivers, which gracefully
+            // shuts down all concurrent tasks below (EoS checker, controller).
+            let sigterm_watcher = SignalWatcher::sigterm()?;
+
             let eos_checker =
                 EndOfSupportChecker::new(built_info::BUILT_TIME_UTC, maintenance.end_of_support)?
-                    .run()
+                    .run(sigterm_watcher.handle())
                     .map(anyhow::Ok);
 
             let product_config = product_config.load(&[
@@ -129,7 +134,6 @@ async fn main() -> anyhow::Result<()> {
                     watch_namespace.get_api::<ConfigMap>(&client),
                     watcher::Config::default(),
                 )
-                .shutdown_on_signal()
                 .watches(
                     watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
@@ -141,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
                             .map(|hive| ObjectRef::from_obj(&*hive))
                     },
                 )
+                .graceful_shutdown_on(sigterm_watcher.handle())
                 .run(
                     controller::reconcile_hive,
                     controller::error_policy,
