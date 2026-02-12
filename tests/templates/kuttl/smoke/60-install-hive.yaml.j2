@@ -17,10 +17,11 @@ spec:
       opa:
         configMapName: opa
         package: hms
-    database:
-      connString: jdbc:postgresql://postgresql:5432/hive
-      credentialsSecret: hive-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: postgresql
+        database: hive
+        credentialsSecret: hive-credentials
     s3:
       reference: minio
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

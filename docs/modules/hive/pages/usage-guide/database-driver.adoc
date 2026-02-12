@@ -149,10 +149,11 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    database:
-      connString: jdbc:mysql://mysql:3306/hive  # <1>
-      credentialsSecret: hive-credentials  # <2>
-      dbType: mysql
+    metadataDatabase:
+      mysql:
+        host: mysql
+        database: hive
+        credentialsSecret: hive-credentials
     s3:
       reference: minio  # <3>
   metastore:
@@ -224,7 +225,7 @@ spec:
     custom: oci.stackable.tech/sdp/hive:4.2.0-stackable0.0.0-dev-mysql  # <1>
     productVersion: 4.2.0
   clusterConfig:
-    database:
+    metadataDatabase:
       ...
     s3:
       ...

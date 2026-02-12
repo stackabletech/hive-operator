@@ -3,10 +3,9 @@ use stackable_operator::crd::s3;
 use crate::{
     config::opa::HiveOpaConfig,
     crd::{
-        DB_PASSWORD_ENV, DB_PASSWORD_PLACEHOLDER, DB_USERNAME_ENV, DB_USERNAME_PLACEHOLDER,
-        HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, STACKABLE_CONFIG_DIR,
-        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE,
-        STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,
+        HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR,
+        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
+        v1alpha1,
     },
 };
 
@@ -62,13 +61,6 @@ pub fn build_container_command_args(
             ));
         }
     }
-
-    // db credentials
-    args.extend([
-        format!("echo replacing {DB_USERNAME_PLACEHOLDER} and {DB_PASSWORD_PLACEHOLDER} with secret values."),
-        format!("sed -i \"s|{DB_USERNAME_PLACEHOLDER}|${DB_USERNAME_ENV}|g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}"),
-        format!("sed -i \"s|{DB_PASSWORD_PLACEHOLDER}|${DB_PASSWORD_ENV}|g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}"),
-    ]);
 
     // metastore start command
     args.push(start_command);
