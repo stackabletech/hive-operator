@@ -76,36 +76,6 @@ spec:
                             - configMapName
                           type: object
                       type: object
-                    database:
-                      description: Database connection specification for the metadata database.
-                      properties:
-                        connString:
-                          description: |-
-                            A connection string for the database. For example:
-                            `jdbc:postgresql://hivehdfs-postgresql:5432/hivehdfs`
-                          type: string
-                        credentialsSecret:
-                          description: |-
-                            A reference to a Secret containing the database credentials.
-                            The Secret needs to contain the keys `username` and `password`.
-                          type: string
-                        dbType:
-                          description: |-
-                            The type of database to connect to. Supported are:
-                            `postgres`, `mysql`, `oracle`, `mssql` and `derby`.
-                            This value is used to configure the jdbc driver class.
-                          enum:
-                            - derby
-                            - mysql
-                            - postgres
-                            - oracle
-                            - mssql
-                          type: string
-                      required:
-                        - connString
-                        - credentialsSecret
-                        - dbType
-                      type: object
                     hdfs:
                       description: HDFS connection specification.
                       nullable: true
@@ -119,6 +89,90 @@ spec:
                           type: string
                       required:
                         - configMap
+                      type: object
+                    metadataDatabase:
+                      description: TODO docs
+                      oneOf:
+                        - required:
+                            - postgresql
+                        - required:
+                            - mysql
+                        - required:
+                            - derby
+                      properties:
+                        derby:
+                          description: TODO docs
+                          properties:
+                            location:
+                              description: TODO docs, especially on default
+                              nullable: true
+                              type: string
+                          type: object
+                        mysql:
+                          description: |-
+                            TODO docs
+
+                            Please note that - due to license issues - we don't ship the mysql driver, you need to add
+                            it it yourself.
+                            See <https://docs.stackable.tech/home/stable/hive/usage-guide/database-driver/> for details.
+                          properties:
+                            credentialsSecret:
+                              description: TODO docs
+                              type: string
+                            database:
+                              description: TODO docs
+                              type: string
+                            host:
+                              description: TODO docs
+                              type: string
+                            parameters:
+                              additionalProperties:
+                                type: string
+                              default: {}
+                              description: TODO docs
+                              type: object
+                            port:
+                              default: 3306
+                              description: TODO docs
+                              format: uint16
+                              maximum: 65535.0
+                              minimum: 0.0
+                              type: integer
+                          required:
+                            - credentialsSecret
+                            - database
+                            - host
+                          type: object
+                        postgresql:
+                          description: TODO docs
+                          properties:
+                            credentialsSecret:
+                              description: TODO docs
+                              type: string
+                            database:
+                              description: TODO docs
+                              type: string
+                            host:
+                              description: TODO docs
+                              type: string
+                            parameters:
+                              additionalProperties:
+                                type: string
+                              default: {}
+                              description: TODO docs
+                              type: object
+                            port:
+                              default: 5432
+                              description: TODO docs
+                              format: uint16
+                              maximum: 65535.0
+                              minimum: 0.0
+                              type: integer
+                          required:
+                            - credentialsSecret
+                            - database
+                            - host
+                          type: object
                       type: object
                     s3:
                       description: |-
@@ -280,7 +334,7 @@ spec:
                       nullable: true
                       type: string
                   required:
-                    - database
+                    - metadataDatabase
                   type: object
                 clusterOperation:
                   default:

@@ -18,7 +18,15 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    crd::s3,
+    crd::{
+        database::{
+            databases::{
+                derby::DerbyConnection, mysql::MysqlConnection, postgresql::PostgresqlConnection,
+            },
+            drivers::jdbc::JDBCDatabaseConnection,
+        },
+        s3,
+    },
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
@@ -66,12 +74,6 @@ pub const METRICS_PORT: u16 = 9084;
 // Certificates and trust stores
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
-
-// DB credentials
-pub const DB_USERNAME_PLACEHOLDER: &str = "xxx_db_username_xxx";
-pub const DB_PASSWORD_PLACEHOLDER: &str = "xxx_db_password_xxx";
-pub const DB_USERNAME_ENV: &str = "DB_USERNAME_ENV";
-pub const DB_PASSWORD_ENV: &str = "DB_PASSWORD_ENV";
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
@@ -154,7 +156,7 @@ pub mod versioned {
         pub listener_class: String,
     }
 
-    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
@@ -164,8 +166,8 @@ pub mod versioned {
         /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
         pub authorization: Option<security::AuthorizationConfig>,
 
-        // no doc - docs in DatabaseConnectionSpec struct.
-        pub database: DatabaseConnectionSpec,
+        /// TODO docs
+        pub metadata_database: MetadataDatabaseConnection,
 
         /// HDFS connection specification.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -293,10 +295,6 @@ impl v1alpha1::HiveCluster {
             .as_ref()
             .map(|a| &a.kerberos)
             .map(|k| k.secret_class.clone())
-    }
-
-    pub fn db_type(&self) -> &DbType {
-        &self.spec.cluster_config.database.db_type
     }
 
     pub fn get_opa_config(&self) -> Option<&OpaConfig> {
@@ -500,66 +498,42 @@ impl MetaStoreConfig {
     }
 }
 
-#[derive(
-    Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize, Display, EnumString,
-)]
-pub enum DbType {
-    #[serde(rename = "derby")]
-    #[strum(serialize = "derby")]
-    Derby,
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MetadataDatabaseConnection {
+    /// TODO docs
+    Postgresql(PostgresqlConnection),
 
-    #[serde(rename = "mysql")]
-    #[strum(serialize = "mysql")]
-    Mysql,
+    /// TODO docs
+    ///
+    /// Please note that - due to license issues - we don't ship the mysql driver, you need to add
+    /// it it yourself.
+    /// See <https://docs.stackable.tech/home/stable/hive/usage-guide/database-driver/> for details.
+    Mysql(MysqlConnection),
 
-    #[serde(rename = "postgres")]
-    #[strum(serialize = "postgres")]
-    Postgres,
-
-    #[serde(rename = "oracle")]
-    #[strum(serialize = "oracle")]
-    Oracle,
-
-    #[serde(rename = "mssql")]
-    #[strum(serialize = "mssql")]
-    Mssql,
+    /// TODO docs
+    Derby(DerbyConnection),
+    // We don't support generic (yet?), as we need to tell the metastore the `--dbtype` on startup,
+    // which is not known for generic connection.
+    // Generic(GenericJDBCDatabaseConnection),
 }
 
-impl DbType {
-    pub fn get_jdbc_driver_class(&self, product_version: &str) -> &str {
+impl MetadataDatabaseConnection {
+    pub fn as_jdbc_database_connection(&self) -> &dyn JDBCDatabaseConnection {
         match self {
-            DbType::Derby => {
-                // The driver class changed for hive 4.2.0
-                if ["3.1.3", "4.0.0", "4.0.1", "4.1.0"].contains(&product_version) {
-                    "org.apache.derby.jdbc.EmbeddedDriver"
-                } else {
-                    "org.apache.derby.iapi.jdbc.AutoloadedDriver"
-                }
-            }
-            DbType::Mysql => "com.mysql.jdbc.Driver",
-            DbType::Postgres => "org.postgresql.Driver",
-            DbType::Mssql => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
-            DbType::Oracle => "oracle.jdbc.driver.OracleDriver",
+            Self::Postgresql(p) => p,
+            Self::Mysql(m) => m,
+            Self::Derby(d) => d,
         }
     }
-}
 
-/// Database connection specification for the metadata database.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DatabaseConnectionSpec {
-    /// A connection string for the database. For example:
-    /// `jdbc:postgresql://hivehdfs-postgresql:5432/hivehdfs`
-    pub conn_string: String,
-
-    /// The type of database to connect to. Supported are:
-    /// `postgres`, `mysql`, `oracle`, `mssql` and `derby`.
-    /// This value is used to configure the jdbc driver class.
-    pub db_type: DbType,
-
-    /// A reference to a Secret containing the database credentials.
-    /// The Secret needs to contain the keys `username` and `password`.
-    pub credentials_secret: String,
+    pub fn as_hive_db_type(&self) -> &str {
+        match self {
+            MetadataDatabaseConnection::Postgresql(_) => "postgres",
+            MetadataDatabaseConnection::Mysql(_) => "mysql",
+            MetadataDatabaseConnection::Derby(_) => "derby",
+        }
+    }
 }
 
 impl Configuration for MetaStoreConfigFragment {
@@ -584,7 +558,7 @@ impl Configuration for MetaStoreConfigFragment {
 
     fn compute_files(
         &self,
-        hive: &Self::Configurable,
+        _hive: &Self::Configurable,
         _role_name: &str,
         file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
@@ -597,19 +571,6 @@ impl Configuration for MetaStoreConfigFragment {
                     Some(warehouse_dir.to_string()),
                 );
             }
-            result.insert(
-                MetaStoreConfig::CONNECTION_URL.to_string(),
-                Some(hive.spec.cluster_config.database.conn_string.clone()),
-            );
-            // use a placeholder that will be replaced in the start command (also for the password)
-            result.insert(
-                MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-                Some(DB_USERNAME_PLACEHOLDER.into()),
-            );
-            result.insert(
-                MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-                Some(DB_PASSWORD_PLACEHOLDER.into()),
-            );
             result.insert(
                 MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
                 Some("true".to_string()),

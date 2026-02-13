@@ -38,14 +38,16 @@ use stackable_operator::{
         rbac::build_rbac_resources,
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
-    crd::{listener::v1alpha1::Listener, s3},
+    crd::{
+        database::drivers::jdbc::JDBCDatabaseConnectionDetails, listener::v1alpha1::Listener, s3,
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, TCPSocketAction,
-                Volume,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, Probe,
+                TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -90,9 +92,9 @@ use crate::{
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
     crd::{
-        APP_NAME, CORE_SITE_XML, Container, DB_PASSWORD_ENV, DB_USERNAME_ENV, HIVE_PORT,
-        HIVE_PORT_NAME, HIVE_SITE_XML, HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
-        METRICS_PORT, METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR,
+        APP_NAME, CORE_SITE_XML, Container, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
+        HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
+        MetaStoreConfig, MetadataDatabaseConnection, STACKABLE_CONFIG_DIR,
         STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
@@ -329,6 +331,11 @@ pub enum Error {
     TlsCertSecretClassVolumeBuild {
         source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
     },
+
+    #[snafu(display("invalid metadata database connection"))]
+    InvalidMetadataDatabaseConnection {
+        source: stackable_operator::crd::database::Error,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -373,6 +380,14 @@ pub async fn reconcile_hive(
         } else {
             None
         };
+
+    let metadata_database_connection_details = hive
+        .spec
+        .cluster_config
+        .metadata_database
+        .as_jdbc_database_connection()
+        .jdbc_connection_details("METADATA")
+        .context(InvalidMetadataDatabaseConnectionSnafu)?;
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
@@ -465,6 +480,7 @@ pub async fn reconcile_hive(
             &resolved_product_image,
             &rolegroup,
             rolegroup_config,
+            &metadata_database_connection_details,
             s3_connection_spec.as_ref(),
             &config,
             &client.kubernetes_cluster_info,
@@ -476,6 +492,7 @@ pub async fn reconcile_hive(
             &resolved_product_image,
             &rolegroup,
             rolegroup_config,
+            &metadata_database_connection_details,
             s3_connection_spec.as_ref(),
             &config,
             &rbac_sa.name_any(),
@@ -595,6 +612,7 @@ fn build_metastore_rolegroup_config_map(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    database_connection_details: &JDBCDatabaseConnectionDetails,
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     cluster_info: &KubernetesClusterInfo,
@@ -612,14 +630,48 @@ fn build_metastore_rolegroup_config_map(
                     Some("/stackable/warehouse".to_string()),
                 );
 
+                // The Derby driver class needs some special handling
+                let driver = match &hive.spec.cluster_config.metadata_database {
+                    MetadataDatabaseConnection::Derby(_) => {
+                        // The driver class changed for hive 4.2.0
+                        if ["3.1.3", "4.0.0", "4.0.1", "4.1.0"]
+                            .contains(&resolved_product_image.product_version.as_str())
+                        {
+                            "org.apache.derby.jdbc.EmbeddedDriver"
+                        } else {
+                            "org.apache.derby.iapi.jdbc.AutoloadedDriver"
+                        }
+                    }
+                    _ => database_connection_details.driver.as_str(),
+                };
                 data.insert(
                     MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                    Some(
-                        hive.db_type()
-                            .get_jdbc_driver_class(&resolved_product_image.product_version)
-                            .to_string(),
-                    ),
+                    Some(driver.to_owned()),
                 );
+                data.insert(
+                    MetaStoreConfig::CONNECTION_URL.to_string(),
+                    Some(database_connection_details.connection_uri.to_string()),
+                );
+                if let Some(EnvVar {
+                    name: username_env_name,
+                    ..
+                }) = &database_connection_details.username_env
+                {
+                    data.insert(
+                        MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
+                        Some(format!("${{env:{username_env_name}}}",)),
+                    );
+                }
+                if let Some(EnvVar {
+                    name: password_env_name,
+                    ..
+                }) = &database_connection_details.password_env
+                {
+                    data.insert(
+                        MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
+                        Some(format!("${{env:{password_env_name}}}",)),
+                    );
+                }
 
                 if let Some(s3) = s3_connection_spec {
                     data.insert(
@@ -759,6 +811,7 @@ fn build_metastore_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    database_connection_details: &JDBCDatabaseConnectionDetails,
     s3_connection: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     sa_name: &str,
@@ -774,13 +827,7 @@ fn build_metastore_rolegroup_statefulset(
             name: APP_NAME.to_string(),
         })?;
 
-    let credentials_secret_name = hive.spec.cluster_config.database.credentials_secret.clone();
-
     container_builder
-        // load database credentials to environment variables: these will be used to replace
-        // the placeholders in hive-site.xml so that the operator does not "touch" the secret.
-        .add_env_var_from_secret(DB_USERNAME_ENV, &credentials_secret_name, "username")
-        .add_env_var_from_secret(DB_PASSWORD_ENV, &credentials_secret_name, "password")
         .add_env_var(
             "HADOOP_HEAPSIZE",
             construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
@@ -794,6 +841,7 @@ fn build_metastore_rolegroup_statefulset(
             "CONTAINERDEBUG_LOG_DIRECTORY",
             format!("{STACKABLE_LOG_DIR}/containerdebug"),
         );
+    database_connection_details.add_to_container(&mut container_builder);
 
     for (property_name_kind, config) in metastore_config {
         if property_name_kind == &PropertyNameKind::Env {
@@ -862,7 +910,7 @@ fn build_metastore_rolegroup_statefulset(
             .context(AddVolumeSnafu)?;
     }
 
-    let db_type = hive.db_type();
+    let db_type = hive.spec.cluster_config.metadata_database.as_hive_db_type();
     let start_command = if resolved_product_image.product_version.starts_with("3.") {
         // The schematool version in 3.1.x does *not* support the `-initOrUpgradeSchema` flag yet, so we can not use that.
         // As we *only* support HMS 3.1.x (or newer) since SDP release 23.11, we can safely assume we are always coming

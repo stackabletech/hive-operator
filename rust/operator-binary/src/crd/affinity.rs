@@ -47,16 +47,17 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             roleGroups:
               default:
                 replicas: 1
         "#;
-        let hive: v1alpha1::HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let hive: v1alpha1::HiveCluster =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test input");
         let merged_config = hive
             .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();

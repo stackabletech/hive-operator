@@ -109,10 +109,8 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             roleGroups:
               default:
@@ -144,10 +142,8 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             config:
               resources:
@@ -196,7 +192,10 @@ mod tests {
         Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>,
         String,
     ) {
-        let hive: HiveCluster = serde_yaml::from_str(hive_cluster).expect("illegal test input");
+        let deserializer = serde_yaml::Deserializer::from_str(hive_cluster);
+        let hive: HiveCluster =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test input");
 
         let hive_role = HiveRole::MetaStore;
         let rolegroup_ref = hive.metastore_rolegroup_ref("default");
