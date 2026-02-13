@@ -18,23 +18,12 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    database:
-      connString: jdbc:derby:;databaseName=/tmp/metastore_db;create=true
-      credentialsSecret: hive-credentials
-      dbType: derby
+    metadataDatabase:
+      derby: {}
   metastore:
     roleGroups:
       default:
         replicas: 1
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: hive-credentials
-type: Opaque
-stringData:
-  username: APP
-  password: mine
 ----
 
 WARNING: You should not use the `Derby` database in production. Derby stores data locally which does not work in high availability setups (multiple replicas) and all data is lost after Pod restarts.
@@ -72,10 +61,8 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    database:
-      connString: jdbc:derby:;databaseName=/stackable/metastore_db;create=true
-      credentialsSecret: hive-credentials
-      dbType: derby
+    metadataDatabase:
+      derby: {}
     s3:
       inline:
         host: minio
@@ -107,15 +94,6 @@ metadata:
 stringData:
   accessKey: minio-access-key
   secretKey: minio-secret-key
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: hive-credentials
-type: Opaque
-stringData:
-  username: APP
-  password: mine
 ----
 
 
@@ -153,10 +131,11 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    database:
-      connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
-      credentialsSecret: hive-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: hive-postgresql.default.svc.cluster.local
+        database: hive
+        credentialsSecret: hive-credentials
   metastore:
     roleGroups:
       default:

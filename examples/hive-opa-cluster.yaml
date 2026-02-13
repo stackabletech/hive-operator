@@ -30,10 +30,11 @@ spec:
       opa:
         configMapName: opa
         package: hms
-    database:
-      connString: jdbc:postgresql://postgresql:5432/hive
-      credentialsSecret: hive-postgresql-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: postgresql
+        database: hive
+        credentialsSecret: hive-postgresql-credentials
   metastore:
     roleGroups:
       default:

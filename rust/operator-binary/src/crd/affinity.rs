@@ -47,10 +47,8 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             roleGroups:
               default:
