@@ -39,6 +39,7 @@ use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_cl
 pub mod affinity;
 pub mod security;
 
+pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
 
 // Directories
