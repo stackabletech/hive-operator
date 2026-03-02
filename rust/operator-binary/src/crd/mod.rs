@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
+use databases::MetadataDatabaseConnection;
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -19,12 +20,6 @@ use stackable_operator::{
         merge::Merge,
     },
     crd::s3,
-    databases::{
-        databases::{
-            derby::DerbyConnection, mysql::MysqlConnection, postgresql::PostgresqlConnection,
-        },
-        drivers::jdbc::JDBCDatabaseConnection,
-    },
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
@@ -43,6 +38,7 @@ use v1alpha1::HiveMetastoreRoleConfig;
 use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_class};
 
 pub mod affinity;
+pub mod databases;
 pub mod security;
 
 pub const FIELD_MANAGER: &str = "hive-operator";
@@ -493,45 +489,6 @@ impl MetaStoreConfig {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum MetadataDatabaseConnection {
-    /// TODO docs
-    Postgresql(PostgresqlConnection),
-
-    /// TODO docs
-    ///
-    /// Please note that - due to license issues - we don't ship the mysql driver, you need to add
-    /// it it yourself.
-    /// See <https://docs.stackable.tech/home/stable/hive/usage-guide/database-driver/> for details.
-    Mysql(MysqlConnection),
-
-    /// TODO docs
-    Derby(DerbyConnection),
-    // We don't support generic (yet?), as we need to tell the metastore the `--dbtype` on startup,
-    // which is not known for generic connection.
-    // Generic(GenericJDBCDatabaseConnection),
-}
-
-impl MetadataDatabaseConnection {
-    pub fn as_jdbc_database_connection(&self) -> &dyn JDBCDatabaseConnection {
-        match self {
-            Self::Postgresql(p) => p,
-            Self::Mysql(m) => m,
-            Self::Derby(d) => d,
-        }
-    }
-
-    /// Name of the database as it should be passed using the `--db-type` CLI argument to Hive
-    pub fn as_hive_db_type(&self) -> &str {
-        match self {
-            MetadataDatabaseConnection::Postgresql(_) => "postgres",
-            MetadataDatabaseConnection::Mysql(_) => "mysql",
-            MetadataDatabaseConnection::Derby(_) => "derby",
         }
     }
 }

@@ -93,10 +93,11 @@ use crate::{
     crd::{
         APP_NAME, CORE_SITE_XML, Container, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
         HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
-        MetaStoreConfig, MetadataDatabaseConnection, STACKABLE_CONFIG_DIR,
-        STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
+        databases::MetadataDatabaseConnection,
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
     discovery::{self},
