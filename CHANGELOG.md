@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add conversion webhook ([#676]).
 - Add OPA authorization using the operator-rs `OpaConfig` ([#652]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#665]).
@@ -24,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#666]: https://github.com/stackabletech/hive-operator/pull/666
 [#668]: https://github.com/stackabletech/hive-operator/pull/668
 [#670]: https://github.com/stackabletech/hive-operator/pull/670
+[#676]: https://github.com/stackabletech/hive-operator/pull/676
 
 ## [25.11.0] - 2025-11-07
 

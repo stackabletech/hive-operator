@@ -38,9 +38,8 @@ use stackable_operator::{
         rbac::build_rbac_resources,
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
-    crd::{
-        database::drivers::jdbc::JDBCDatabaseConnectionDetails, listener::v1alpha1::Listener, s3,
-    },
+    crd::{listener::v1alpha1::Listener, s3},
+    databases::drivers::jdbc::JDBCDatabaseConnectionDetails,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -334,7 +333,7 @@ pub enum Error {
 
     #[snafu(display("invalid metadata database connection"))]
     InvalidMetadataDatabaseConnection {
-        source: stackable_operator::crd::database::Error,
+        source: stackable_operator::databases::Error,
     },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;

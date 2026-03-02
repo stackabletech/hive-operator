@@ -18,14 +18,12 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    crd::{
-        database::{
-            databases::{
-                derby::DerbyConnection, mysql::MysqlConnection, postgresql::PostgresqlConnection,
-            },
-            drivers::jdbc::JDBCDatabaseConnection,
+    crd::s3,
+    databases::{
+        databases::{
+            derby::DerbyConnection, mysql::MysqlConnection, postgresql::PostgresqlConnection,
         },
-        s3,
+        drivers::jdbc::JDBCDatabaseConnection,
     },
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -47,6 +45,7 @@ use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_cl
 pub mod affinity;
 pub mod security;
 
+pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
 
 // Directories
