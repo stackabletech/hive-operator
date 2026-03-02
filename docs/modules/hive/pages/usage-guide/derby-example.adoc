@@ -9,7 +9,6 @@ It should generally be safe to simply use the latest image version that is avail
 .Create a single node Apache Hive Metastore cluster using Derby:
 [source,yaml]
 ----
----
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
@@ -52,7 +51,6 @@ Then, connect to localhost:9001 and login with the user `minio-access-key` and p
 Deploy the hive cluster:
 [source,yaml]
 ----
----
 apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:

@@ -526,6 +526,7 @@ impl MetadataDatabaseConnection {
         }
     }
 
+    /// Name of the database as it should be passed using the `--db-type` CLI argument to Hive
     pub fn as_hive_db_type(&self) -> &str {
         match self {
             MetadataDatabaseConnection::Postgresql(_) => "postgres",
