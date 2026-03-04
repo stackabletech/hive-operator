@@ -30,10 +30,11 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    database:
-      connString: jdbc:postgresql://hive-postgresql.default.svc.cluster.local:5432/hive
-      credentialsSecret: hive-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: hive-postgresql.default.svc.cluster.local
+        database: hive
+        credentialsSecret: hive-credentials
     s3:
       inline:
         host: test-minio

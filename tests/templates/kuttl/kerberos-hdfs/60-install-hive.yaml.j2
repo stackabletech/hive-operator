@@ -19,10 +19,11 @@ commands:
 {% endif %}
             pullPolicy: IfNotPresent
           clusterConfig:
-            database:
-              connString: jdbc:postgresql://postgresql:5432/hive
-              credentialsSecret: hive-credentials
-              dbType: postgres
+            metadataDatabase:
+              postgresql:
+                host: postgresql
+                database: hive
+                credentialsSecret: hive-credentials
             hdfs:
               configMap: hdfs
             authentication:

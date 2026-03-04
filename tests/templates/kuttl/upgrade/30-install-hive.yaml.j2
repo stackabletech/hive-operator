@@ -13,10 +13,11 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-    database:
-      connString: jdbc:postgresql://postgresql:5432/hive
-      credentialsSecret: hive-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: postgresql
+        database: hive
+        credentialsSecret: hive-credentials
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

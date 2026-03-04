@@ -23,10 +23,11 @@ metadata:
   namespace: {namespace} # <2>
 spec:
   clusterConfig:
-    database:
-      connString: jdbc:postgresql://postgresql:5432/hive
-      credentialsSecret: hive-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: postgresql
+        database: hive
+        credentialsSecret: hive-credentials
   metastore:
     roleGroups:
       default: # <3>

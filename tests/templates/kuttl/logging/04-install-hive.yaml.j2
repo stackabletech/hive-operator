@@ -47,10 +47,11 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-    database:
-      connString: jdbc:postgresql://hive-postgresql:5432/hive
-      credentialsSecret: hive-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: hive-postgresql
+        database: hive
+        credentialsSecret: hive-credentials
     vectorAggregatorConfigMapName: hive-vector-aggregator-discovery
   metastore:
     roleGroups:
