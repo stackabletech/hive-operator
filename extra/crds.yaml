@@ -102,7 +102,13 @@ spec:
                         description: TODO docs
                         properties:
                           location:
-                            description: TODO docs, especially on default
+                            description: |-
+                              Path on the filesystem where Derby stores its database files.
+
+                              If not specified, defaults to `/tmp/derby/{unique_database_name}/derby.db`.
+                              The `{unique_database_name}` part is automatically handled by the operator and is added to
+                              prevent clashing database files. The `create=true` flag is always appended to the JDBC URL,
+                              so the database is created automatically if it does not yet exist at this location.
                             nullable: true
                             type: string
                         type: object
@@ -115,23 +121,28 @@ spec:
                           See <https://docs.stackable.tech/home/stable/hive/usage-guide/database-driver/> for details.
                         properties:
                           credentialsSecret:
-                            description: TODO docs
+                            description: |-
+                              Name of a Secret containing the `username` and `password` keys used to authenticate
+                              against the MySQL server.
                             type: string
                           database:
-                            description: TODO docs
+                            description: Name of the database (schema) to connect to.
                             type: string
                           host:
-                            description: TODO docs
+                            description: Hostname or IP address of the MySQL server.
                             type: string
                           parameters:
                             additionalProperties:
                               type: string
                             default: {}
-                            description: TODO docs
+                            description: |-
+                              Additional map of JDBC connection parameters to append to the connection URL. The given
+                              `HashMap<String, String>` will be converted to query parameters in the form of
+                              `?param1=value1&param2=value2`.
                             type: object
                           port:
                             default: 3306
-                            description: TODO docs
+                            description: Port the MySQL server is listening on. Defaults to `3306`.
                             format: uint16
                             maximum: 65535.0
                             minimum: 0.0
@@ -145,23 +156,28 @@ spec:
                         description: TODO docs
                         properties:
                           credentialsSecret:
-                            description: TODO docs
+                            description: |-
+                              Name of a Secret containing the `username` and `password` keys used to authenticate
+                              against the PostgreSQL server.
                             type: string
                           database:
-                            description: TODO docs
+                            description: Name of the database (schema) to connect to.
                             type: string
                           host:
-                            description: TODO docs
+                            description: Hostname or IP address of the PostgreSQL server.
                             type: string
                           parameters:
                             additionalProperties:
                               type: string
                             default: {}
-                            description: TODO docs
+                            description: |-
+                              Additional map of JDBC connection parameters to append to the connection URL. The given
+                              `HashMap<String, String>` will be converted to query parameters in the form of
+                              `?param1=value1&param2=value2`.
                             type: object
                           port:
                             default: 5432
-                            description: TODO docs
+                            description: Port the PostgreSQL server is listening on. Defaults to `5432`.
                             format: uint16
                             maximum: 65535.0
                             minimum: 0.0
