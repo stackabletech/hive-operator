@@ -12,17 +12,17 @@ use stackable_operator::{
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MetadataDatabaseConnection {
-    /// Use a PostgreSQL database
+    // Docs are on the struct
     Postgresql(PostgresqlConnection),
 
-    /// Use a MySQL database.
+    /// Connection settings for a [MySQL](https://www.mysql.com/) database.
     ///
     /// Please note that - due to license issues - we don't ship the mysql driver, you need to add
     /// it it yourself.
     /// See <https://docs.stackable.tech/home/stable/hive/usage-guide/database-driver/> for details.
     Mysql(MysqlConnection),
 
-    /// Use an Apache Derby database
+    // Docs are on the struct
     Derby(DerbyConnection),
     // We don't support generic (yet?), as we need to tell the metastore the `--dbtype` on startup,
     // which is not known for generic connection.

@@ -101,7 +101,12 @@ spec:
                       - derby
                     properties:
                       derby:
-                        description: Use an Apache Derby database
+                        description: |-
+                          Connection settings for an embedded [Apache Derby](https://db.apache.org/derby/) database.
+
+                          Derby is an embedded, file-based Java database engine that requires no separate server process.
+                          It is typically used for development, testing, or as a lightweight metastore backend (e.g. for
+                          Apache Hive).
                         properties:
                           location:
                             description: |-
@@ -116,7 +121,7 @@ spec:
                         type: object
                       mysql:
                         description: |-
-                          Use a MySQL database.
+                          Connection settings for a [MySQL](https://www.mysql.com/) database.
 
                           Please note that - due to license issues - we don't ship the mysql driver, you need to add
                           it it yourself.
@@ -155,7 +160,7 @@ spec:
                         - host
                         type: object
                       postgresql:
-                        description: Use a PostgreSQL database
+                        description: Connection settings for a [PostgreSQL](https://www.postgresql.org/) database.
                         properties:
                           credentialsSecret:
                             description: |-
