@@ -89,7 +89,9 @@ spec:
                     - configMap
                     type: object
                   metadataDatabase:
-                    description: TODO docs
+                    description: |-
+                      Configure the database where the Hive metastore stores all it's internal metadata, such
+                      as schema and tables.
                     oneOf:
                     - required:
                       - postgresql
@@ -99,7 +101,7 @@ spec:
                       - derby
                     properties:
                       derby:
-                        description: TODO docs
+                        description: Use an Apache Derby database
                         properties:
                           location:
                             description: |-
@@ -114,7 +116,7 @@ spec:
                         type: object
                       mysql:
                         description: |-
-                          TODO docs
+                          Use a MySQL database.
 
                           Please note that - due to license issues - we don't ship the mysql driver, you need to add
                           it it yourself.
@@ -153,7 +155,7 @@ spec:
                         - host
                         type: object
                       postgresql:
-                        description: TODO docs
+                        description: Use a PostgreSQL database
                         properties:
                           credentialsSecret:
                             description: |-

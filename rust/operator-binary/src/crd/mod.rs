@@ -161,7 +161,8 @@ pub mod versioned {
         /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
         pub authorization: Option<security::AuthorizationConfig>,
 
-        /// TODO docs
+        /// Configure the database where the Hive metastore stores all it's internal metadata, such
+        /// as schema and tables.
         pub metadata_database: MetadataDatabaseConnection,
 
         /// HDFS connection specification.
