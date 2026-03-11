@@ -58,7 +58,7 @@ The `{namespace}/{clusterName}` discovery ConfigMap contains the following field
 Contains the thrift protocol connection string for the Hive metastore service:
 
 [subs="attributes"]
-  thrift://{clusterName}.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}-metastore.{namespace}.svc.cluster.local:{metastorePort}
 ====
 
 WARNING: Using the Hive metastore in high availability mode (replicas > 1) does not work with Derby but instead requires a properly configured database like PostgreSQL or MySQL.
