@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [26.3.0] - 2026-03-16
+
+## [26.3.0-rc1] - 2026-03-16
+
 ### Added
 
 - Add conversion webhook ([#676]).
@@ -15,10 +19,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bump stackable-operator to 0.106.2, and strum to 0.28 ([#683]).
+- Bump stackable-operator to 0.108.0 and strum to 0.28 ([#683], [#685]).
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#670]).
 - Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#664]).
 - Deprecate support for `4.1.0` ([#668]).
+
+### Fixed
+
+- Fix "404 page not found" error for the initial object list ([#685]).
 
 [#652]: https://github.com/stackabletech/hive-operator/pull/652
 [#664]: https://github.com/stackabletech/hive-operator/pull/664
@@ -28,6 +36,7 @@ All notable changes to this project will be documented in this file.
 [#670]: https://github.com/stackabletech/hive-operator/pull/670
 [#676]: https://github.com/stackabletech/hive-operator/pull/676
 [#683]: https://github.com/stackabletech/hive-operator/pull/683
+[#685]: https://github.com/stackabletech/hive-operator/pull/685
 
 ## [25.11.0] - 2025-11-07
 
