@@ -10,14 +10,6 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - nodes
-    verbs:
-      - list
-      - watch
-  # For automatic cluster domain detection
-  - apiGroups:
-      - ""
-    resources:
       - nodes/proxy
     verbs:
       - get
@@ -168,16 +160,6 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  # Workload pods need to read their own ConfigMaps (configuration), Secrets (credentials,
-  # TLS certs), and ServiceAccount tokens at runtime.
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - secrets
-      - serviceaccounts
-    verbs:
-      - get
   # For workload pods to emit Kubernetes events.
   - apiGroups:
       - events.k8s.io
