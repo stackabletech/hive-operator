@@ -39,7 +39,7 @@ use stackable_operator::{
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::{listener::v1alpha1::Listener, s3},
-    databases::drivers::jdbc::JDBCDatabaseConnectionDetails,
+    database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -334,7 +334,7 @@ pub enum Error {
 
     #[snafu(display("invalid metadata database connection"))]
     InvalidMetadataDatabaseConnection {
-        source: stackable_operator::databases::Error,
+        source: stackable_operator::database_connections::Error,
     },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -612,7 +612,7 @@ fn build_metastore_rolegroup_config_map(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
     role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    database_connection_details: &JDBCDatabaseConnectionDetails,
+    database_connection_details: &JdbcDatabaseConnectionDetails,
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     cluster_info: &KubernetesClusterInfo,
@@ -811,7 +811,7 @@ fn build_metastore_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HiveCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    database_connection_details: &JDBCDatabaseConnectionDetails,
+    database_connection_details: &JdbcDatabaseConnectionDetails,
     s3_connection: Option<&s3::v1alpha1::ConnectionSpec>,
     merged_config: &MetaStoreConfig,
     sa_name: &str,

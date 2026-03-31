@@ -143,7 +143,7 @@ spec:
                               type: string
                             default: {}
                             description: |-
-                              Additional map of JDBC connection parameters to append to the connection URL. The given
+                              Additional map of connection parameters to append to the connection URL. The given
                               `HashMap<String, String>` will be converted to query parameters in the form of
                               `?param1=value1&param2=value2`.
                             type: object
@@ -667,7 +667,7 @@ spec:
                                 type: object
                             type: object
                           enableVectorAgent:
-                            description: Wether or not to deploy a container with the Vector log agent.
+                            description: Whether or not to deploy a container with the Vector log agent.
                             nullable: true
                             type: boolean
                         type: object
@@ -1108,7 +1108,7 @@ spec:
                                       type: object
                                   type: object
                                 enableVectorAgent:
-                                  description: Wether or not to deploy a container with the Vector log agent.
+                                  description: Whether or not to deploy a container with the Vector log agent.
                                   nullable: true
                                   type: boolean
                               type: object

@@ -9,7 +9,7 @@
   "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-operator-derive@0.3.1": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
   "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-operator@0.108.0": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
   "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-shared@0.1.0": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-telemetry@0.6.2": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-telemetry@0.6.3": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
   "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-versioned-macros@0.8.3": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
   "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-versioned@0.8.3": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",
   "git+https://github.com/stackabletech//operator-rs.git?branch=spike%2Fgeneric-databases#stackable-webhook@0.9.0": "1i18qvsrihmbg2n82686yxmi86g7smdgz3ln5gsvj9c614phb8rd",

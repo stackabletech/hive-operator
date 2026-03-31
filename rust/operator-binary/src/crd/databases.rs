@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
-    databases::{
+    database_connections::{
         databases::{
             derby::DerbyConnection, mysql::MysqlConnection, postgresql::PostgresqlConnection,
         },
-        drivers::jdbc::JDBCDatabaseConnection,
+        drivers::jdbc::JdbcDatabaseConnection,
     },
     schemars::{self, JsonSchema},
 };
@@ -26,11 +26,11 @@ pub enum MetadataDatabaseConnection {
     Derby(DerbyConnection),
     // We don't support generic (yet?), as we need to tell the metastore the `--dbtype` on startup,
     // which is not known for generic connection.
-    // Generic(GenericJDBCDatabaseConnection),
+    // Generic(GenericJdbcDatabaseConnection),
 }
 
 impl MetadataDatabaseConnection {
-    pub fn as_jdbc_database_connection(&self) -> &dyn JDBCDatabaseConnection {
+    pub fn as_jdbc_database_connection(&self) -> &dyn JdbcDatabaseConnection {
         match self {
             Self::Postgresql(p) => p,
             Self::Mysql(m) => m,
