@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
     database_connections::{
@@ -29,15 +31,19 @@ pub enum MetadataDatabaseConnection {
     // Generic(GenericJdbcDatabaseConnection),
 }
 
-impl MetadataDatabaseConnection {
-    pub fn as_jdbc_database_connection(&self) -> &dyn JdbcDatabaseConnection {
+impl Deref for MetadataDatabaseConnection {
+    type Target = dyn JdbcDatabaseConnection;
+
+    fn deref(&self) -> &Self::Target {
         match self {
             Self::Postgresql(p) => p,
             Self::Mysql(m) => m,
             Self::Derby(d) => d,
         }
     }
+}
 
+impl MetadataDatabaseConnection {
     /// Name of the database as it should be passed using the `--db-type` CLI argument to Hive
     pub fn as_hive_db_type(&self) -> &str {
         match self {

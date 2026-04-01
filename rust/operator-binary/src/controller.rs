@@ -385,7 +385,6 @@ pub async fn reconcile_hive(
         .spec
         .cluster_config
         .metadata_database
-        .as_jdbc_database_connection()
         .jdbc_connection_details("METADATA")
         .context(InvalidMetadataDatabaseConnectionSnafu)?;
 
