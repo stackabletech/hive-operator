@@ -27,8 +27,9 @@ pub enum MetadataDatabaseConnection {
     // Docs are on the struct
     Derby(DerbyConnection),
     // We don't support generic (yet?), as we need to tell the metastore the `--dbtype` on startup,
-    // which is not known for generic connection.
-    // Generic(GenericJdbcDatabaseConnection),
+    // which is not known for generic connection. We could e.g. create a new struct with
+    // #[serde(flatten)] of the GenericJdbcDatabaseConnection and an additional field
+    // `metastoreDbType` (or similar).
 }
 
 impl Deref for MetadataDatabaseConnection {
