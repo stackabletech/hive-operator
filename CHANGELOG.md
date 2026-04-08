@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Document Helm deployed RBAC permissions and remove unnecessary permissions ([#693]).
+
+[#693]: https://github.com/stackabletech/hive-operator/pull/693
+
 ## [26.3.0] - 2026-03-16
 
 ## [26.3.0-rc1] - 2026-03-16
