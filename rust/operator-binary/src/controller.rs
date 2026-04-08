@@ -36,6 +36,7 @@ use stackable_operator::{
     commons::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
+        secret_class::SecretClassVolumeProvisionParts,
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::{listener::v1alpha1::Listener, s3},
@@ -649,7 +650,7 @@ fn build_metastore_rolegroup_config_map(
                 );
                 data.insert(
                     MetaStoreConfig::CONNECTION_URL.to_string(),
-                    Some(database_connection_details.connection_uri.to_string()),
+                    Some(database_connection_details.connection_url.to_string()),
                 );
                 if let Some(EnvVar {
                     name: username_env_name,
@@ -898,9 +899,13 @@ fn build_metastore_rolegroup_statefulset(
 
         let opa_tls_volume = VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
             .ephemeral(
-                SecretOperatorVolumeSourceBuilder::new(tls_secret_class)
-                    .build()
-                    .context(TlsCertSecretClassVolumeBuildSnafu)?,
+                SecretOperatorVolumeSourceBuilder::new(
+                    tls_secret_class,
+                    // We only need the public CA cert to validate the OPA cert
+                    SecretClassVolumeProvisionParts::Public,
+                )
+                .build()
+                .context(TlsCertSecretClassVolumeBuildSnafu)?,
             )
             .build();
 

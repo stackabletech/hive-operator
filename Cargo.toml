@@ -11,7 +11,9 @@ repository = "https://github.com/stackabletech/hive-operator"
 
 [workspace.dependencies]
 product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.8.0" }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.108.0", features = ["crds", "webhook"] }
+# stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.109.0", features = ["crds", "webhook"] }
+# We need the unreleased https://github.com/stackabletech/operator-rs/pull/1163
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", rev = "f3df803ab7a7c55f949ce87739c6125ccb46b2ca", features = ["crds", "webhook"] }
 
 anyhow = "1.0"
 built = { version = "0.8", features = ["chrono", "git2"] }
@@ -28,11 +30,11 @@ semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
-snafu = "0.8"
+snafu = "0.9"
 strum = { version = "0.28", features = ["derive"] }
 tokio = { version = "1.40", features = ["full"] }
 tracing = "0.1"
 
 [patch."https://github.com/stackabletech/operator-rs.git"]
 # stackable-operator = { path = "../operator-rs/crates/stackable-operator" }
-stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "spike/generic-databases" }
+# stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
