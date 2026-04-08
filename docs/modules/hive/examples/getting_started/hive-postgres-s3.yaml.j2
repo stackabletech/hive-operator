@@ -11,7 +11,7 @@ spec:
       postgresql:
         host: postgresql
         database: hive
-        credentialsSecret: hive-credentials
+        credentialsSecretName: hive-credentials
     s3:
       reference: minio
   metastore:

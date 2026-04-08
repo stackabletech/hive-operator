@@ -27,7 +27,7 @@ spec:
       postgresql:
         host: postgresql
         database: hive
-        credentialsSecret: hive-credentials
+        credentialsSecretName: hive-credentials
   metastore:
     roleGroups:
       default: # <3>

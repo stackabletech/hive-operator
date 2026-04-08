@@ -153,7 +153,7 @@ spec:
       mysql:
         host: mysql
         database: hive
-        credentialsSecret: hive-credentials
+        credentialsSecretName: hive-credentials
     s3:
       reference: minio  # <3>
   metastore:

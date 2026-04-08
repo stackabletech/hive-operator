@@ -133,7 +133,7 @@ spec:
       postgresql:
         host: hive-postgresql.default.svc.cluster.local
         database: hive
-        credentialsSecret: hive-credentials
+        credentialsSecretName: hive-credentials
   metastore:
     roleGroups:
       default:
