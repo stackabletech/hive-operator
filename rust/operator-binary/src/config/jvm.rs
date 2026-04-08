@@ -95,6 +95,8 @@ fn is_heap_jvm_argument(jvm_argument: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use stackable_operator::utils::yaml_from_str_singleton_map;
+
     use super::*;
     use crate::crd::HiveRole;
 
@@ -192,10 +194,8 @@ mod tests {
         Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>,
         String,
     ) {
-        let deserializer = serde_yaml::Deserializer::from_str(hive_cluster);
         let hive: HiveCluster =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
-                .expect("invalid test input");
+            yaml_from_str_singleton_map(hive_cluster).expect("invalid test input");
 
         let hive_role = HiveRole::MetaStore;
         let rolegroup_ref = hive.metastore_rolegroup_ref("default");

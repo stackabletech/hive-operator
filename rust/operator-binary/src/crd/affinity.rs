@@ -30,6 +30,7 @@ mod tests {
             api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
+        utils::yaml_from_str_singleton_map,
     };
 
     use super::*;
@@ -54,10 +55,8 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let deserializer = serde_yaml::Deserializer::from_str(input);
         let hive: v1alpha1::HiveCluster =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
-                .expect("invalid test input");
+            yaml_from_str_singleton_map(input).expect("invalid test input");
         let merged_config = hive
             .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();
