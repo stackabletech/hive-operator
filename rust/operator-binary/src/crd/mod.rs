@@ -48,7 +48,7 @@ pub struct HiveConfigOverrides {
         rename = "hive-site.xml",
         skip_serializing_if = "Option::is_none"
     )]
-    pub hive_site: Option<KeyValueConfigOverrides>,
+    pub hive_site_xml: Option<KeyValueConfigOverrides>,
 
     #[serde(
         default,
