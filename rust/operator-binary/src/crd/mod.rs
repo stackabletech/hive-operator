@@ -40,42 +40,6 @@ use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_cl
 pub mod affinity;
 pub mod security;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HiveConfigOverrides {
-    #[serde(
-        default,
-        rename = "hive-site.xml",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub hive_site_xml: Option<KeyValueConfigOverrides>,
-
-    #[serde(
-        default,
-        rename = "security.properties",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub security_properties: Option<KeyValueConfigOverrides>,
-}
-
-impl KeyValueOverridesProvider for HiveConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        match file {
-            HIVE_SITE_XML => self
-                .hive_site_xml
-                .as_ref()
-                .map(KeyValueConfigOverrides::as_product_config_overrides)
-                .unwrap_or_default(),
-            JVM_SECURITY_PROPERTIES_FILE => self
-                .security_properties
-                .as_ref()
-                .map(KeyValueConfigOverrides::as_product_config_overrides)
-                .unwrap_or_default(),
-            _ => BTreeMap::new(),
-        }
-    }
-}
-
 pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
 
@@ -115,13 +79,13 @@ const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_min
 
 pub type HiveRoleType = Role<
     MetaStoreConfigFragment,
-    HiveConfigOverrides,
+    v1alpha1::HiveConfigOverrides,
     v1alpha1::HiveMetastoreRoleConfig,
     JavaCommonConfig,
 >;
 
 pub type HiveRoleGroupType =
-    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, HiveConfigOverrides>;
+    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha1::HiveConfigOverrides>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -229,6 +193,24 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveConfigOverrides {
+        #[serde(
+            default,
+            rename = "hive-site.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub hive_site_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
     }
 }
 
@@ -377,6 +359,24 @@ impl v1alpha1::HiveCluster {
 
         tracing::debug!("Merged config: {:?}", conf_role_group);
         fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::HiveConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        match file {
+            HIVE_SITE_XML => self
+                .hive_site_xml
+                .as_ref()
+                .map(KeyValueConfigOverrides::as_product_config_overrides)
+                .unwrap_or_default(),
+            JVM_SECURITY_PROPERTIES_FILE => self
+                .security_properties
+                .as_ref()
+                .map(KeyValueConfigOverrides::as_product_config_overrides)
+                .unwrap_or_default(),
+            _ => BTreeMap::new(),
+        }
     }
 }
 
