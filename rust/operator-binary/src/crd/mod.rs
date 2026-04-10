@@ -62,7 +62,7 @@ impl KeyValueOverridesProvider for HiveConfigOverrides {
     fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
         match file {
             HIVE_SITE_XML => self
-                .hive_site
+                .hive_site_xml
                 .as_ref()
                 .map(KeyValueConfigOverrides::as_product_config_overrides)
                 .unwrap_or_default(),
@@ -75,15 +75,6 @@ impl KeyValueOverridesProvider for HiveConfigOverrides {
         }
     }
 }
-
-pub type HiveRoleType = Role<
-    MetaStoreConfigFragment,
-    HiveConfigOverrides,
-    v1alpha1::HiveMetastoreRoleConfig,
-    JavaCommonConfig,
->;
-
-pub type HiveRoleGroupType = RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, HiveConfigOverrides>;
 
 pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
@@ -121,6 +112,16 @@ pub const DB_USERNAME_ENV: &str = "DB_USERNAME_ENV";
 pub const DB_PASSWORD_ENV: &str = "DB_PASSWORD_ENV";
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
+
+pub type HiveRoleType = Role<
+    MetaStoreConfigFragment,
+    HiveConfigOverrides,
+    v1alpha1::HiveMetastoreRoleConfig,
+    JavaCommonConfig,
+>;
+
+pub type HiveRoleGroupType =
+    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, HiveConfigOverrides>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -284,11 +285,7 @@ impl v1alpha1::HiveCluster {
             }))
     }
 
-    pub fn role(
-        &self,
-        role_variant: &HiveRole,
-    ) -> Result<&HiveRoleType, Error>
-    {
+    pub fn role(&self, role_variant: &HiveRole) -> Result<&HiveRoleType, Error> {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
         }
