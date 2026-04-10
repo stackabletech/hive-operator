@@ -14,6 +14,7 @@ use stackable_operator::{
             },
         },
     },
+    commons::secret_class::SecretClassVolumeProvisionParts,
     kube::ResourceExt,
     utils::cluster_info::KubernetesClusterInfo,
 };
@@ -46,7 +47,11 @@ pub fn add_kerberos_pod_config(
     if let Some(kerberos_secret_class) = hive.kerberos_secret_class() {
         // Mount keytab
         let kerberos_secret_operator_volume =
-            SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
+            SecretOperatorVolumeSourceBuilder::new(
+                    kerberos_secret_class,
+                    // We need both public (krb5.conf) and private (keytab) parts.
+                    SecretClassVolumeProvisionParts::PublicPrivate,
+                )
                 .with_service_scope(hive.name_any())
                 .with_kerberos_service_name(role.kerberos_service_name())
                 .build()

@@ -18,6 +18,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -38,6 +39,51 @@ use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_cl
 
 pub mod affinity;
 pub mod security;
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HiveConfigOverrides {
+    #[serde(
+        default,
+        rename = "hive-site.xml",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub hive_site: Option<KeyValueConfigOverrides>,
+
+    #[serde(
+        default,
+        rename = "security.properties",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub security_properties: Option<KeyValueConfigOverrides>,
+}
+
+impl KeyValueOverridesProvider for HiveConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        match file {
+            HIVE_SITE_XML => self
+                .hive_site
+                .as_ref()
+                .map(KeyValueConfigOverrides::as_product_config_overrides)
+                .unwrap_or_default(),
+            JVM_SECURITY_PROPERTIES_FILE => self
+                .security_properties
+                .as_ref()
+                .map(KeyValueConfigOverrides::as_product_config_overrides)
+                .unwrap_or_default(),
+            _ => BTreeMap::new(),
+        }
+    }
+}
+
+pub type HiveRoleType = Role<
+    MetaStoreConfigFragment,
+    HiveConfigOverrides,
+    v1alpha1::HiveMetastoreRoleConfig,
+    JavaCommonConfig,
+>;
+
+pub type HiveRoleGroupType = RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, HiveConfigOverrides>;
 
 pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
@@ -139,8 +185,7 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub metastore:
-            Option<Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>>,
+        pub metastore: Option<HiveRoleType>,
     }
 
     // TODO: move generic version to op-rs?
@@ -242,7 +287,7 @@ impl v1alpha1::HiveCluster {
     pub fn role(
         &self,
         role_variant: &HiveRole,
-    ) -> Result<&Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>, Error>
+    ) -> Result<&HiveRoleType, Error>
     {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
@@ -261,7 +306,7 @@ impl v1alpha1::HiveCluster {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<MetaStoreConfigFragment, JavaCommonConfig>, Error> {
+    ) -> Result<HiveRoleGroupType, Error> {
         let role_variant =
             HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
                 role: rolegroup_ref.role.to_owned(),
