@@ -18,6 +18,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -75,6 +76,16 @@ pub const DB_USERNAME_ENV: &str = "DB_USERNAME_ENV";
 pub const DB_PASSWORD_ENV: &str = "DB_PASSWORD_ENV";
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
+
+pub type HiveRoleType = Role<
+    MetaStoreConfigFragment,
+    v1alpha1::HiveConfigOverrides,
+    v1alpha1::HiveMetastoreRoleConfig,
+    JavaCommonConfig,
+>;
+
+pub type HiveRoleGroupType =
+    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha1::HiveConfigOverrides>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -139,8 +150,7 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub metastore:
-            Option<Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>>,
+        pub metastore: Option<HiveRoleType>,
     }
 
     // TODO: move generic version to op-rs?
@@ -183,6 +193,24 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HiveConfigOverrides {
+        #[serde(
+            default,
+            rename = "hive-site.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub hive_site_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
     }
 }
 
@@ -239,11 +267,7 @@ impl v1alpha1::HiveCluster {
             }))
     }
 
-    pub fn role(
-        &self,
-        role_variant: &HiveRole,
-    ) -> Result<&Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>, Error>
-    {
+    pub fn role(&self, role_variant: &HiveRole) -> Result<&HiveRoleType, Error> {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
         }
@@ -261,7 +285,7 @@ impl v1alpha1::HiveCluster {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<MetaStoreConfigFragment, JavaCommonConfig>, Error> {
+    ) -> Result<HiveRoleGroupType, Error> {
         let role_variant =
             HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
                 role: rolegroup_ref.role.to_owned(),
@@ -335,6 +359,24 @@ impl v1alpha1::HiveCluster {
 
         tracing::debug!("Merged config: {:?}", conf_role_group);
         fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::HiveConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        match file {
+            HIVE_SITE_XML => self
+                .hive_site_xml
+                .as_ref()
+                .map(KeyValueConfigOverrides::as_product_config_overrides)
+                .unwrap_or_default(),
+            JVM_SECURITY_PROPERTIES_FILE => self
+                .security_properties
+                .as_ref()
+                .map(KeyValueConfigOverrides::as_product_config_overrides)
+                .unwrap_or_default(),
+            _ => BTreeMap::new(),
+        }
     }
 }
 

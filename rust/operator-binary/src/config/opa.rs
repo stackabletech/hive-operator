@@ -53,7 +53,7 @@ impl HiveOpaConfig {
     ) -> Result<Self, stackable_operator::commons::opa::Error> {
         // See: https://github.com/boschglobal/hive-metastore-opa-authorizer?tab=readme-ov-file#configuration
         let base_endpoint = opa_config
-            .full_document_url_from_config_map(client, hive, None, OpaApiVersion::V1)
+            .full_document_url_from_config_map(client, hive, None, &OpaApiVersion::V1)
             .await?;
 
         let tls_secret_class = client

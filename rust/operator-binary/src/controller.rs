@@ -36,6 +36,7 @@ use stackable_operator::{
     commons::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
+        secret_class::SecretClassVolumeProvisionParts,
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::{listener::v1alpha1::Listener, s3},
@@ -378,7 +379,7 @@ pub async fn reconcile_hive(
         &resolved_product_image.product_version,
         &transform_all_roles_to_config(
             hive,
-            [(
+            &[(
                 HiveRole::MetaStore.to_string(),
                 (
                     vec![
@@ -705,7 +706,7 @@ fn build_metastore_rolegroup_config_map(
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(hive, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(build_recommended_labels(
+                .with_recommended_labels(&build_recommended_labels(
                     hive,
                     &resolved_product_image.app_version_label_value,
                     &rolegroup.role,
@@ -851,9 +852,13 @@ fn build_metastore_rolegroup_statefulset(
 
         let opa_tls_volume = VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
             .ephemeral(
-                SecretOperatorVolumeSourceBuilder::new(tls_secret_class)
-                    .build()
-                    .context(TlsCertSecretClassVolumeBuildSnafu)?,
+                SecretOperatorVolumeSourceBuilder::new(
+                    tls_secret_class,
+                    // We only need the public CA certificate to verify the OPA server.
+                    SecretClassVolumeProvisionParts::Public,
+                )
+                .build()
+                .context(TlsCertSecretClassVolumeBuildSnafu)?,
             )
             .build();
 
@@ -966,7 +971,7 @@ fn build_metastore_rolegroup_statefulset(
         &rolegroup_ref.role_group,
     );
     // Used for PVC templates that cannot be modified once they are deployed
-    let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
+    let unversioned_recommended_labels = Labels::recommended(&build_recommended_labels(
         hive,
         // A version value is required, and we do want to use the "recommended" format for the other desired labels
         "none",
@@ -976,7 +981,7 @@ fn build_metastore_rolegroup_statefulset(
     .context(LabelBuildSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(recommended_object_labels.clone())
+        .with_recommended_labels(&recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .build();
 
@@ -1101,7 +1106,7 @@ fn build_metastore_rolegroup_statefulset(
             .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(hive, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(recommended_object_labels)
+            .with_recommended_labels(&recommended_object_labels)
             .context(MetadataBuildSnafu)?
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
