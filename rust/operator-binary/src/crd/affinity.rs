@@ -30,6 +30,7 @@ mod tests {
             api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
+        utils::yaml_from_str_singleton_map,
     };
 
     use super::*;
@@ -47,16 +48,15 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             roleGroups:
               default:
                 replicas: 1
         "#;
-        let hive: v1alpha1::HiveCluster = serde_yaml::from_str(input).expect("illegal test input");
+        let hive: v1alpha1::HiveCluster =
+            yaml_from_str_singleton_map(input).expect("invalid test input");
         let merged_config = hive
             .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
             .unwrap();

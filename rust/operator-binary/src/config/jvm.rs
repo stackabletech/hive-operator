@@ -95,6 +95,8 @@ fn is_heap_jvm_argument(jvm_argument: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use stackable_operator::utils::yaml_from_str_singleton_map;
+
     use super::*;
     use crate::crd::HiveRole;
 
@@ -109,10 +111,8 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             roleGroups:
               default:
@@ -144,10 +144,8 @@ mod tests {
           image:
             productVersion: 4.2.0
           clusterConfig:
-            database:
-              connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-              dbType: derby
-              credentialsSecret: mySecret
+            metadataDatabase:
+              derby: {}
           metastore:
             config:
               resources:
@@ -191,7 +189,8 @@ mod tests {
     fn construct_boilerplate(
         hive_cluster: &str,
     ) -> (HiveCluster, MetaStoreConfig, HiveRoleType, String) {
-        let hive: HiveCluster = serde_yaml::from_str(hive_cluster).expect("illegal test input");
+        let hive: HiveCluster =
+            yaml_from_str_singleton_map(hive_cluster).expect("invalid test input");
 
         let hive_role = HiveRole::MetaStore;
         let rolegroup_ref = hive.metastore_rolegroup_ref("default");

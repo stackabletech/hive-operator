@@ -4,11 +4,6 @@ kind: HiveCluster
 metadata:
   name: test-hive
 spec:
-  clusterConfig:
-    database:
-      connString: jdbc:derby:;databaseName=/tmp/hive;create=true
-      credentialsSecret: hive-credentials
-      dbType: derby
   metastore:
     roleGroups:
       default: null
