@@ -149,7 +149,7 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    metadataDatabase:
+    metadataDatabase: # <1>
       mysql:
         host: mysql
         database: hive
