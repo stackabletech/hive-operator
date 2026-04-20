@@ -48,7 +48,7 @@ pub fn add_kerberos_pod_config(
         // Mount keytab
         let kerberos_secret_operator_volume = SecretOperatorVolumeSourceBuilder::new(
             kerberos_secret_class,
-            // We need the private Keytab
+            // We need both public (krb5.conf) and private (keytab) parts.
             SecretClassVolumeProvisionParts::PublicPrivate,
         )
         .with_service_scope(hive.name_any())

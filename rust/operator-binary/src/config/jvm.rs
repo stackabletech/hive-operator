@@ -1,13 +1,13 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, JavaCommonConfig, JvmArgumentOverrides, Role},
+    role_utils::{self, JvmArgumentOverrides},
 };
 
 use crate::crd::{
-    JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, MetaStoreConfig, MetaStoreConfigFragment,
+    HiveRoleType, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, MetaStoreConfig,
     STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-    v1alpha1::{HiveCluster, HiveMetastoreRoleConfig},
+    v1alpha1::HiveCluster,
 };
 
 const JAVA_HEAP_FACTOR: f32 = 0.8;
@@ -29,7 +29,7 @@ pub enum Error {
 /// All JVM arguments.
 fn construct_jvm_args(
     hive: &HiveCluster,
-    role: &Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>,
+    role: &HiveRoleType,
     role_group: &str,
 ) -> Result<Vec<String>, Error> {
     let mut jvm_args = vec![
@@ -60,7 +60,7 @@ fn construct_jvm_args(
 /// [`construct_hadoop_heapsize_env`]).
 pub fn construct_non_heap_jvm_args(
     hive: &HiveCluster,
-    role: &Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>,
+    role: &HiveRoleType,
     role_group: &str,
 ) -> Result<String, Error> {
     let mut jvm_args = construct_jvm_args(hive, role, role_group)?;
@@ -188,12 +188,7 @@ mod tests {
 
     fn construct_boilerplate(
         hive_cluster: &str,
-    ) -> (
-        HiveCluster,
-        MetaStoreConfig,
-        Role<MetaStoreConfigFragment, HiveMetastoreRoleConfig, JavaCommonConfig>,
-        String,
-    ) {
+    ) -> (HiveCluster, MetaStoreConfig, HiveRoleType, String) {
         let hive: HiveCluster =
             yaml_from_str_singleton_map(hive_cluster).expect("invalid test input");
 

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- BREAKING: `configOverrides` now only accepts the supported config file names `hive-site.xml` and `security.properties`. Previously arbitrary keys were silently accepted but ignored ([#695]).
+- Document Helm deployed RBAC permissions and remove unnecessary permissions ([#693]).
+- Bump `stackable-operator` to 0.110.0 and `kube` to 3.1.0 ([#695]).
+
+[#693]: https://github.com/stackabletech/hive-operator/pull/693
+[#695]: https://github.com/stackabletech/hive-operator/pull/695
+
 ## [26.3.0] - 2026-03-16
 
 ## [26.3.0-rc1] - 2026-03-16

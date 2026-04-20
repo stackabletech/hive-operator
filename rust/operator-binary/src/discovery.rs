@@ -89,7 +89,7 @@ fn build_discovery_configmap(
             .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                 hive: ObjectRef::from_obj(hive),
             })?
-            .with_recommended_labels(build_recommended_labels(
+            .with_recommended_labels(&build_recommended_labels(
                 hive,
                 &resolved_product_image.app_version_label_value,
                 &hive_role.to_string(),
