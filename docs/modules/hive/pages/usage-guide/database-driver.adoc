@@ -149,11 +149,11 @@ spec:
   image:
     productVersion: 4.2.0
   clusterConfig:
-    metadataDatabase:
+    metadataDatabase: # <1>
       mysql:
         host: mysql
         database: hive
-        credentialsSecretName: hive-credentials
+        credentialsSecretName: hive-credentials # <2>
     s3:
       reference: minio  # <3>
   metastore:
