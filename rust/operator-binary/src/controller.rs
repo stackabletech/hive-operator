@@ -98,7 +98,7 @@ use crate::{
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
-        databases::MetadataDatabaseConnection,
+        databases::{MetadataDatabaseConnection, derby_driver_class},
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
     discovery::{self},
@@ -633,14 +633,7 @@ fn build_metastore_rolegroup_config_map(
                 // The Derby driver class needs some special handling
                 let driver = match &hive.spec.cluster_config.metadata_database {
                     MetadataDatabaseConnection::Derby(_) => {
-                        // The driver class changed for hive 4.2.0
-                        if ["3.1.3", "4.0.0", "4.0.1", "4.1.0"]
-                            .contains(&resolved_product_image.product_version.as_str())
-                        {
-                            "org.apache.derby.jdbc.EmbeddedDriver"
-                        } else {
-                            "org.apache.derby.iapi.jdbc.AutoloadedDriver"
-                        }
+                        derby_driver_class(&resolved_product_image.product_version)
                     }
                     _ => database_connection_details.driver.as_str(),
                 };

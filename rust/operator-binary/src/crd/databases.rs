@@ -54,3 +54,18 @@ impl MetadataDatabaseConnection {
         }
     }
 }
+
+/// (Hive specific) Derby driver class.
+///
+/// The driver class changed for Hive 4.2.0 from `org.apache.derby.jdbc.EmbeddedDriver` to
+/// `org.apache.derby.iapi.jdbc.AutoloadedDriver`.
+pub fn derby_driver_class(product_version: &str) -> &str {
+    if product_version.starts_with("3.")
+        || product_version.starts_with("4.0.")
+        || product_version.starts_with("4.1.")
+    {
+        "org.apache.derby.jdbc.EmbeddedDriver"
+    } else {
+        "org.apache.derby.iapi.jdbc.AutoloadedDriver"
+    }
+}
