@@ -9,7 +9,12 @@ All notable changes to this project will be documented in this file.
 - BREAKING: `configOverrides` now only accepts the supported config file names `hive-site.xml` and `security.properties`. Previously arbitrary keys were silently accepted but ignored ([#695]).
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#693]).
 - Bump `stackable-operator` to 0.110.0 and `kube` to 3.1.0 ([#695]).
+- BREAKING: Implement generic database connection.
+  This means you need to replace your simple database connection string with a typed struct.
+  This struct is consistent between different CRDs, so that you can easily copy/paste it between stacklets.
+  Read on the [Hive database documentation](https://docs.stackable.tech/home/nightly/hive/usage-guide/database-driver) for details ([#674]).
 
+[#674]: https://github.com/stackabletech/hive-operator/pull/674
 [#693]: https://github.com/stackabletech/hive-operator/pull/693
 [#695]: https://github.com/stackabletech/hive-operator/pull/695
 
