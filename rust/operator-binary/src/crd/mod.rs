@@ -614,3 +614,16 @@ impl PodRef {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::versioned::test_utils::RoundtripTestData;
+
+    use super::v1alpha1;
+
+    impl RoundtripTestData for v1alpha1::HiveClusterSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            vec![]
+        }
+    }
+}
