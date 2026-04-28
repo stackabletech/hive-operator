@@ -623,7 +623,96 @@ mod tests {
 
     impl RoundtripTestData for v1alpha1::HiveClusterSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+              - image:
+                  productVersion: 1.2.3
+                  pullPolicy: IfNotPresent
+                clusterOperation:
+                  stopped: false
+                  reconciliationPaused: true
+                clusterConfig:
+                  authentication:
+                    kerberos:
+                      secretClass: my-kerberos
+                  authorization:
+                    opa:
+                      configMapName: opa
+                      package: hms
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  s3:
+                    reference: minio
+                  hdfs:
+                    configMap: hdfs
+                  vectorAggregatorConfigMapName: vector-aggregator-discovery
+                metastore:
+                  config:
+                    logging:
+                      enableVectorAgent: true
+                      containers:
+                        hive:
+                          console:
+                            level: INFO
+                          file:
+                            level: INFO
+                          loggers:
+                            ROOT:
+                              level: INFO
+                        vector:
+                          console:
+                            level: INFO
+                          file:
+                            level: INFO
+                          loggers:
+                            ROOT:
+                              level: INFO
+                    resources:
+                      cpu:
+                        min: 400m
+                        max: "4"
+                      memory:
+                        limit: 4Gi
+                  podOverrides:
+                    spec:
+                      containers:
+                        - name: vector
+                          volumeMounts:
+                            - name: prepared-logs
+                              mountPath: /stackable/log/prepared-logs
+                      volumes:
+                        - name: prepared-logs
+                          configMap:
+                            name: prepared-logs
+                  configOverrides:
+                    hive-site.xml:
+                      hive.metastore.warehouse.dir: /stackable/warehouse/override
+                      common-var: role-value
+                      role-var: role-value
+                  envOverrides:
+                    COMMON_VAR: role-value
+                    ROLE_VAR: role-value
+                  roleGroups:
+                    default:
+                      replicas: 1
+                      config:
+                        logging:
+                          enableVectorAgent: true
+                          containers:
+                            hive:
+                              custom:
+                                configMap: hive-log-config
+                      configOverrides:
+                        hive-site.xml:
+                          common-var: group-value
+                          group-var: group-value
+                      envOverrides:
+                        COMMON_VAR: group-value
+                        GROUP_VAR: group-value
+        "#})
+            .expect("Failed to parse HiveClusterSpec YAML")
         }
     }
 }
