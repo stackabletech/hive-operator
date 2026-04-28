@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#702]).
+
 ### Changed
 
 - BREAKING: `configOverrides` now only accepts the supported config file names `hive-site.xml` and `security.properties`. Previously arbitrary keys were silently accepted but ignored ([#695]).
@@ -17,6 +21,7 @@ All notable changes to this project will be documented in this file.
 [#674]: https://github.com/stackabletech/hive-operator/pull/674
 [#693]: https://github.com/stackabletech/hive-operator/pull/693
 [#695]: https://github.com/stackabletech/hive-operator/pull/695
+[#702]: https://github.com/stackabletech/hive-operator/pull/702
 
 ## [26.3.0] - 2026-03-16
 
