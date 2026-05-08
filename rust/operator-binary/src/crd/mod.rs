@@ -30,7 +30,6 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    utils::cluster_info::KubernetesClusterInfo,
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
@@ -239,31 +238,6 @@ impl v1alpha1::HiveCluster {
         }
     }
 
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .metastore
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
     pub fn role(&self, role_variant: &HiveRole) -> Result<&HiveRoleType, Error> {
         match role_variant {
             HiveRole::MetaStore => self.spec.metastore.as_ref(),
@@ -383,7 +357,7 @@ pub struct HdfsConnection {
     pub config_map: String,
 }
 
-#[derive(Display, EnumString, EnumIter)]
+#[derive(Clone, Debug, Display, EnumString, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[strum(serialize_all = "camelCase")]
 pub enum HiveRole {
     #[strum(serialize = "metastore")]
@@ -391,7 +365,7 @@ pub enum HiveRole {
 }
 
 impl HiveRole {
-    /// Metadata about a rolegroup
+    #[allow(dead_code)]
     pub fn rolegroup_ref(
         &self,
         hive: &v1alpha1::HiveCluster,
@@ -589,30 +563,6 @@ pub struct HiveClusterStatus {
     pub discovery_hash: Option<String>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(display("object has no namespace associated"))]
-pub struct NoNamespaceError;
-
-/// Reference to a single `Pod` that is a component of a [`HiveCluster`]
-/// Used for service discovery.
-pub struct PodRef {
-    pub namespace: String,
-    pub role_group_service_name: String,
-    pub pod_name: String,
-}
-
-impl PodRef {
-    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
-        format!(
-            "{pod_name}.{service_name}.{namespace}.svc.{cluster_domain}",
-            pod_name = self.pod_name,
-            service_name = self.role_group_service_name,
-            namespace = self.namespace,
-            cluster_domain = cluster_info.cluster_domain
-        )
-    }
 }
 
 #[cfg(test)]

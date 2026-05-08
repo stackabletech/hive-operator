@@ -1,75 +1,9 @@
 use std::collections::BTreeMap;
 
 use indoc::formatdoc;
-use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    builder::{
-        self,
-        pod::{
-            PodBuilder,
-            container::ContainerBuilder,
-            volume::{
-                SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
-                VolumeBuilder,
-            },
-        },
-    },
-    commons::secret_class::SecretClassVolumeProvisionParts,
-    kube::ResourceExt,
-    utils::cluster_info::KubernetesClusterInfo,
-};
+use stackable_operator::{kube::ResourceExt, utils::cluster_info::KubernetesClusterInfo};
 
 use crate::crd::{HIVE_SITE_XML, HiveRole, STACKABLE_CONFIG_DIR, v1alpha1};
-
-#[derive(Snafu, Debug)]
-#[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
-pub enum Error {
-    #[snafu(display("failed to add Kerberos secret volume"))]
-    AddKerberosSecretVolume {
-        source: SecretOperatorVolumeSourceBuilderError,
-    },
-
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
-    },
-}
-
-pub fn add_kerberos_pod_config(
-    hive: &v1alpha1::HiveCluster,
-    role: &HiveRole,
-    cb: &mut ContainerBuilder,
-    pb: &mut PodBuilder,
-) -> Result<(), Error> {
-    if let Some(kerberos_secret_class) = hive.kerberos_secret_class() {
-        // Mount keytab
-        let kerberos_secret_operator_volume = SecretOperatorVolumeSourceBuilder::new(
-            kerberos_secret_class,
-            // We need both public (krb5.conf) and private (keytab) parts.
-            SecretClassVolumeProvisionParts::PublicPrivate,
-        )
-        .with_service_scope(hive.name_any())
-        .with_kerberos_service_name(role.kerberos_service_name())
-        .build()
-        .context(AddKerberosSecretVolumeSnafu)?;
-        pb.add_volume(
-            VolumeBuilder::new("kerberos")
-                .ephemeral(kerberos_secret_operator_volume)
-                .build(),
-        )
-        .context(AddVolumeSnafu)?;
-        cb.add_volume_mount("kerberos", "/stackable/kerberos")
-            .context(AddVolumeMountSnafu)?;
-
-        // Needed env vars
-        cb.add_env_var("KRB5_CONFIG", "/stackable/kerberos/krb5.conf");
-    }
-
-    Ok(())
-}
 
 pub fn kerberos_config_properties(
     hive: &v1alpha1::HiveCluster,

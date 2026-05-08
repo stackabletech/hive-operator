@@ -100,10 +100,21 @@ mod tests {
         type DynamicType = ();
         type Scope = ();
 
-        fn kind(_dt: &Self::DynamicType) -> Cow<'_, str> { Cow::from("HiveCluster") }
-        fn group(_dt: &Self::DynamicType) -> Cow<'_, str> { Cow::from("hive.stackable.tech") }
-        fn version(_dt: &Self::DynamicType) -> Cow<'_, str> { Cow::from("v1alpha1") }
-        fn plural(_dt: &Self::DynamicType) -> Cow<'_, str> { Cow::from("hiveclusters") }
+        fn kind(_dt: &Self::DynamicType) -> Cow<'_, str> {
+            Cow::from("HiveCluster")
+        }
+
+        fn group(_dt: &Self::DynamicType) -> Cow<'_, str> {
+            Cow::from("hive.stackable.tech")
+        }
+
+        fn version(_dt: &Self::DynamicType) -> Cow<'_, str> {
+            Cow::from("v1alpha1")
+        }
+
+        fn plural(_dt: &Self::DynamicType) -> Cow<'_, str> {
+            Cow::from("hiveclusters")
+        }
 
         fn meta(&self) -> &ObjectMeta {
             &self.object_meta
