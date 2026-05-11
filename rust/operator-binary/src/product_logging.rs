@@ -1,6 +1,7 @@
 use snafu::Snafu;
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
+    kube::Resource,
     memory::BinaryMultiple,
     product_logging::{
         self,
@@ -10,26 +11,19 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::MAX_HIVE_LOG_FILES_SIZE,
-    crd::{Container, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR, v1alpha1},
+    controller::validate::MAX_HIVE_LOG_FILES_SIZE,
+    crd::{Container, HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_LOG_DIR},
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
-    #[snafu(display("failed to retrieve the ConfigMap [{cm_name}]"))]
-    ConfigMapNotFound {
-        source: stackable_operator::client::Error,
-        cm_name: String,
-    },
     #[snafu(display("failed to retrieve the entry [{entry}] for ConfigMap [{cm_name}]"))]
     MissingConfigMapEntry {
         entry: &'static str,
         cm_name: String,
     },
-    #[snafu(display("crd validation failure"))]
-    CrdValidationFailure { source: crate::crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -38,11 +32,14 @@ const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %5p [%t] %c{2}: %m%n";
 const HIVE_LOG_FILE: &str = "hive.log4j2.xml";
 
 /// Extend the role group ConfigMap with logging and Vector configurations
-pub fn extend_role_group_config_map(
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
+pub fn extend_role_group_config_map<T>(
+    rolegroup: &RoleGroupRef<T>,
     logging: &Logging<Container>,
     cm_builder: &mut ConfigMapBuilder,
-) -> Result<()> {
+) -> Result<()>
+where
+    T: Resource,
+{
     if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
     }) = logging.containers.get(&Container::Hive)

@@ -41,12 +41,10 @@ mod command;
 mod config;
 mod controller;
 mod crd;
-mod discovery;
+mod framework;
 mod kerberos;
 mod listener;
-mod operations;
 mod product_logging;
-mod service;
 mod webhooks;
 
 mod built_info {
@@ -162,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .graceful_shutdown_on(sigterm_watcher.handle())
                 .run(
-                    controller::reconcile_hive,
+                    controller::reconcile,
                     controller::error_policy,
                     Arc::new(controller::Ctx {
                         client: client.clone(),
