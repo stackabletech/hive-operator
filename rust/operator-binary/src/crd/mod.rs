@@ -383,7 +383,7 @@ pub struct HdfsConnection {
     pub config_map: String,
 }
 
-#[derive(Display, EnumString, EnumIter)]
+#[derive(Clone, Debug, Display, EnumString, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[strum(serialize_all = "camelCase")]
 pub enum HiveRole {
     #[strum(serialize = "metastore")]
