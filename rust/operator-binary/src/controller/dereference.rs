@@ -28,7 +28,7 @@ pub enum Error {
         source: stackable_operator::database_connections::Error,
     },
 
-    #[snafu(display("invalid OpaConfig"))]
+    #[snafu(display("invalid OPA configuration"))]
     InvalidOpaConfig {
         source: stackable_operator::commons::opa::Error,
     },

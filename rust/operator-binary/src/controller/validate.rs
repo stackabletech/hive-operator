@@ -32,8 +32,8 @@ pub enum Error {
         source: stackable_operator::product_config_utils::Error,
     },
 
-    #[snafu(display("failed to resolve and merge resource config for role and role group"))]
-    FailedToResolveResourceConfig { source: crate::crd::Error },
+    #[snafu(display("failed to resolve and merge config for role and role group"))]
+    FailedToResolveConfig { source: crate::crd::Error },
 }
 
 /// Per-role configuration extracted during validation.
@@ -123,7 +123,7 @@ pub fn validate_cluster(
 
         let merged_config = hive
             .merged_config(&hive_role, &rolegroup)
-            .context(FailedToResolveResourceConfigSnafu)?;
+            .context(FailedToResolveConfigSnafu)?;
 
         group_configs.insert(
             rolegroup_name.clone(),
