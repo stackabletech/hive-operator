@@ -338,18 +338,18 @@ pub async fn reconcile_hive(
     let client = &ctx.client;
     let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
-    let dereferenced = crate::controller::dereference::dereference(
-        client,
+    let dereferenced = crate::controller::dereference::dereference(client, hive)
+        .await
+        .context(DereferenceSnafu)?;
+
+    let validated = validate::validate_cluster(
         hive,
         CONTAINER_IMAGE_BASE_NAME,
         &ctx.operator_environment.image_repository,
         crate::built_info::PKG_VERSION,
+        &ctx.product_config,
     )
-    .await
-    .context(DereferenceSnafu)?;
-
-    let validated = validate::validate_cluster(hive, &dereferenced, &ctx.product_config)
-        .context(ValidateSnafu)?;
+    .context(ValidateSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,

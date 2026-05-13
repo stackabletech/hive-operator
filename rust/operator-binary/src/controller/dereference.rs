@@ -1,20 +1,12 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    commons::product_image_selection::{self, ResolvedProductImage},
-    crd::s3,
-    database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
-    kube::ResourceExt,
+    crd::s3, database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails, kube::ResourceExt,
 };
 
 use crate::{config::opa::HiveOpaConfig, crd::v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to resolve product image"))]
-    ResolveProductImage {
-        source: product_image_selection::Error,
-    },
-
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
 
@@ -36,7 +28,6 @@ pub enum Error {
 
 /// External references resolved during the dereference step.
 pub struct DereferencedObjects {
-    pub resolved_product_image: ResolvedProductImage,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     pub hive_opa_config: Option<HiveOpaConfig>,
@@ -45,16 +36,7 @@ pub struct DereferencedObjects {
 pub async fn dereference(
     client: &stackable_operator::client::Client,
     hive: &v1alpha1::HiveCluster,
-    image_base_name: &str,
-    image_repository: &str,
-    pkg_version: &str,
 ) -> Result<DereferencedObjects, Error> {
-    let resolved_product_image = hive
-        .spec
-        .image
-        .resolve(image_base_name, image_repository, pkg_version)
-        .context(ResolveProductImageSnafu)?;
-
     let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
             Some(
@@ -87,7 +69,6 @@ pub async fn dereference(
     };
 
     Ok(DereferencedObjects {
-        resolved_product_image,
         s3_connection_spec,
         metadata_database_connection_details,
         hive_opa_config,

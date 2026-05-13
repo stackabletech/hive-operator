@@ -6,12 +6,11 @@ use std::{
 use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    commons::product_image_selection::ResolvedProductImage,
+    commons::product_image_selection::{self, ResolvedProductImage},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::GenericRoleConfig,
 };
 
-use super::dereference::DereferencedObjects;
 use crate::crd::{
     HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, MetaStoreConfig,
     v1alpha1::{self, HiveMetastoreRoleConfig},
@@ -19,6 +18,11 @@ use crate::crd::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
+    #[snafu(display("failed to resolve product image"))]
+    ResolveProductImage {
+        source: product_image_selection::Error,
+    },
+
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
 
@@ -61,13 +65,21 @@ pub struct ValidatedHiveCluster {
 
 pub fn validate_cluster(
     hive: &v1alpha1::HiveCluster,
-    dereferenced: &DereferencedObjects,
+    image_base_name: &str,
+    image_repository: &str,
+    pkg_version: &str,
     product_config_manager: &ProductConfigManager,
 ) -> Result<ValidatedHiveCluster, Error> {
+    let resolved_product_image = hive
+        .spec
+        .image
+        .resolve(image_base_name, image_repository, pkg_version)
+        .context(ResolveProductImageSnafu)?;
+
     let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
 
     let validated_config = validate_all_roles_and_groups_config(
-        &dereferenced.resolved_product_image.product_version,
+        &resolved_product_image.product_version,
         &transform_all_roles_to_config(
             hive,
             &[(
@@ -137,7 +149,7 @@ pub fn validate_cluster(
     role_groups.insert(hive_role, group_configs);
 
     Ok(ValidatedHiveCluster {
-        image: dereferenced.resolved_product_image.clone(),
+        image: resolved_product_image,
         role_groups,
         role_configs,
     })
