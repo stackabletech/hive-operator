@@ -17,11 +17,13 @@ All notable changes to this project will be documented in this file.
   This means you need to replace your simple database connection string with a typed struct.
   This struct is consistent between different CRDs, so that you can easily copy/paste it between stacklets.
   Read on the [Hive database documentation](https://docs.stackable.tech/home/nightly/hive/usage-guide/database-driver) for details ([#674]).
+- Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#707]).
 
 [#674]: https://github.com/stackabletech/hive-operator/pull/674
 [#693]: https://github.com/stackabletech/hive-operator/pull/693
 [#695]: https://github.com/stackabletech/hive-operator/pull/695
 [#702]: https://github.com/stackabletech/hive-operator/pull/702
+[#707]: https://github.com/stackabletech/hive-operator/pull/707
 
 ## [26.3.0] - 2026-03-16
 
