@@ -1,7 +1,7 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::HiveCluster`]
 
-pub mod dereference;
-pub mod validate;
+mod dereference;
+mod validate;
 
 use std::{
     collections::{BTreeMap, HashMap},
