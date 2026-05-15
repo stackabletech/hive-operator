@@ -1,7 +1,5 @@
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    crd::s3, database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails, kube::ResourceExt,
-};
+use stackable_operator::{crd::s3, kube::ResourceExt};
 
 use crate::{config::opa::HiveOpaConfig, crd::v1alpha1};
 
@@ -15,11 +13,6 @@ pub enum Error {
         source: s3::v1alpha1::ConnectionError,
     },
 
-    #[snafu(display("invalid metadata database connection"))]
-    InvalidMetadataDatabaseConnection {
-        source: stackable_operator::database_connections::Error,
-    },
-
     #[snafu(display("invalid OPA configuration"))]
     InvalidOpaConfig {
         source: stackable_operator::commons::opa::Error,
@@ -29,7 +22,6 @@ pub enum Error {
 /// External references resolved during the dereference step.
 pub struct DereferencedObjects {
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
-    pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     pub hive_opa_config: Option<HiveOpaConfig>,
 }
 
@@ -52,13 +44,6 @@ pub async fn dereference(
             None
         };
 
-    let metadata_database_connection_details = hive
-        .spec
-        .cluster_config
-        .metadata_database
-        .jdbc_connection_details("METADATA")
-        .context(InvalidMetadataDatabaseConnectionSnafu)?;
-
     let hive_opa_config = match hive.get_opa_config() {
         Some(opa_config) => Some(
             HiveOpaConfig::from_opa_config(client, hive, opa_config)
@@ -70,7 +55,6 @@ pub async fn dereference(
 
     Ok(DereferencedObjects {
         s3_connection_spec,
-        metadata_database_connection_details,
         hive_opa_config,
     })
 }

@@ -7,6 +7,7 @@ use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection::{self, ResolvedProductImage},
+    database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::GenericRoleConfig,
 };
@@ -38,6 +39,11 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
+
+    #[snafu(display("invalid metadata database connection"))]
+    InvalidMetadataDatabaseConnection {
+        source: stackable_operator::database_connections::Error,
+    },
 }
 
 /// Per-role configuration extracted during validation.
@@ -56,11 +62,11 @@ pub struct ValidatedRoleGroupConfig {
 
 /// The validated cluster: proves that product-config validation and config merging
 /// succeeded for every role and role group before any resources are created.
-#[derive(Clone, Debug)]
 pub struct ValidatedHiveCluster {
     pub image: ResolvedProductImage,
     pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
     pub role_config: Option<ValidatedRoleConfig>,
+    pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
 }
 
 pub fn validate_cluster(
@@ -142,9 +148,17 @@ pub fn validate_cluster(
         );
     }
 
+    let metadata_database_connection_details = hive
+        .spec
+        .cluster_config
+        .metadata_database
+        .jdbc_connection_details("METADATA")
+        .context(InvalidMetadataDatabaseConnectionSnafu)?;
+
     Ok(ValidatedHiveCluster {
         image: resolved_product_image,
         role_groups: group_configs,
         role_config,
+        metadata_database_connection_details,
     })
 }
