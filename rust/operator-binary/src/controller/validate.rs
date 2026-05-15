@@ -12,7 +12,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::ValidatedHiveCluster,
+    controller::{CONTAINER_IMAGE_BASE_NAME, ValidatedHiveCluster},
     crd::{
         HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, MetaStoreConfig,
         v1alpha1::{self, HiveMetastoreRoleConfig},
@@ -64,7 +64,6 @@ pub struct ValidatedRoleGroupConfig {
 
 pub fn validate_cluster(
     hive: &v1alpha1::HiveCluster,
-    image_base_name: &str,
     image_repository: &str,
     pkg_version: &str,
     product_config_manager: &ProductConfigManager,
@@ -72,7 +71,7 @@ pub fn validate_cluster(
     let resolved_product_image = hive
         .spec
         .image
-        .resolve(image_base_name, image_repository, pkg_version)
+        .resolve(CONTAINER_IMAGE_BASE_NAME, image_repository, pkg_version)
         .context(ResolveProductImageSnafu)?;
 
     let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;

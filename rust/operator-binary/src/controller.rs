@@ -117,7 +117,7 @@ use crate::{
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
+pub const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
 
 pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
     value: 10.0,
@@ -356,7 +356,6 @@ pub async fn reconcile_hive(
 
     let validated = validate::validate_cluster(
         hive,
-        CONTAINER_IMAGE_BASE_NAME,
         &ctx.operator_environment.image_repository,
         crate::built_info::PKG_VERSION,
         &ctx.product_config,
