@@ -59,8 +59,8 @@ pub struct ValidatedRoleGroupConfig {
 #[derive(Clone, Debug)]
 pub struct ValidatedHiveCluster {
     pub image: ResolvedProductImage,
-    pub role_groups: BTreeMap<HiveRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
-    pub role_configs: BTreeMap<HiveRole, ValidatedRoleConfig>,
+    pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
+    pub role_config: Option<ValidatedRoleConfig>,
 }
 
 pub fn validate_cluster(
@@ -103,9 +103,6 @@ pub fn validate_cluster(
     )
     .context(InvalidProductConfigSnafu)?;
 
-    let mut role_groups = BTreeMap::new();
-    let mut role_configs = BTreeMap::new();
-
     let metastore_config = validated_config
         .get(&HiveRole::MetaStore.to_string())
         .map(Cow::Borrowed)
@@ -113,21 +110,20 @@ pub fn validate_cluster(
 
     let hive_role = HiveRole::MetaStore;
 
-    if let Some(HiveMetastoreRoleConfig {
+    let role_config = if let Some(HiveMetastoreRoleConfig {
         common: GenericRoleConfig {
             pod_disruption_budget: pdb,
         },
         listener_class,
     }) = hive.role_config(&hive_role)
     {
-        role_configs.insert(
-            hive_role.clone(),
-            ValidatedRoleConfig {
-                pdb: pdb.clone(),
-                listener_class: listener_class.clone(),
-            },
-        );
-    }
+        Some(ValidatedRoleConfig {
+            pdb: pdb.clone(),
+            listener_class: listener_class.clone(),
+        })
+    } else {
+        None
+    };
 
     let mut group_configs = BTreeMap::new();
     for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
@@ -146,11 +142,9 @@ pub fn validate_cluster(
         );
     }
 
-    role_groups.insert(hive_role, group_configs);
-
     Ok(ValidatedHiveCluster {
         image: resolved_product_image,
-        role_groups,
-        role_configs,
+        role_groups: group_configs,
+        role_config,
     })
 }

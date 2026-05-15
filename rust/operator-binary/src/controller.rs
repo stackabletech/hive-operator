@@ -382,112 +382,108 @@ pub async fn reconcile_hive(
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (hive_role, role_group_configs) in &validated.role_groups {
-        if let Some(role_config) = validated.role_configs.get(hive_role) {
-            add_pdbs(
-                &role_config.pdb,
-                hive,
-                hive_role,
-                client,
-                &mut cluster_resources,
-            )
+    for (rolegroup_name, validated_rg_config) in &validated.role_groups {
+        let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
+
+        let rg_metrics_service =
+            build_rolegroup_metrics_service(hive, &validated.image, &rolegroup)
+                .context(ServiceConfigurationSnafu)?;
+
+        let rg_headless_service =
+            build_rolegroup_headless_service(hive, &validated.image, &rolegroup)
+                .context(ServiceConfigurationSnafu)?;
+
+        let rg_configmap = build_metastore_rolegroup_config_map(
+            hive,
+            &hive_namespace,
+            &validated.image,
+            &rolegroup,
+            &validated_rg_config.product_config_properties,
+            &dereferenced.metadata_database_connection_details,
+            dereferenced.s3_connection_spec.as_ref(),
+            &validated_rg_config.merged_config,
+            &client.kubernetes_cluster_info,
+            dereferenced.hive_opa_config.as_ref(),
+        )?;
+        let rg_statefulset = build_metastore_rolegroup_statefulset(
+            hive,
+            &HiveRole::MetaStore,
+            &validated.image,
+            &rolegroup,
+            &validated_rg_config.product_config_properties,
+            &dereferenced.metadata_database_connection_details,
+            dereferenced.s3_connection_spec.as_ref(),
+            &validated_rg_config.merged_config,
+            &rbac_sa.name_any(),
+            dereferenced.hive_opa_config.as_ref(),
+        )?;
+
+        cluster_resources
+            .add(client, rg_metrics_service)
             .await
-            .context(FailedToCreatePdbSnafu)?;
-        }
+            .context(ApplyRoleGroupServiceSnafu {
+                rolegroup: rolegroup.clone(),
+            })?;
 
-        for (rolegroup_name, validated_rg_config) in role_group_configs {
-            let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
+        cluster_resources
+            .add(client, rg_headless_service)
+            .await
+            .context(ApplyRoleGroupServiceSnafu {
+                rolegroup: rolegroup.clone(),
+            })?;
 
-            let rg_metrics_service =
-                build_rolegroup_metrics_service(hive, &validated.image, &rolegroup)
-                    .context(ServiceConfigurationSnafu)?;
+        cluster_resources
+            .add(client, rg_configmap)
+            .await
+            .context(ApplyRoleGroupConfigSnafu {
+                rolegroup: rolegroup.clone(),
+            })?;
 
-            let rg_headless_service =
-                build_rolegroup_headless_service(hive, &validated.image, &rolegroup)
-                    .context(ServiceConfigurationSnafu)?;
-
-            let rg_configmap = build_metastore_rolegroup_config_map(
-                hive,
-                &hive_namespace,
-                &validated.image,
-                &rolegroup,
-                &validated_rg_config.product_config_properties,
-                &dereferenced.metadata_database_connection_details,
-                dereferenced.s3_connection_spec.as_ref(),
-                &validated_rg_config.merged_config,
-                &client.kubernetes_cluster_info,
-                dereferenced.hive_opa_config.as_ref(),
-            )?;
-            let rg_statefulset = build_metastore_rolegroup_statefulset(
-                hive,
-                hive_role,
-                &validated.image,
-                &rolegroup,
-                &validated_rg_config.product_config_properties,
-                &dereferenced.metadata_database_connection_details,
-                dereferenced.s3_connection_spec.as_ref(),
-                &validated_rg_config.merged_config,
-                &rbac_sa.name_any(),
-                dereferenced.hive_opa_config.as_ref(),
-            )?;
-
+        // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
+        // to prevent unnecessary Pod restarts.
+        // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+        ss_cond_builder.add(
             cluster_resources
-                .add(client, rg_metrics_service)
+                .add(client, rg_statefulset)
                 .await
-                .context(ApplyRoleGroupServiceSnafu {
+                .context(ApplyRoleGroupStatefulSetSnafu {
                     rolegroup: rolegroup.clone(),
-                })?;
-
-            cluster_resources
-                .add(client, rg_headless_service)
-                .await
-                .context(ApplyRoleGroupServiceSnafu {
-                    rolegroup: rolegroup.clone(),
-                })?;
-
-            cluster_resources.add(client, rg_configmap).await.context(
-                ApplyRoleGroupConfigSnafu {
-                    rolegroup: rolegroup.clone(),
-                },
-            )?;
-
-            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
-            // to prevent unnecessary Pod restarts.
-            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-            ss_cond_builder.add(
-                cluster_resources
-                    .add(client, rg_statefulset)
-                    .await
-                    .context(ApplyRoleGroupStatefulSetSnafu {
-                        rolegroup: rolegroup.clone(),
-                    })?,
-            );
-        }
+                })?,
+        );
     }
 
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    let hive_role = HiveRole::MetaStore;
-    if let Some(role_config) = validated.role_configs.get(&hive_role) {
+    if let Some(role_config) = validated.role_config {
+        add_pdbs(
+            &role_config.pdb,
+            hive,
+            &HiveRole::MetaStore,
+            client,
+            &mut cluster_resources,
+        )
+        .await
+        .context(FailedToCreatePdbSnafu)?;
+
         let role_listener: Listener = build_role_listener(
             hive,
             &validated.image,
-            &hive_role,
+            &HiveRole::MetaStore,
             &role_config.listener_class,
         )
         .context(ListenerConfigurationSnafu)?;
         let listener = cluster_resources.add(client, role_listener).await.context(
             ApplyGroupListenerSnafu {
-                role: hive_role.to_string(),
+                role: HiveRole::MetaStore.to_string(),
             },
         )?;
 
         for discovery_cm in discovery::build_discovery_configmaps(
             hive,
             hive,
-            hive_role,
+            HiveRole::MetaStore,
             &validated.image,
             None,
             listener,
