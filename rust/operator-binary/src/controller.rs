@@ -92,6 +92,7 @@ use crate::{
         jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
+    controller::validate::{ValidatedRoleConfig, ValidatedRoleGroupConfig},
     crd::{
         APP_NAME, CORE_SITE_XML, Container, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
         HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
@@ -323,6 +324,17 @@ impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
         ErrorDiscriminants::from(self).into()
     }
+}
+
+/// The validated cluster: proves that product-config validation and config merging
+/// succeeded for every role and role group before any resources are created.
+/// Placed in the controller so that subsequent steps that reference this struct
+/// only depend on the controller.
+pub struct ValidatedHiveCluster {
+    pub image: ResolvedProductImage,
+    pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
+    pub role_config: Option<ValidatedRoleConfig>,
+    pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
 }
 
 pub async fn reconcile_hive(

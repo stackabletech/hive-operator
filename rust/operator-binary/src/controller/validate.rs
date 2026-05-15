@@ -6,15 +6,17 @@ use std::{
 use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    commons::product_image_selection::{self, ResolvedProductImage},
-    database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
+    commons::product_image_selection,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::GenericRoleConfig,
 };
 
-use crate::crd::{
-    HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, MetaStoreConfig,
-    v1alpha1::{self, HiveMetastoreRoleConfig},
+use crate::{
+    controller::ValidatedHiveCluster,
+    crd::{
+        HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, MetaStoreConfig,
+        v1alpha1::{self, HiveMetastoreRoleConfig},
+    },
 };
 
 #[derive(Snafu, Debug)]
@@ -58,15 +60,6 @@ pub struct ValidatedRoleConfig {
 pub struct ValidatedRoleGroupConfig {
     pub merged_config: MetaStoreConfig,
     pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
-}
-
-/// The validated cluster: proves that product-config validation and config merging
-/// succeeded for every role and role group before any resources are created.
-pub struct ValidatedHiveCluster {
-    pub image: ResolvedProductImage,
-    pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
-    pub role_config: Option<ValidatedRoleConfig>,
-    pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
 }
 
 pub fn validate_cluster(
