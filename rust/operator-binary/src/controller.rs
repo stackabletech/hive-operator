@@ -330,7 +330,7 @@ impl ReconcilerError for Error {
 /// succeeded for every role and role group before any resources are created.
 /// Placed in the controller so that subsequent steps that reference this struct
 /// only depend on the controller.
-pub struct ValidatedHiveCluster {
+pub struct ValidatedCluster {
     pub image: ResolvedProductImage,
     pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
     pub role_config: Option<ValidatedRoleConfig>,
@@ -357,7 +357,6 @@ pub async fn reconcile_hive(
     let validated = validate::validate_cluster(
         hive,
         &ctx.operator_environment.image_repository,
-        crate::built_info::PKG_VERSION,
         &ctx.product_config,
     )
     .context(ValidateSnafu)?;
