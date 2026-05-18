@@ -335,6 +335,8 @@ pub struct ValidatedCluster {
     pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
     pub role_config: Option<ValidatedRoleConfig>,
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
+    pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
+    pub hive_opa_config: Option<HiveOpaConfig>,
 }
 
 pub async fn reconcile_hive(
@@ -358,6 +360,8 @@ pub async fn reconcile_hive(
         hive,
         &ctx.operator_environment.image_repository,
         &ctx.product_config,
+        dereferenced.s3_connection_spec,
+        dereferenced.hive_opa_config,
     )
     .context(ValidateSnafu)?;
 
@@ -410,10 +414,10 @@ pub async fn reconcile_hive(
             &rolegroup,
             &validated_rg_config.product_config_properties,
             &validated.metadata_database_connection_details,
-            dereferenced.s3_connection_spec.as_ref(),
+            validated.s3_connection_spec.as_ref(),
             &validated_rg_config.merged_config,
             &client.kubernetes_cluster_info,
-            dereferenced.hive_opa_config.as_ref(),
+            validated.hive_opa_config.as_ref(),
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             hive,
@@ -422,10 +426,10 @@ pub async fn reconcile_hive(
             &rolegroup,
             &validated_rg_config.product_config_properties,
             &validated.metadata_database_connection_details,
-            dereferenced.s3_connection_spec.as_ref(),
+            validated.s3_connection_spec.as_ref(),
             &validated_rg_config.merged_config,
             &rbac_sa.name_any(),
-            dereferenced.hive_opa_config.as_ref(),
+            validated.hive_opa_config.as_ref(),
         )?;
 
         cluster_resources

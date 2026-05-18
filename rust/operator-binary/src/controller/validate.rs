@@ -7,11 +7,13 @@ use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
+    crd::s3,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::GenericRoleConfig,
 };
 
 use crate::{
+    config::opa::HiveOpaConfig,
     controller::{CONTAINER_IMAGE_BASE_NAME, ValidatedCluster},
     crd::{
         HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, MetaStoreConfig,
@@ -66,6 +68,8 @@ pub fn validate_cluster(
     hive: &v1alpha1::HiveCluster,
     image_repository: &str,
     product_config_manager: &ProductConfigManager,
+    s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
+    hive_opa_config: Option<HiveOpaConfig>,
 ) -> Result<ValidatedCluster, Error> {
     let resolved_product_image = hive
         .spec
@@ -155,5 +159,7 @@ pub fn validate_cluster(
         role_groups: group_configs,
         role_config,
         metadata_database_connection_details,
+        s3_connection_spec,
+        hive_opa_config,
     })
 }
