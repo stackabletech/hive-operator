@@ -352,7 +352,7 @@ pub async fn reconcile_hive(
     let client = &ctx.client;
     let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
-    let dereferenced = crate::controller::dereference::dereference(client, hive)
+    let dereferenced_objects = crate::controller::dereference::dereference(client, hive)
         .await
         .context(DereferenceSnafu)?;
 
@@ -360,8 +360,7 @@ pub async fn reconcile_hive(
         hive,
         &ctx.operator_environment.image_repository,
         &ctx.product_config,
-        dereferenced.s3_connection_spec,
-        dereferenced.hive_opa_config,
+        dereferenced_objects,
     )
     .context(ValidateSnafu)?;
 
