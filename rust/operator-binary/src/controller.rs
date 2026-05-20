@@ -1,7 +1,9 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::HiveCluster`]
 
+mod dereference;
+mod validate;
+
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap},
     hash::Hasher,
     sync::Arc,
@@ -35,8 +37,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
-        product_image_selection::{self, ResolvedProductImage},
-        rbac::build_rbac_resources,
+        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
         secret_class::SecretClassVolumeProvisionParts,
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
@@ -63,7 +64,6 @@ use stackable_operator::{
     kvp::{Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
         self,
         framework::{
@@ -74,7 +74,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, RoleGroupRef},
+    role_utils::RoleGroupRef,
     shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
@@ -100,7 +100,7 @@ use crate::{
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME,
         databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha1::{self, HiveMetastoreRoleConfig},
+        v1alpha1,
     },
     discovery::{self},
     kerberos::{
@@ -116,7 +116,7 @@ use crate::{
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
+pub const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
 
 pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
     value: 10.0,
@@ -135,9 +135,6 @@ pub struct Ctx {
 pub enum Error {
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
-
-    #[snafu(display("object defines no metastore role"))]
-    NoMetaStoreRole,
 
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
@@ -161,16 +158,6 @@ pub enum Error {
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
-    },
-
-    #[snafu(display("failed to generate product config"))]
-    GenerateProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("object is missing metadata to build owner reference"))]
@@ -200,9 +187,6 @@ pub enum Error {
         "Hive does not support skipping the verification of the tls enabled S3 server"
     ))]
     S3TlsNoVerificationNotSupported,
-
-    #[snafu(display("failed to resolve and merge resource config for role and role group"))]
-    FailedToResolveResourceConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to create hive container [{name}]"))]
     FailedToCreateHiveContainer {
@@ -320,24 +304,17 @@ pub enum Error {
     #[snafu(display("failed to configure service"))]
     ServiceConfiguration { source: crate::service::Error },
 
-    #[snafu(display("failed to resolve product image"))]
-    ResolveProductImage {
-        source: product_image_selection::Error,
+    #[snafu(display("failed to dereference cluster resources"))]
+    Dereference {
+        source: crate::controller::dereference::Error,
     },
 
-    #[snafu(display("invalid OpaConfig"))]
-    InvalidOpaConfig {
-        source: stackable_operator::commons::opa::Error,
-    },
+    #[snafu(display("failed to validate cluster configuration"))]
+    Validate { source: validate::Error },
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
         source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
-    },
-
-    #[snafu(display("invalid metadata database connection"))]
-    InvalidMetadataDatabaseConnection {
-        source: stackable_operator::database_connections::Error,
     },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -346,6 +323,33 @@ impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
         ErrorDiscriminants::from(self).into()
     }
+}
+
+/// The validated cluster: proves that product-config validation and config merging
+/// succeeded for every role and role group before any resources are created.
+/// Placed in the controller so that subsequent steps that reference this struct
+/// only depend on the controller.
+pub struct ValidatedCluster {
+    pub image: ResolvedProductImage,
+    pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
+    pub role_config: Option<ValidatedRoleConfig>,
+    pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
+    pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
+    pub hive_opa_config: Option<HiveOpaConfig>,
+}
+
+/// Per-role configuration extracted during validation.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleConfig {
+    pub pdb: stackable_operator::commons::pdb::PdbConfig,
+    pub listener_class: String,
+}
+
+/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleGroupConfig {
+    pub merged_config: MetaStoreConfig,
+    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
 }
 
 pub async fn reconcile_hive(
@@ -361,69 +365,17 @@ pub async fn reconcile_hive(
     let client = &ctx.client;
     let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
-    let resolved_product_image = hive
-        .spec
-        .image
-        .resolve(
-            CONTAINER_IMAGE_BASE_NAME,
-            &ctx.operator_environment.image_repository,
-            crate::built_info::PKG_VERSION,
-        )
-        .context(ResolveProductImageSnafu)?;
-    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
-    let hive_role = HiveRole::MetaStore;
+    let dereferenced_objects = crate::controller::dereference::dereference(client, hive)
+        .await
+        .context(DereferenceSnafu)?;
 
-    let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =
-        if let Some(s3) = &hive.spec.cluster_config.s3 {
-            Some(
-                s3.clone()
-                    .resolve(
-                        client,
-                        &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
-                    )
-                    .await
-                    .context(ConfigureS3ConnectionSnafu)?,
-            )
-        } else {
-            None
-        };
-
-    let metadata_database_connection_details = hive
-        .spec
-        .cluster_config
-        .metadata_database
-        .jdbc_connection_details("METADATA")
-        .context(InvalidMetadataDatabaseConnectionSnafu)?;
-
-    let validated_config = validate_all_roles_and_groups_config(
-        &resolved_product_image.product_version,
-        &transform_all_roles_to_config(
-            hive,
-            &[(
-                HiveRole::MetaStore.to_string(),
-                (
-                    vec![
-                        PropertyNameKind::Env,
-                        PropertyNameKind::Cli,
-                        PropertyNameKind::File(HIVE_SITE_XML.to_string()),
-                        PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                    ],
-                    role.clone(),
-                ),
-            )]
-            .into(),
-        )
-        .context(GenerateProductConfigSnafu)?,
+    let validated = validate::validate_cluster(
+        hive,
+        &ctx.operator_environment.image_repository,
         &ctx.product_config,
-        false,
-        false,
+        dereferenced_objects,
     )
-    .context(InvalidProductConfigSnafu)?;
-
-    let metastore_config = validated_config
-        .get(&HiveRole::MetaStore.to_string())
-        .map(Cow::Borrowed)
-        .unwrap_or_default();
+    .context(ValidateSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
@@ -454,55 +406,42 @@ pub async fn reconcile_hive(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let hive_opa_config = match hive.get_opa_config() {
-        Some(opa_config) => Some(
-            HiveOpaConfig::from_opa_config(client, hive, opa_config)
-                .await
-                .context(InvalidOpaConfigSnafu)?,
-        ),
-        None => None,
-    };
-
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
+    for (rolegroup_name, validated_rg_config) in &validated.role_groups {
         let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
-        let config = hive
-            .merged_config(&HiveRole::MetaStore, &rolegroup)
-            .context(FailedToResolveResourceConfigSnafu)?;
-
         let rg_metrics_service =
-            build_rolegroup_metrics_service(hive, &resolved_product_image, &rolegroup)
+            build_rolegroup_metrics_service(hive, &validated.image, &rolegroup)
                 .context(ServiceConfigurationSnafu)?;
 
         let rg_headless_service =
-            build_rolegroup_headless_service(hive, &resolved_product_image, &rolegroup)
+            build_rolegroup_headless_service(hive, &validated.image, &rolegroup)
                 .context(ServiceConfigurationSnafu)?;
 
         let rg_configmap = build_metastore_rolegroup_config_map(
             hive,
             &hive_namespace,
-            &resolved_product_image,
+            &validated.image,
             &rolegroup,
-            rolegroup_config,
-            &metadata_database_connection_details,
-            s3_connection_spec.as_ref(),
-            &config,
+            &validated_rg_config.product_config_properties,
+            &validated.metadata_database_connection_details,
+            validated.s3_connection_spec.as_ref(),
+            &validated_rg_config.merged_config,
             &client.kubernetes_cluster_info,
-            hive_opa_config.as_ref(),
+            validated.hive_opa_config.as_ref(),
         )?;
         let rg_statefulset = build_metastore_rolegroup_statefulset(
             hive,
-            &hive_role,
-            &resolved_product_image,
+            &HiveRole::MetaStore,
+            &validated.image,
             &rolegroup,
-            rolegroup_config,
-            &metadata_database_connection_details,
-            s3_connection_spec.as_ref(),
-            &config,
+            &validated_rg_config.product_config_properties,
+            &validated.metadata_database_connection_details,
+            validated.s3_connection_spec.as_ref(),
+            &validated_rg_config.merged_config,
             &rbac_sa.name_any(),
-            hive_opa_config.as_ref(),
+            validated.hive_opa_config.as_ref(),
         )?;
 
         cluster_resources
@@ -539,38 +478,39 @@ pub async fn reconcile_hive(
         );
     }
 
-    let role_config = hive.role_config(&hive_role);
-    if let Some(HiveMetastoreRoleConfig {
-        common: GenericRoleConfig {
-            pod_disruption_budget: pdb,
-        },
-        ..
-    }) = role_config
-    {
-        add_pdbs(pdb, hive, &hive_role, client, &mut cluster_resources)
-            .await
-            .context(FailedToCreatePdbSnafu)?;
-    }
-
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    if let Some(HiveMetastoreRoleConfig { listener_class, .. }) = role_config {
-        let role_listener: Listener =
-            build_role_listener(hive, &resolved_product_image, &hive_role, listener_class)
-                .context(ListenerConfigurationSnafu)?;
+    if let Some(role_config) = validated.role_config {
+        add_pdbs(
+            &role_config.pdb,
+            hive,
+            &HiveRole::MetaStore,
+            client,
+            &mut cluster_resources,
+        )
+        .await
+        .context(FailedToCreatePdbSnafu)?;
+
+        let role_listener: Listener = build_role_listener(
+            hive,
+            &validated.image,
+            &HiveRole::MetaStore,
+            &role_config.listener_class,
+        )
+        .context(ListenerConfigurationSnafu)?;
         let listener = cluster_resources.add(client, role_listener).await.context(
             ApplyGroupListenerSnafu {
-                role: hive_role.to_string(),
+                role: HiveRole::MetaStore.to_string(),
             },
         )?;
 
         for discovery_cm in discovery::build_discovery_configmaps(
             hive,
             hive,
-            hive_role,
-            &resolved_product_image,
+            HiveRole::MetaStore,
+            &validated.image,
             None,
             listener,
         )

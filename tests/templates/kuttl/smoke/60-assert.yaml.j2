@@ -3,36 +3,514 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 900
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive-metastore
+    app.kubernetes.io/managed-by: listeners.stackable.tech_listener
+    app.kubernetes.io/name: listener
+    app.kubernetes.io/role-group: none
+    stackable.tech/vendor: Stackable
+  name: hive-metastore
+  ownerReferences:
+  - apiVersion: listeners.stackable.tech/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Listener
+    name: hive-metastore
+spec:
+  ports:
+  - name: hive
+    port: 9083
+    protocol: TCP
+    targetPort: 9083
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hive-metastore-default-headless
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+spec:
+  ports:
+  - name: hive
+    port: 9083
+    protocol: TCP
+    targetPort: 9083
+  selector:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9084"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hive-metastore-default-metrics
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+spec:
+  ports:
+  - name: metrics
+    port: 9084
+    protocol: TCP
+    targetPort: 9084
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  generation: 1
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: default
+    restarter.stackable.tech/enabled: "true"
+    stackable.tech/vendor: Stackable
   name: hive-metastore-default
-  generation: 1 # There should be no unneeded Pod restarts
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
 spec:
+  podManagementPolicy: Parallel
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: metastore
+      app.kubernetes.io/instance: hive
+      app.kubernetes.io/name: hive
+      app.kubernetes.io/role-group: default
+  serviceName: hive-metastore-default-headless
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: metastore
+        app.kubernetes.io/instance: hive
+        app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+        app.kubernetes.io/name: hive
+        app.kubernetes.io/role-group: default
+        stackable.tech/vendor: Stackable
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: metastore
+                  app.kubernetes.io/instance: hive
+                  app.kubernetes.io/name: hive
+              topologyKey: kubernetes.io/hostname
+            weight: 70
       containers:
-        - name: hive
-          resources:
-            limits:
-              cpu: "1"
-              memory: 768Mi
-            requests:
-              cpu: 250m
-              memory: 768Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
 {% endif %}
+      - args:
+        - |
+          echo copying /stackable/mount/config to /stackable/config
+          cp -RL /stackable/mount/config/* /stackable/config
+          echo copying /stackable/mount/log-config/metastore-log4j2.properties to /stackable/config/metastore-log4j2.properties
+          cp -RL /stackable/mount/log-config/metastore-log4j2.properties /stackable/config/metastore-log4j2.properties
+          if test -f /stackable/config/core-site.xml; then config-utils template /stackable/config/core-site.xml; fi
+          if test -f /stackable/config/hive-site.xml; then config-utils template /stackable/config/hive-site.xml; fi
+          cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore.p12 --out-password changeit
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          cert-tools generate-pkcs12-truststore --pkcs12 /stackable/truststore.p12:changeit --pem /stackable/secrets/minio-tls-certificates/ca.crt --out /stackable/truststore.p12 --out-password changeit
+{% endif %}
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
+          cert-tools generate-pkcs12-truststore --pkcs12 /stackable/truststore.p12:changeit --pem /stackable/secrets/opa-tls/ca.crt --out /stackable/truststore.p12 --out-password changeit
+{% endif %}
+
+
+
+          prepare_signal_handlers()
+          {
+              unset term_child_pid
+              unset term_kill_needed
+              trap 'handle_term_signal' TERM
+          }
+
+          handle_term_signal()
+          {
+              if [ "${term_child_pid}" ]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              else
+                  term_kill_needed="yes"
+              fi
+          }
+
+          wait_for_termination()
+          {
+              set +e
+              term_child_pid=$1
+              if [[ -v term_kill_needed ]]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              fi
+              wait ${term_child_pid} 2>/dev/null
+              trap - TERM
+              wait ${term_child_pid} 2>/dev/null
+              set -e
+          }
+
+          rm -f /stackable/log/_vector/shutdown
+          prepare_signal_handlers
+          containerdebug --output=/stackable/log/containerdebug-state.json --loop &
+{% if test_scenario['values']['hive'].split(',')[0].startswith('3.') %}
+          bin/start-metastore --config /stackable/config --db-type postgres --hive-bin-dir bin &
+{% else %}
+          bin/base --config "/stackable/config" --service schemaTool -dbType "postgres" -initOrUpgradeSchema
+          bin/base --config "/stackable/config" --service metastore &
+
+{% endif %}
+          wait_for_termination $!
+          mkdir -p /stackable/log/_vector && touch /stackable/log/_vector/shutdown
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: HADOOP_HEAPSIZE
+          value: "614"
+        - name: HADOOP_OPTS
+          value: -Djava.security.properties=/stackable/config/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9084:/stackable/jmx/jmx_hive_config.yaml
+            -Djavax.net.ssl.trustStore=/stackable/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit
+            -Djavax.net.ssl.trustStoreType=pkcs12
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: METADATA_DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: hive-credentials
+        - name: METADATA_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: hive-credentials
+        - name: COMMON_VAR
+          value: group-value
+        - name: GROUP_VAR
+          value: group-value
+        - name: ROLE_VAR
+          value: role-value
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: hive
+          timeoutSeconds: 1
+        name: hive
+        ports:
+        - containerPort: 9083
+          name: hive
+          protocol: TCP
+        - containerPort: 9084
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: hive
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 768Mi
+          requests:
+            cpu: 250m
+            memory: 768Mi
+        volumeMounts:
+        - mountPath: /stackable/secrets/test-hive-s3-secret-class
+          name: test-hive-s3-secret-class-s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        - mountPath: /stackable/secrets/minio-tls-certificates
+          name: minio-tls-certificates-ca-cert
+{% endif %}
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
+        - mountPath: /stackable/secrets/opa-tls
+          name: opa-tls
+{% endif %}
+        - mountPath: /stackable/config
+          name: config
+        - mountPath: /stackable/mount/config
+          name: config-mount
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/log-config
+          name: log-config-mount
+        - mountPath: /stackable/listener
+          name: listener
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: hive-serviceaccount
+      serviceAccountName: hive-serviceaccount
       terminationGracePeriodSeconds: 300
+      volumes:
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/class: test-hive-s3-secret-class
+                secrets.stackable.tech/provision-parts: public-private
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
+              volumeMode: Filesystem
+        name: test-hive-s3-secret-class-s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/class: minio-tls-certificates
+                secrets.stackable.tech/provision-parts: public
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
+              volumeMode: Filesystem
+        name: minio-tls-certificates-ca-cert
+{% endif %}
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/provision-parts: public
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
+              volumeMode: Filesystem
+        name: opa-tls
+{% endif %}
+      - emptyDir:
+          sizeLimit: 10Mi
+        name: config
+      - configMap:
+          defaultMode: 420
+          name: hive-metastore-default
+        name: config-mount
+      - emptyDir:
+          sizeLimit: 30Mi
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: hive-metastore-default
+        name: log-config-mount
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      annotations:
+        listeners.stackable.tech/listener-name: hive-metastore
+      labels:
+        app.kubernetes.io/component: metastore
+        app.kubernetes.io/instance: hive
+        app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+        app.kubernetes.io/name: hive
+        app.kubernetes.io/role-group: default
+        app.kubernetes.io/version: none
+        stackable.tech/vendor: Stackable
+      name: listener
+    spec:
+      accessModes:
+      - ReadWriteMany
+      resources:
+        requests:
+          storage: "1"
+      storageClassName: listeners.stackable.tech
+      volumeMode: Filesystem
 status:
   readyReplicas: 1
   replicas: 1
 ---
+apiVersion: v1
+#data:
+#  HIVE: thrift://hive-metastore.$NAMESPACE.svc.cluster.local:9083
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: discovery
+    stackable.tech/vendor: Stackable
+  name: hive
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hive-metastore-default
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+  name: hive-serviceaccount
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+  name: hive-rolebinding
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hive-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: hive-serviceaccount
+---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
+  generation: 1
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
   name: hive-metastore
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: metastore
+      app.kubernetes.io/instance: hive
+      app.kubernetes.io/name: hive
 status:
   expectedPods: 1
   currentHealthy: 1
   disruptionsAllowed: 1
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  generation: 1
+  labels:
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: hive.stackable.tech_hivecluster
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/role-group: none
+    stackable.tech/vendor: Stackable
+  name: hive-metastore
+  ownerReferences:
+  - apiVersion: hive.stackable.tech/v1alpha1
+    controller: true
+    kind: HiveCluster
+    name: hive
+spec:
+  ports:
+  - name: hive
+    port: 9083
+    protocol: TCP
+status:
+  ingressAddresses:
+  # address: hive-metastore.$NAMESPACE.svc.cluster.local
+  - addressType: Hostname
+    ports:
+      hive: 9083
+  serviceName: hive-metastore
