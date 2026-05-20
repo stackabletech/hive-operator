@@ -92,7 +92,6 @@ use crate::{
         jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
-    controller::validate::{ValidatedRoleConfig, ValidatedRoleGroupConfig},
     crd::{
         APP_NAME, CORE_SITE_XML, Container, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
         HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
@@ -337,6 +336,20 @@ pub struct ValidatedCluster {
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<HiveOpaConfig>,
+}
+
+/// Per-role configuration extracted during validation.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleConfig {
+    pub pdb: stackable_operator::commons::pdb::PdbConfig,
+    pub listener_class: String,
+}
+
+/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleGroupConfig {
+    pub merged_config: MetaStoreConfig,
+    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
 }
 
 pub async fn reconcile_hive(

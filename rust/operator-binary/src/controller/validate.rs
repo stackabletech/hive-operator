@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-};
+use std::{borrow::Cow, collections::BTreeMap};
 
 use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -12,9 +9,12 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, dereference::DereferencedObjects},
+    controller::{
+        CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, ValidatedRoleConfig, ValidatedRoleGroupConfig,
+        dereference::DereferencedObjects,
+    },
     crd::{
-        HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, MetaStoreConfig,
+        HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
 };
@@ -46,20 +46,6 @@ pub enum Error {
     InvalidMetadataDatabaseConnection {
         source: stackable_operator::database_connections::Error,
     },
-}
-
-/// Per-role configuration extracted during validation.
-#[derive(Clone, Debug)]
-pub struct ValidatedRoleConfig {
-    pub pdb: stackable_operator::commons::pdb::PdbConfig,
-    pub listener_class: String,
-}
-
-/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
-#[derive(Clone, Debug)]
-pub struct ValidatedRoleGroupConfig {
-    pub merged_config: MetaStoreConfig,
-    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
 }
 
 pub fn validate_cluster(
