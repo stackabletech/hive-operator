@@ -143,9 +143,6 @@ spec:
               topologyKey: kubernetes.io/hostname
             weight: 70
       containers:
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-      - name: vector
-{% endif %}
       - args:
         - |
           echo copying /stackable/mount/config to /stackable/config
@@ -290,10 +287,51 @@ spec:
           name: log-config-mount
         - mountPath: /stackable/listener
           name: listener
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      - args:
+        - |
+          mkdir --parents /stackable/log/_vector-state
+          # Vector will ignore SIGTERM (as PID != 1) and must be shut down by writing a shutdown trigger file
+          vector --config /stackable/config/vector.yaml & vector_pid=$!
+          if [ ! -f "/stackable/log/_vector/shutdown" ]; then
+            mkdir -p /stackable/log/_vector && inotifywait -qq --event create /stackable/log/_vector; fi
+          sleep 1
+          kill $vector_pid
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: VECTOR_LOG
+          value: info
+        - name: VECTOR_AGGREGATOR_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              key: ADDRESS
+              name: vector-aggregator-discovery
+        imagePullPolicy: IfNotPresent
+        name: vector
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 250m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /stackable/config
+          name: config-mount
+        - mountPath: /stackable/log
+          name: log
+{% endif %}
       dnsPolicy: ClusterFirst
       enableServiceLinks: false
       restartPolicy: Always
       schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
       serviceAccount: hive-serviceaccount
       serviceAccountName: hive-serviceaccount
       terminationGracePeriodSeconds: 300
