@@ -2,9 +2,8 @@
 // This is a separate file, since it is used by both the direct Hive-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-- 4.2.0
-- 4.1.0 (deprecated)
-- 4.0.1 (LTS)
+- 4.2.0 (LTS)
+- 4.0.1 (deprecated)
 - 4.0.0 (deprecated)
 - 3.1.3 (deprecated)
 
@@ -14,7 +13,7 @@ Hive 4 has known compatibility issues, especially when using it with Iceberg or 
 The missing compatibility with Iceberg also means that Spark jobs using this storage may fail.
 
 Be aware of upgrading Hive (e.g. 4.0.0 to 4.0.1 or 4.0.1 to Hive 4.1.0), as this upgrade is not easily reversible.
-Test the new version before upgrading your production workloads and take backups of your database.
+Test the new version before upgrading your production workloads and take backups of your database before starting an upgrade.
 
 **Workaround:** If you encounter issues with Hive 4.x, use Hive 3.1.3 instead until these upstream issues are resolved.
 
