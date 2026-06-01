@@ -18,11 +18,11 @@ All notable changes to this project will be documented in this file.
   This struct is consistent between different CRDs, so that you can easily copy/paste it between stacklets.
   Read on the [Hive database documentation](https://docs.stackable.tech/home/nightly/hive/usage-guide/database-driver) for details ([#674]).
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#707]).
+- test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#713]).
 - Deprecated support for `4.0.1` ([#711]).
 
 ### Removed
 
-- test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#713]).
 - Removed support for `4.1.0` ([#711]).
 
 [#674]: https://github.com/stackabletech/hive-operator/pull/674
