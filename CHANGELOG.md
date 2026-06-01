@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
+- test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#713]).
 - Removed support for `4.1.0` ([#711]).
 
 [#674]: https://github.com/stackabletech/hive-operator/pull/674
@@ -30,6 +31,7 @@ All notable changes to this project will be documented in this file.
 [#702]: https://github.com/stackabletech/hive-operator/pull/702
 [#707]: https://github.com/stackabletech/hive-operator/pull/707
 [#711]: https://github.com/stackabletech/hive-operator/pull/711
+[#713]: https://github.com/stackabletech/hive-operator/pull/713
 
 ## [26.3.0] - 2026-03-16
 
