@@ -40,7 +40,7 @@ dimensions:
       - 3.4.2
   - name: zookeeper-latest
     values:
-      - 3.9.4
+      - 3.9.5
   - name: opa-latest
     values:
       - 1.16.2
