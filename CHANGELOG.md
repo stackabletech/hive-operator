@@ -19,12 +19,18 @@ All notable changes to this project will be documented in this file.
   Read on the [Hive database documentation](https://docs.stackable.tech/home/nightly/hive/usage-guide/database-driver) for details ([#674]).
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#707]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#713]).
+- Deprecated support for `4.0.1` ([#711]).
+
+### Removed
+
+- Removed support for `4.1.0` ([#711]).
 
 [#674]: https://github.com/stackabletech/hive-operator/pull/674
 [#693]: https://github.com/stackabletech/hive-operator/pull/693
 [#695]: https://github.com/stackabletech/hive-operator/pull/695
 [#702]: https://github.com/stackabletech/hive-operator/pull/702
 [#707]: https://github.com/stackabletech/hive-operator/pull/707
+[#711]: https://github.com/stackabletech/hive-operator/pull/711
 [#713]: https://github.com/stackabletech/hive-operator/pull/713
 
 ## [26.3.0] - 2026-03-16
