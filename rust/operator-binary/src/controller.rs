@@ -322,10 +322,20 @@ pub struct ValidatedCluster {
 }
 
 /// Cluster-wide settings resolved during validation and dereferencing.
+///
+/// Everything the config-file builders need is resolved here so they never have to
+/// read the raw [`v1alpha1::HiveCluster`] spec.
 pub struct ValidatedClusterConfig {
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
+    /// The resolved JDBC driver class (Derby version special-casing already applied).
+    pub connection_driver: String,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<HiveOpaConfig>,
+    /// Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
+    pub kerberos_config: BTreeMap<String, String>,
+    /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is
+    /// required (Kerberos enabled and no HDFS backend).
+    pub needs_kerberos_core_site: bool,
 }
 
 /// Per-role configuration extracted during validation.
@@ -352,9 +362,11 @@ pub async fn reconcile_hive(
         .await
         .context(DereferenceSnafu)?;
 
-    let validated = validate::validate_cluster(
+    let validated_cluster = validate::validate_cluster(
         hive,
         &ctx.operator_environment.image_repository,
+        &hive_namespace,
+        &client.kubernetes_cluster_info,
         dereferenced_objects,
     )
     .context(ValidateSnafu)?;
@@ -390,24 +402,22 @@ pub async fn reconcile_hive(
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (hive_role, role_group_configs) in &validated.role_group_configs {
+    for (hive_role, role_group_configs) in &validated_cluster.role_group_configs {
         for (rolegroup_name, rg) in role_group_configs {
             let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
             let rg_metrics_service =
-                build_rolegroup_metrics_service(hive, &validated.image, &rolegroup)
+                build_rolegroup_metrics_service(hive, &validated_cluster.image, &rolegroup)
                     .context(ServiceConfigurationSnafu)?;
 
             let rg_headless_service =
-                build_rolegroup_headless_service(hive, &validated.image, &rolegroup)
+                build_rolegroup_headless_service(hive, &validated_cluster.image, &rolegroup)
                     .context(ServiceConfigurationSnafu)?;
 
             let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
                 hive,
-                &hive_namespace,
-                &validated,
+                &validated_cluster,
                 &rolegroup,
-                &client.kubernetes_cluster_info,
             )
             .with_context(|_| BuildRoleGroupConfigMapSnafu {
                 rolegroup: rolegroup.clone(),
@@ -416,7 +426,7 @@ pub async fn reconcile_hive(
             let rg_statefulset = build_metastore_rolegroup_statefulset(
                 hive,
                 hive_role,
-                &validated,
+                &validated_cluster,
                 &rolegroup,
                 rg,
                 &rbac_sa.name_any(),
@@ -460,7 +470,7 @@ pub async fn reconcile_hive(
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    if let Some(role_config) = validated.role_config {
+    if let Some(role_config) = validated_cluster.role_config {
         add_pdbs(
             &role_config.pdb,
             hive,
@@ -473,7 +483,7 @@ pub async fn reconcile_hive(
 
         let role_listener: Listener = build_role_listener(
             hive,
-            &validated.image,
+            &validated_cluster.image,
             &HiveRole::MetaStore,
             &role_config.listener_class,
         )
@@ -488,7 +498,7 @@ pub async fn reconcile_hive(
             hive,
             hive,
             HiveRole::MetaStore,
-            &validated.image,
+            &validated_cluster.image,
             None,
             listener,
         )

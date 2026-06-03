@@ -5,7 +5,6 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     role_utils::RoleGroupRef,
-    utils::cluster_info::KubernetesClusterInfo,
 };
 
 use crate::{
@@ -60,11 +59,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the
 /// administrator.
 pub fn build_metastore_rolegroup_config_map(
-    hive: &v1alpha1::HiveCluster,
-    hive_namespace: &str,
+    owner: &v1alpha1::HiveCluster,
     cluster: &ValidatedCluster,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     let rg = cluster
         .role_group_configs
@@ -77,14 +74,9 @@ pub fn build_metastore_rolegroup_config_map(
     // hive-site.xml
     let hive_site_overrides = resolved_overrides(rg.config_overrides.hive_site_xml.clone());
     let hive_site_data = hive_site::build(
-        hive,
-        hive_namespace,
+        &cluster.cluster_config,
         &cluster.image.product_version,
         &rg.config,
-        &cluster.cluster_config.metadata_database_connection_details,
-        cluster.cluster_config.s3_connection_spec.as_ref(),
-        cluster.cluster_config.hive_opa_config.as_ref(),
-        cluster_info,
         hive_site_overrides,
     )
     .context(BuildHiveSiteSnafu)?;
@@ -97,12 +89,12 @@ pub fn build_metastore_rolegroup_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(hive)
+                .name_and_namespace(owner)
                 .name(rolegroup.object_name())
-                .ownerreference_from_resource(hive, None, Some(true))
+                .ownerreference_from_resource(owner, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(&build_recommended_labels(
-                    hive,
+                    owner,
                     &cluster.image.app_version_label_value,
                     &rolegroup.role,
                     &rolegroup.role_group,
@@ -118,7 +110,7 @@ pub fn build_metastore_rolegroup_config_map(
         );
 
     // core-site.xml is only required when Kerberos is enabled without an HDFS backend.
-    if let Some(core_site_data) = core_site::build(hive) {
+    if let Some(core_site_data) = core_site::build(&cluster.cluster_config) {
         cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(core_site_data.iter()));
     }
 
