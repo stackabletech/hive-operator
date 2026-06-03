@@ -415,9 +415,9 @@ pub async fn reconcile_hive(
                     .context(ServiceConfigurationSnafu)?;
 
             let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
-                hive,
                 &validated_cluster,
                 &rolegroup,
+                hive,
             )
             .with_context(|_| BuildRoleGroupConfigMapSnafu {
                 rolegroup: rolegroup.clone(),

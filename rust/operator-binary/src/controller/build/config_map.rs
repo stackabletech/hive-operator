@@ -59,9 +59,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the
 /// administrator.
 pub fn build_metastore_rolegroup_config_map(
-    owner: &v1alpha1::HiveCluster,
     cluster: &ValidatedCluster,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
+    owner: &v1alpha1::HiveCluster,
 ) -> Result<ConfigMap> {
     let rg = cluster
         .role_group_configs
