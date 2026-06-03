@@ -2,6 +2,8 @@
 
 mod dereference;
 mod validate;
+#[allow(dead_code)] // wired up in a later task
+mod build;
 
 use std::{
     collections::{BTreeMap, HashMap},

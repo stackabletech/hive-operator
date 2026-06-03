@@ -2919,6 +2919,7 @@ dependencies = [
  "fnv",
  "futures 0.3.32",
  "indoc",
+ "java-properties",
  "pin-project",
  "product-config",
  "rstest",
@@ -2931,6 +2932,7 @@ dependencies = [
  "strum",
  "tokio",
  "tracing",
+ "xml",
 ]
 
 [[package]]

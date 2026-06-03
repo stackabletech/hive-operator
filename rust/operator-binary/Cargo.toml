@@ -18,6 +18,7 @@ const_format.workspace = true
 fnv.workspace = true
 futures.workspace = true
 indoc.workspace = true
+java-properties.workspace = true
 pin-project.workspace = true
 semver.workspace = true
 serde.workspace = true
@@ -26,6 +27,7 @@ snafu.workspace = true
 strum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+xml.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

@@ -11,3 +11,4 @@
 //! relaxes the `Merge` bound.
 
 pub mod role_utils;
+pub mod writer;
