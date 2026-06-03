@@ -2921,7 +2921,6 @@ dependencies = [
  "indoc",
  "java-properties",
  "pin-project",
- "product-config",
  "rstest",
  "semver",
  "serde",

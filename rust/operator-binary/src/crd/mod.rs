@@ -24,7 +24,6 @@ use stackable_operator::{
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
-    product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
@@ -507,51 +506,6 @@ impl MetaStoreConfig {
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
-    }
-}
-
-impl Configuration for MetaStoreConfigFragment {
-    type Configurable = v1alpha1::HiveCluster;
-
-    fn compute_env(
-        &self,
-        _hive: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        // Well product-config strikes again...
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _hive: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _hive: &Self::Configurable,
-        _role_name: &str,
-        file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        let mut result = BTreeMap::new();
-
-        if file == HIVE_SITE_XML {
-            if let Some(warehouse_dir) = &self.warehouse_dir {
-                result.insert(
-                    MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-                    Some(warehouse_dir.to_string()),
-                );
-            }
-            result.insert(
-                MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-                Some("true".to_string()),
-            );
-        }
-
-        Ok(result)
     }
 }
 
