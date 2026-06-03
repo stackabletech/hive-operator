@@ -436,12 +436,11 @@ pub async fn reconcile_hive(
                     rolegroup: rolegroup.clone(),
                 })?;
 
-            cluster_resources
-                .add(client, rg_configmap)
-                .await
-                .context(ApplyRoleGroupConfigSnafu {
+            cluster_resources.add(client, rg_configmap).await.context(
+                ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
-                })?;
+                },
+            )?;
 
             // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it
             // mounts to prevent unnecessary Pod restarts.

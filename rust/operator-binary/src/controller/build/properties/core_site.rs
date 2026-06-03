@@ -28,7 +28,8 @@ mod tests {
     use super::*;
 
     fn hive_cluster(yaml: &str) -> v1alpha1::HiveCluster {
-        stackable_operator::utils::yaml_from_str_singleton_map(yaml).expect("valid HiveCluster YAML")
+        stackable_operator::utils::yaml_from_str_singleton_map(yaml)
+            .expect("valid HiveCluster YAML")
     }
 
     const NO_KERBEROS_YAML: &str = r#"

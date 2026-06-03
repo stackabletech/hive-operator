@@ -10,8 +10,9 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        ValidatedCluster, build_recommended_labels,
+        ValidatedCluster,
         build::properties::{core_site, hive_site, resolved_overrides, security_properties},
+        build_recommended_labels,
     },
     crd::{CORE_SITE_XML, HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, v1alpha1},
     framework::writer::{to_hadoop_xml, to_java_properties_string},

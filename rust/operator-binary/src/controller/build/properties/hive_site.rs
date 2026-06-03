@@ -11,10 +11,8 @@ use std::collections::BTreeMap;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    crd::s3,
-    database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
-    k8s_openapi::api::core::v1::EnvVar,
-    utils::cluster_info::KubernetesClusterInfo,
+    crd::s3, database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
+    k8s_openapi::api::core::v1::EnvVar, utils::cluster_info::KubernetesClusterInfo,
 };
 
 use crate::{
@@ -103,7 +101,11 @@ pub fn build(
     if let Some(s3) = s3_connection_spec {
         data.insert(
             MetaStoreConfig::S3_ENDPOINT.to_string(),
-            Some(s3.endpoint().context(ConfigureS3ConnectionSnafu)?.to_string()),
+            Some(
+                s3.endpoint()
+                    .context(ConfigureS3ConnectionSnafu)?
+                    .to_string(),
+            ),
         );
         data.insert(
             MetaStoreConfig::S3_REGION_NAME.to_string(),
@@ -163,7 +165,8 @@ mod tests {
     use super::*;
 
     fn hive_cluster(yaml: &str) -> v1alpha1::HiveCluster {
-        stackable_operator::utils::yaml_from_str_singleton_map(yaml).expect("valid HiveCluster YAML")
+        stackable_operator::utils::yaml_from_str_singleton_map(yaml)
+            .expect("valid HiveCluster YAML")
     }
 
     const DERBY_YAML: &str = r#"

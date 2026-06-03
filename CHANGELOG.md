@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
   This struct is consistent between different CRDs, so that you can easily copy/paste it between stacklets.
   Read on the [Hive database documentation](https://docs.stackable.tech/home/nightly/hive/usage-guide/database-driver) for details ([#674]).
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#707]).
+- Remove the direct `product-config` dependency; `hive-site.xml`, `security.properties` and `core-site.xml` are now rendered by typed Rust builders. Switch `stackable-operator` to the `smooth-operator` branch and adopt its shared `v2::` framework ([#XXX]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#713]).
 - Deprecated support for `4.0.1` ([#711]).
 
