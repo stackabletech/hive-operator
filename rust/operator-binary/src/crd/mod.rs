@@ -19,7 +19,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
+    v2::config_overrides::KeyValueConfigOverrides,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -192,22 +192,14 @@ pub mod versioned {
         pub vector_aggregator_config_map_name: Option<String>,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveConfigOverrides {
-        #[serde(
-            default,
-            rename = "hive-site.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub hive_site_xml: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "hive-site.xml")]
+        pub hive_site_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -355,24 +347,6 @@ impl v1alpha1::HiveCluster {
     }
 }
 
-impl KeyValueOverridesProvider for v1alpha1::HiveConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        match file {
-            HIVE_SITE_XML => self
-                .hive_site_xml
-                .as_ref()
-                .map(KeyValueConfigOverrides::as_product_config_overrides)
-                .unwrap_or_default(),
-            JVM_SECURITY_PROPERTIES_FILE => self
-                .security_properties
-                .as_ref()
-                .map(KeyValueConfigOverrides::as_product_config_overrides)
-                .unwrap_or_default(),
-            _ => BTreeMap::new(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsConnection {
@@ -509,7 +483,7 @@ impl MetaStoreConfig {
     pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
     pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
 
-    fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
+    pub(crate) fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
             warehouse_dir: None,
             resources: ResourcesFragment {

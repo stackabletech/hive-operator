@@ -1,22 +1,23 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{collections::BTreeMap, str::FromStr};
 
-use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
-    product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    role_utils::GenericRoleConfig,
+    kube::ResourceExt as _,
+    role_utils::{GenericRoleConfig, JavaCommonConfig},
+    v2::types::operator::ClusterName,
 };
 
 use crate::{
     controller::{
-        CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, ValidatedRoleConfig, ValidatedRoleGroupConfig,
-        dereference::DereferencedObjects,
+        CONTAINER_IMAGE_BASE_NAME, HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
+        ValidatedClusterConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
-        HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE,
+        HiveRole, MetaStoreConfig,
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
+    framework::role_utils::with_validated_config,
 };
 
 #[derive(Snafu, Debug)]
@@ -29,18 +30,16 @@ pub enum Error {
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
 
-    #[snafu(display("failed to generate product config"))]
-    GenerateProductConfig {
-        source: stackable_operator::product_config_utils::Error,
+    #[snafu(display("invalid cluster name"))]
+    InvalidClusterName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
+    #[snafu(display("failed to resolve and merge config for role group {role_group}"))]
+    FailedToResolveConfig {
+        source: stackable_operator::config::fragment::ValidationError,
+        role_group: String,
     },
-
-    #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig { source: crate::crd::Error },
 
     #[snafu(display("invalid metadata database connection"))]
     InvalidMetadataDatabaseConnection {
@@ -51,10 +50,9 @@ pub enum Error {
 pub fn validate_cluster(
     hive: &v1alpha1::HiveCluster,
     image_repository: &str,
-    product_config_manager: &ProductConfigManager,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
-    let resolved_product_image = hive
+    let image = hive
         .spec
         .image
         .resolve(
@@ -64,39 +62,8 @@ pub fn validate_cluster(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
-
-    let validated_config = validate_all_roles_and_groups_config(
-        &resolved_product_image.product_version,
-        &transform_all_roles_to_config(
-            hive,
-            &[(
-                HiveRole::MetaStore.to_string(),
-                (
-                    vec![
-                        PropertyNameKind::Env,
-                        PropertyNameKind::Cli,
-                        PropertyNameKind::File(HIVE_SITE_XML.to_string()),
-                        PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                    ],
-                    role.clone(),
-                ),
-            )]
-            .into(),
-        )
-        .context(GenerateProductConfigSnafu)?,
-        product_config_manager,
-        false,
-        false,
-    )
-    .context(InvalidProductConfigSnafu)?;
-
-    let metastore_config = validated_config
-        .get(&HiveRole::MetaStore.to_string())
-        .map(Cow::Borrowed)
-        .unwrap_or_default();
-
     let hive_role = HiveRole::MetaStore;
+    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
 
     let role_config = if let Some(HiveMetastoreRoleConfig {
         common: GenericRoleConfig {
@@ -113,22 +80,25 @@ pub fn validate_cluster(
         None
     };
 
-    let mut group_configs = BTreeMap::new();
-    for (rolegroup_name, rolegroup_config) in metastore_config.iter() {
-        let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
+    let default_config = MetaStoreConfig::default_config(&hive.name_any(), &hive_role);
 
-        let merged_config = hive
-            .merged_config(&hive_role, &rolegroup)
-            .context(FailedToResolveConfigSnafu)?;
-
-        group_configs.insert(
-            rolegroup_name.clone(),
-            ValidatedRoleGroupConfig {
-                merged_config,
-                product_config_properties: rolegroup_config.clone(),
-            },
-        );
+    let mut groups: BTreeMap<RoleGroupName, HiveRoleGroupConfig> = BTreeMap::new();
+    for (rg_name, rg) in &role.role_groups {
+        let validated_rg = with_validated_config::<
+            MetaStoreConfig,
+            JavaCommonConfig,
+            crate::crd::MetaStoreConfigFragment,
+            HiveMetastoreRoleConfig,
+            v1alpha1::HiveConfigOverrides,
+        >(rg, role, &default_config)
+        .with_context(|_| FailedToResolveConfigSnafu {
+            role_group: rg_name.clone(),
+        })?;
+        groups.insert(rg_name.clone(), validated_rg);
     }
+
+    let mut role_group_configs = BTreeMap::new();
+    role_group_configs.insert(hive_role, groups);
 
     let metadata_database_connection_details = hive
         .spec
@@ -138,11 +108,14 @@ pub fn validate_cluster(
         .context(InvalidMetadataDatabaseConnectionSnafu)?;
 
     Ok(ValidatedCluster {
-        image: resolved_product_image,
-        role_groups: group_configs,
+        name: ClusterName::from_str(&hive.name_any()).context(InvalidClusterNameSnafu)?,
+        image,
         role_config,
-        metadata_database_connection_details,
-        s3_connection_spec: dereferenced_objects.s3_connection_spec,
-        hive_opa_config: dereferenced_objects.hive_opa_config,
+        cluster_config: ValidatedClusterConfig {
+            metadata_database_connection_details,
+            s3_connection_spec: dereferenced_objects.s3_connection_spec,
+            hive_opa_config: dereferenced_objects.hive_opa_config,
+        },
+        role_group_configs,
     })
 }

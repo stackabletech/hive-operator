@@ -1,29 +1,18 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::HiveCluster`]
 
+mod build;
 mod dereference;
 mod validate;
-#[allow(dead_code)] // wired up in a later task
-mod build;
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    hash::Hasher,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, hash::Hasher, sync::Arc};
 
 use const_format::concatcp;
 use fnv::FnvHasher;
 use indoc::formatdoc;
-use product_config::{
-    ProductConfigManager,
-    types::PropertyNameKind,
-    writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
-};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         self,
-        configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
             PodBuilder,
@@ -50,8 +39,7 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, Probe,
-                TCPSocketAction, Volume,
+                ConfigMapVolumeSource, EmptyDirVolumeSource, Probe, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -82,7 +70,7 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::EnumDiscriminants;
 use tracing::warn;
@@ -95,23 +83,16 @@ use crate::{
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
     crd::{
-        APP_NAME, CORE_SITE_XML, Container, HIVE_PORT, HIVE_PORT_NAME, HIVE_SITE_XML,
-        HiveClusterStatus, HiveRole, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, METRICS_PORT_NAME,
-        MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        APP_NAME, Container, HIVE_PORT, HIVE_PORT_NAME, HiveClusterStatus, HiveRole, METRICS_PORT,
+        METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
-        STACKABLE_LOG_DIR_NAME,
-        databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha1,
+        STACKABLE_LOG_DIR_NAME, v1alpha1,
     },
     discovery::{self},
-    kerberos::{
-        self, add_kerberos_pod_config, kerberos_config_properties,
-        kerberos_container_start_commands,
-    },
+    kerberos::{self, add_kerberos_pod_config, kerberos_container_start_commands},
     listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
-    product_logging::extend_role_group_config_map,
     service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
 };
 
@@ -127,7 +108,6 @@ pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
-    pub product_config: ProductConfigManager,
     pub operator_environment: OperatorEnvironmentOptions,
 }
 
@@ -145,8 +125,8 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
-    BuildRoleGroupConfig {
-        source: stackable_operator::builder::configmap::Error,
+    BuildRoleGroupConfigMap {
+        source: build::config_map::Error,
         rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
     },
 
@@ -233,15 +213,6 @@ pub enum Error {
     #[snafu(display("internal operator failure"))]
     InternalOperatorFailure { source: crate::crd::Error },
 
-    #[snafu(display(
-        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
-        rolegroup
-    ))]
-    JvmSecurityPoperties {
-        source: PropertiesWriterError,
-        rolegroup: String,
-    },
-
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,
@@ -327,14 +298,31 @@ impl ReconcilerError for Error {
     }
 }
 
-/// The validated cluster: proves that product-config validation and config merging
-/// succeeded for every role and role group before any resources are created.
-/// Placed in the controller so that subsequent steps that reference this struct
-/// only depend on the controller.
+pub type RoleGroupName = String;
+
+/// A validated, merged Hive metastore role-group config.
+pub type HiveRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
+    MetaStoreConfig,
+    stackable_operator::role_utils::JavaCommonConfig,
+    v1alpha1::HiveConfigOverrides,
+>;
+
+/// The validated cluster: the typed, merged result of the validate step. Subsequent
+/// build steps consume this struct instead of re-reading the raw CRD.
 pub struct ValidatedCluster {
+    /// The validated cluster name. Part of the validated cluster identity (mirrors the
+    /// shared `v2` framework / trino-operator); consumed as more logic migrates onto
+    /// `ValidatedCluster`.
+    #[allow(dead_code)]
+    pub name: stackable_operator::v2::types::operator::ClusterName,
     pub image: ResolvedProductImage,
-    pub role_groups: BTreeMap<String, ValidatedRoleGroupConfig>,
     pub role_config: Option<ValidatedRoleConfig>,
+    pub cluster_config: ValidatedClusterConfig,
+    pub role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
+}
+
+/// Cluster-wide settings resolved during validation and dereferencing.
+pub struct ValidatedClusterConfig {
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<HiveOpaConfig>,
@@ -345,13 +333,6 @@ pub struct ValidatedCluster {
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
     pub listener_class: String,
-}
-
-/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
-#[derive(Clone, Debug)]
-pub struct ValidatedRoleGroupConfig {
-    pub merged_config: MetaStoreConfig,
-    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
 }
 
 pub async fn reconcile_hive(
@@ -374,7 +355,6 @@ pub async fn reconcile_hive(
     let validated = validate::validate_cluster(
         hive,
         &ctx.operator_environment.image_repository,
-        &ctx.product_config,
         dereferenced_objects,
     )
     .context(ValidateSnafu)?;
@@ -410,74 +390,71 @@ pub async fn reconcile_hive(
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (rolegroup_name, validated_rg_config) in &validated.role_groups {
-        let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
+    for (hive_role, role_group_configs) in &validated.role_group_configs {
+        for (rolegroup_name, rg) in role_group_configs {
+            let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
-        let rg_metrics_service =
-            build_rolegroup_metrics_service(hive, &validated.image, &rolegroup)
-                .context(ServiceConfigurationSnafu)?;
+            let rg_metrics_service =
+                build_rolegroup_metrics_service(hive, &validated.image, &rolegroup)
+                    .context(ServiceConfigurationSnafu)?;
 
-        let rg_headless_service =
-            build_rolegroup_headless_service(hive, &validated.image, &rolegroup)
-                .context(ServiceConfigurationSnafu)?;
+            let rg_headless_service =
+                build_rolegroup_headless_service(hive, &validated.image, &rolegroup)
+                    .context(ServiceConfigurationSnafu)?;
 
-        let rg_configmap = build_metastore_rolegroup_config_map(
-            hive,
-            &hive_namespace,
-            &validated.image,
-            &rolegroup,
-            &validated_rg_config.product_config_properties,
-            &validated.metadata_database_connection_details,
-            validated.s3_connection_spec.as_ref(),
-            &validated_rg_config.merged_config,
-            &client.kubernetes_cluster_info,
-            validated.hive_opa_config.as_ref(),
-        )?;
-        let rg_statefulset = build_metastore_rolegroup_statefulset(
-            hive,
-            &HiveRole::MetaStore,
-            &validated.image,
-            &rolegroup,
-            &validated_rg_config.product_config_properties,
-            &validated.metadata_database_connection_details,
-            validated.s3_connection_spec.as_ref(),
-            &validated_rg_config.merged_config,
-            &rbac_sa.name_any(),
-            validated.hive_opa_config.as_ref(),
-        )?;
-
-        cluster_resources
-            .add(client, rg_metrics_service)
-            .await
-            .context(ApplyRoleGroupServiceSnafu {
+            let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
+                hive,
+                &hive_namespace,
+                &validated,
+                &rolegroup,
+                &client.kubernetes_cluster_info,
+            )
+            .with_context(|_| BuildRoleGroupConfigMapSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
-        cluster_resources
-            .add(client, rg_headless_service)
-            .await
-            .context(ApplyRoleGroupServiceSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
+            let rg_statefulset = build_metastore_rolegroup_statefulset(
+                hive,
+                hive_role,
+                &validated,
+                &rolegroup,
+                rg,
+                &rbac_sa.name_any(),
+            )?;
 
-        cluster_resources
-            .add(client, rg_configmap)
-            .await
-            .context(ApplyRoleGroupConfigSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-
-        // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
-        // to prevent unnecessary Pod restarts.
-        // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-        ss_cond_builder.add(
             cluster_resources
-                .add(client, rg_statefulset)
+                .add(client, rg_metrics_service)
                 .await
-                .context(ApplyRoleGroupStatefulSetSnafu {
+                .context(ApplyRoleGroupServiceSnafu {
                     rolegroup: rolegroup.clone(),
-                })?,
-        );
+                })?;
+
+            cluster_resources
+                .add(client, rg_headless_service)
+                .await
+                .context(ApplyRoleGroupServiceSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+            cluster_resources
+                .add(client, rg_configmap)
+                .await
+                .context(ApplyRoleGroupConfigSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it
+            // mounts to prevent unnecessary Pod restarts.
+            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+            ss_cond_builder.add(
+                cluster_resources
+                    .add(client, rg_statefulset)
+                    .await
+                    .context(ApplyRoleGroupStatefulSetSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?,
+            );
+        }
     }
 
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
@@ -552,216 +529,25 @@ pub async fn reconcile_hive(
     Ok(Action::await_change())
 }
 
-/// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
-#[allow(clippy::too_many_arguments)]
-fn build_metastore_rolegroup_config_map(
-    hive: &v1alpha1::HiveCluster,
-    hive_namespace: &str,
-    resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-    role_group_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    database_connection_details: &JdbcDatabaseConnectionDetails,
-    s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
-    merged_config: &MetaStoreConfig,
-    cluster_info: &KubernetesClusterInfo,
-    hive_opa_config: Option<&HiveOpaConfig>,
-) -> Result<ConfigMap> {
-    let mut hive_site_data = String::new();
-
-    for (property_name_kind, config) in role_group_config {
-        match property_name_kind {
-            PropertyNameKind::File(file_name) if file_name == HIVE_SITE_XML => {
-                let mut data = BTreeMap::new();
-
-                data.insert(
-                    MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-                    Some("/stackable/warehouse".to_string()),
-                );
-
-                // The Derby driver class needs some special handling
-                let driver = match &hive.spec.cluster_config.metadata_database {
-                    MetadataDatabaseConnection::Derby(_) => {
-                        derby_driver_class(&resolved_product_image.product_version)
-                    }
-                    _ => database_connection_details.driver.as_str(),
-                };
-                data.insert(
-                    MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-                    Some(driver.to_owned()),
-                );
-                data.insert(
-                    MetaStoreConfig::CONNECTION_URL.to_string(),
-                    Some(database_connection_details.connection_url.to_string()),
-                );
-                if let Some(EnvVar {
-                    name: username_env_name,
-                    ..
-                }) = &database_connection_details.username_env
-                {
-                    data.insert(
-                        MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-                        Some(format!("${{env:{username_env_name}}}",)),
-                    );
-                }
-                if let Some(EnvVar {
-                    name: password_env_name,
-                    ..
-                }) = &database_connection_details.password_env
-                {
-                    data.insert(
-                        MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-                        Some(format!("${{env:{password_env_name}}}",)),
-                    );
-                }
-
-                if let Some(s3) = s3_connection_spec {
-                    data.insert(
-                        MetaStoreConfig::S3_ENDPOINT.to_string(),
-                        Some(
-                            s3.endpoint()
-                                .context(ConfigureS3ConnectionSnafu)?
-                                .to_string(),
-                        ),
-                    );
-
-                    data.insert(
-                        MetaStoreConfig::S3_REGION_NAME.to_string(),
-                        Some(s3.region.name.clone()),
-                    );
-
-                    if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
-                        // Will be replaced by config-utils
-                        data.insert(
-                            MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                            Some(format!("${{file:UTF-8:{access_key_file}}}")),
-                        );
-                        data.insert(
-                            MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                            Some(format!("${{file:UTF-8:{secret_key_file}}}")),
-                        );
-                    }
-
-                    data.insert(
-                        MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-                        Some(s3.tls.uses_tls().to_string()),
-                    );
-                    data.insert(
-                        MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-                        Some((s3.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string()),
-                    );
-                }
-
-                for (property_name, property_value) in
-                    kerberos_config_properties(hive, hive_namespace, cluster_info)
-                {
-                    data.insert(property_name.to_string(), Some(property_value.to_string()));
-                }
-
-                // OPA settings
-                if let Some(opa_config) = hive_opa_config {
-                    data.extend(
-                        opa_config
-                            .as_config(&resolved_product_image.product_version)
-                            .into_iter()
-                            .map(|(k, v)| (k, Some(v)))
-                            .collect::<BTreeMap<String, Option<String>>>(),
-                    );
-                }
-
-                // overrides
-                for (property_name, property_value) in config {
-                    data.insert(property_name.to_string(), Some(property_value.to_string()));
-                }
-
-                hive_site_data = to_hadoop_xml(data.iter());
-            }
-            _ => {}
-        }
-    }
-
-    let jvm_sec_props: BTreeMap<String, Option<String>> = role_group_config
-        .get(&PropertyNameKind::File(
-            JVM_SECURITY_PROPERTIES_FILE.to_string(),
-        ))
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(k, v)| (k, Some(v)))
-        .collect();
-
-    let mut cm_builder = ConfigMapBuilder::new();
-
-    cm_builder
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(hive)
-                .name(rolegroup.object_name())
-                .ownerreference_from_resource(hive, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(&build_recommended_labels(
-                    hive,
-                    &resolved_product_image.app_version_label_value,
-                    &rolegroup.role,
-                    &rolegroup.role_group,
-                ))
-                .context(MetadataBuildSnafu)?
-                .build(),
-        )
-        .add_data(HIVE_SITE_XML, hive_site_data)
-        .add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPopertiesSnafu {
-                    rolegroup: rolegroup.role_group.clone(),
-                }
-            })?,
-        );
-
-    if hive.has_kerberos_enabled() && hive.spec.cluster_config.hdfs.is_none() {
-        // if kerberos is activated but we have no HDFS as backend (i.e. S3) then a core-site.xml is
-        // needed to set "hadoop.security.authentication"
-        let mut data = BTreeMap::new();
-        data.insert(
-            "hadoop.security.authentication".to_string(),
-            Some("kerberos".to_string()),
-        );
-        cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(data.iter()));
-    }
-
-    extend_role_group_config_map(rolegroup, &merged_config.logging, &mut cm_builder).context(
-        InvalidLoggingConfigSnafu {
-            cm_name: rolegroup.object_name(),
-        },
-    )?;
-
-    cm_builder
-        .build()
-        .with_context(|_| BuildRoleGroupConfigSnafu {
-            rolegroup: rolegroup.clone(),
-        })
-}
-
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`](`stackable_operator::k8s_openapi::api::core::v1::Service`) (via [`build_rolegroup_headless_service`] and metrics from [`build_rolegroup_metrics_service`]).
-#[allow(clippy::too_many_arguments)]
 fn build_metastore_rolegroup_statefulset(
     hive: &v1alpha1::HiveCluster,
     hive_role: &HiveRole,
-    resolved_product_image: &ResolvedProductImage,
+    cluster: &ValidatedCluster,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HiveCluster>,
-    metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    database_connection_details: &JdbcDatabaseConnectionDetails,
-    s3_connection: Option<&s3::v1alpha1::ConnectionSpec>,
-    merged_config: &MetaStoreConfig,
+    rg: &HiveRoleGroupConfig,
     sa_name: &str,
-    hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Result<StatefulSet> {
+    let resolved_product_image = &cluster.image;
+    let database_connection_details = &cluster.cluster_config.metadata_database_connection_details;
+    let s3_connection = cluster.cluster_config.s3_connection_spec.as_ref();
+    let merged_config = &rg.config;
+    let hive_opa_config = cluster.cluster_config.hive_opa_config.as_ref();
+
     let role = hive.role(hive_role).context(InternalOperatorFailureSnafu)?;
-    let rolegroup = hive
-        .rolegroup(rolegroup_ref)
-        .context(InternalOperatorFailureSnafu)?;
 
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
@@ -784,21 +570,17 @@ fn build_metastore_rolegroup_statefulset(
         );
     database_connection_details.add_to_container(&mut container_builder);
 
-    for (property_name_kind, config) in metastore_config {
-        if property_name_kind == &PropertyNameKind::Env {
-            // overrides
-            for (property_name, property_value) in config {
-                if property_name.is_empty() {
-                    warn!(
-                        property_name,
-                        property_value,
-                        "The env variable had an empty name, not adding it to the container"
-                    );
-                    continue;
-                }
-                container_builder.add_env_var(property_name, property_value);
-            }
+    // Environment variable overrides (highest precedence), merged from role and role group.
+    for (property_name, property_value) in &rg.env_overrides {
+        if property_name.is_empty() {
+            warn!(
+                property_name,
+                property_value,
+                "The env variable had an empty name, not adding it to the container"
+            );
+            continue;
         }
+        container_builder.add_env_var(property_name, property_value);
     }
 
     let mut pod_builder = PodBuilder::new();
@@ -1085,8 +867,8 @@ fn build_metastore_rolegroup_statefulset(
     }
 
     let mut pod_template = pod_builder.build_template();
-    pod_template.merge_from(role.config.pod_overrides.clone());
-    pod_template.merge_from(rolegroup.config.pod_overrides.clone());
+    // Pod overrides were already merged (role <- role group) during validation.
+    pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -1100,7 +882,7 @@ fn build_metastore_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: rolegroup.replicas.map(i32::from),
+            replicas: Some(i32::from(rg.replicas)),
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
