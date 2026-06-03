@@ -42,6 +42,8 @@ mod config;
 mod controller;
 mod crd;
 mod discovery;
+#[allow(dead_code)] // wired up in the validate refactor (a later task)
+mod framework;
 mod kerberos;
 mod listener;
 mod operations;
