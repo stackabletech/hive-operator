@@ -82,6 +82,7 @@ use crate::{
         jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
+    controller::build::discovery,
     crd::{
         APP_NAME, Container, HIVE_PORT, HIVE_PORT_NAME, HiveClusterStatus, HiveRole, METRICS_PORT,
         METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
@@ -89,7 +90,6 @@ use crate::{
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME, v1alpha1,
     },
-    discovery::{self},
     kerberos::{self, add_kerberos_pod_config, kerberos_container_start_commands},
     listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
@@ -188,12 +188,6 @@ pub enum Error {
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
-
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
-    InvalidLoggingConfig {
-        source: crate::product_logging::Error,
-        cm_name: String,
-    },
 
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {

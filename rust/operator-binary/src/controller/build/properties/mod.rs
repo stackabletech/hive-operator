@@ -6,6 +6,7 @@ use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
 
 pub mod core_site;
 pub mod hive_site;
+pub mod logging;
 pub mod security_properties;
 
 /// Resolve user-provided key/value overrides into `(key, value)` pairs, dropping

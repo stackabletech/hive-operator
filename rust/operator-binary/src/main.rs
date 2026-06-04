@@ -41,12 +41,10 @@ mod command;
 mod config;
 mod controller;
 mod crd;
-mod discovery;
 mod framework;
 mod kerberos;
 mod listener;
 mod operations;
-mod product_logging;
 mod service;
 mod webhooks;
 

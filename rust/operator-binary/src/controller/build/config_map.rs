@@ -4,18 +4,23 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE,
     role_utils::RoleGroupRef,
 };
 
 use crate::{
     controller::{
         ValidatedCluster,
-        build::properties::{core_site, hive_site, resolved_overrides, security_properties},
+        build::properties::{
+            core_site, hive_site, logging, resolved_overrides, security_properties,
+        },
         build_recommended_labels,
     },
-    crd::{CORE_SITE_XML, HIVE_SITE_XML, HiveRole, JVM_SECURITY_PROPERTIES_FILE, v1alpha1},
+    crd::{
+        CORE_SITE_XML, HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, HiveRole,
+        JVM_SECURITY_PROPERTIES_FILE, v1alpha1,
+    },
     framework::writer::{to_hadoop_xml, to_java_properties_string},
-    product_logging::extend_role_group_config_map,
 };
 
 #[derive(Debug, Snafu)]
@@ -39,12 +44,6 @@ pub enum Error {
     #[snafu(display("failed to build metadata"))]
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name}"))]
-    InvalidLoggingConfig {
-        source: crate::product_logging::Error,
-        cm_name: String,
     },
 
     #[snafu(display("failed to assemble ConfigMap for {rolegroup}"))]
@@ -114,11 +113,12 @@ pub fn build_metastore_rolegroup_config_map(
         cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(core_site_data.iter()));
     }
 
-    extend_role_group_config_map(rolegroup, &rg.config.logging, &mut cm_builder).context(
-        InvalidLoggingConfigSnafu {
-            cm_name: rolegroup.object_name(),
-        },
-    )?;
+    if let Some(log4j2_properties) = logging::build_log4j2(&rg.config.logging) {
+        cm_builder.add_data(HIVE_METASTORE_LOG4J2_PROPERTIES, log4j2_properties);
+    }
+    if let Some(vector_config) = logging::build_vector_config(rolegroup, &rg.config.logging) {
+        cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
+    }
 
     cm_builder.build().with_context(|_| AssembleSnafu {
         rolegroup: rolegroup.clone(),
