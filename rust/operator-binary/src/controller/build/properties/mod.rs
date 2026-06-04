@@ -19,6 +19,35 @@ pub(crate) fn resolved_overrides(overrides: KeyValueConfigOverrides) -> BTreeMap
         .collect()
 }
 
+/// The names of the Hive config files assembled into the rolegroup `ConfigMap`.
+#[derive(Clone, Copy, Debug, strum::Display)]
+pub enum ConfigFileName {
+    #[strum(serialize = "hive-site.xml")]
+    HiveSite,
+    #[strum(serialize = "core-site.xml")]
+    CoreSite,
+    #[strum(serialize = "security.properties")]
+    Security,
+    #[strum(serialize = "metastore-log4j2.properties")]
+    Log4j2,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_names_match_the_hive_on_disk_names() {
+        assert_eq!(ConfigFileName::HiveSite.to_string(), "hive-site.xml");
+        assert_eq!(ConfigFileName::CoreSite.to_string(), "core-site.xml");
+        assert_eq!(ConfigFileName::Security.to_string(), "security.properties");
+        assert_eq!(
+            ConfigFileName::Log4j2.to_string(),
+            "metastore-log4j2.properties"
+        );
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test_support {
     use std::collections::BTreeMap;

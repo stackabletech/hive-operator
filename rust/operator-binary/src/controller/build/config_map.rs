@@ -12,14 +12,11 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::properties::{
-            core_site, hive_site, logging, resolved_overrides, security_properties,
+            ConfigFileName, core_site, hive_site, logging, resolved_overrides, security_properties,
         },
         build_recommended_labels,
     },
-    crd::{
-        CORE_SITE_XML, HIVE_METASTORE_LOG4J2_PROPERTIES, HIVE_SITE_XML, HiveRole,
-        JVM_SECURITY_PROPERTIES_FILE, v1alpha1,
-    },
+    crd::{HiveRole, v1alpha1},
     framework::writer::{to_hadoop_xml, to_java_properties_string},
 };
 
@@ -31,7 +28,7 @@ pub enum Error {
     #[snafu(display("failed to build hive-site.xml"))]
     BuildHiveSite { source: hive_site::Error },
 
-    #[snafu(display("failed to serialize {JVM_SECURITY_PROPERTIES_FILE}"))]
+    #[snafu(display("failed to serialize {}", ConfigFileName::Security))]
     WriteSecurityProperties {
         source: crate::framework::writer::PropertiesWriterError,
     },
@@ -101,20 +98,26 @@ pub fn build_metastore_rolegroup_config_map(
                 .context(MetadataBuildSnafu)?
                 .build(),
         )
-        .add_data(HIVE_SITE_XML, to_hadoop_xml(hive_site_data.iter()))
         .add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
+            ConfigFileName::HiveSite.to_string(),
+            to_hadoop_xml(hive_site_data.iter()),
+        )
+        .add_data(
+            ConfigFileName::Security.to_string(),
             to_java_properties_string(security_data.iter())
                 .context(WriteSecurityPropertiesSnafu)?,
         );
 
     // core-site.xml is only required when Kerberos is enabled without an HDFS backend.
     if let Some(core_site_data) = core_site::build(&cluster.cluster_config) {
-        cm_builder.add_data(CORE_SITE_XML, to_hadoop_xml(core_site_data.iter()));
+        cm_builder.add_data(
+            ConfigFileName::CoreSite.to_string(),
+            to_hadoop_xml(core_site_data.iter()),
+        );
     }
 
     if let Some(log4j2_properties) = logging::build_log4j2(&rg.config.logging) {
-        cm_builder.add_data(HIVE_METASTORE_LOG4J2_PROPERTIES, log4j2_properties);
+        cm_builder.add_data(ConfigFileName::Log4j2.to_string(), log4j2_properties);
     }
     if let Some(vector_config) = logging::build_vector_config(rolegroup, &rg.config.logging) {
         cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
