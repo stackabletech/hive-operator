@@ -6,6 +6,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::ConfigMap,
     product_logging::framework::VECTOR_CONFIG_FILE,
     role_utils::RoleGroupRef,
+    v2::config_file_writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
 };
 
 use crate::{
@@ -17,7 +18,6 @@ use crate::{
         build_recommended_labels,
     },
     crd::{HiveRole, v1alpha1},
-    framework::writer::{to_hadoop_xml, to_java_properties_string},
 };
 
 #[derive(Debug, Snafu)]
@@ -29,9 +29,7 @@ pub enum Error {
     BuildHiveSite { source: hive_site::Error },
 
     #[snafu(display("failed to serialize {}", ConfigFileName::Security))]
-    WriteSecurityProperties {
-        source: crate::framework::writer::PropertiesWriterError,
-    },
+    WriteSecurityProperties { source: PropertiesWriterError },
 
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
