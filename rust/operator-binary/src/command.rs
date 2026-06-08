@@ -46,20 +46,20 @@ pub fn build_container_command_args(
         ]);
     }
 
-    if let Some(s3) = s3_connection_spec {
-        if let Some(ca_cert_file) = s3.tls.tls_ca_cert_mount_path() {
-            args.push(format!(
+    if let Some(s3) = s3_connection_spec
+        && let Some(ca_cert_file) = s3.tls.tls_ca_cert_mount_path()
+    {
+        args.push(format!(
                 "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_file} --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"
             ));
-        }
     }
 
-    if let Some(opa) = hive_opa_config {
-        if let Some(ca_cert_dir) = opa.tls_ca_cert_mount_path() {
-            args.push(format!(
+    if let Some(opa) = hive_opa_config
+        && let Some(ca_cert_dir) = opa.tls_ca_cert_mount_path()
+    {
+        args.push(format!(
                 "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_dir}/ca.crt --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"
             ));
-        }
     }
 
     // metastore start command
