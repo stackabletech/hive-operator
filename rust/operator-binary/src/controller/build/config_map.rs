@@ -1,6 +1,6 @@
 //! Build the per-rolegroup `ConfigMap` for the Hive metastore.
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -11,20 +11,17 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        ValidatedCluster,
+        HiveRoleGroupConfig, ValidatedCluster,
         build::properties::{
             ConfigFileName, core_site, hive_site, logging, resolved_overrides, security_properties,
         },
         build_recommended_labels,
     },
-    crd::{HiveRole, v1alpha1},
+    crd::v1alpha1,
 };
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("missing rolegroup {role_group} under role metastore"))]
-    MissingRoleGroup { role_group: String },
-
     #[snafu(display("failed to build hive-site.xml"))]
     BuildHiveSite { source: hive_site::Error },
 
@@ -55,16 +52,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
     rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-    owner: &v1alpha1::HiveCluster,
+    rg: &HiveRoleGroupConfig,
 ) -> Result<ConfigMap> {
-    let rg = cluster
-        .role_group_configs
-        .get(&HiveRole::MetaStore)
-        .and_then(|groups| groups.get(&rolegroup.role_group))
-        .with_context(|| MissingRoleGroupSnafu {
-            role_group: rolegroup.role_group.clone(),
-        })?;
-
     // hive-site.xml
     let hive_site_overrides = resolved_overrides(rg.config_overrides.hive_site_xml.clone());
     let hive_site_data = hive_site::build(
@@ -83,12 +72,12 @@ pub fn build_metastore_rolegroup_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(owner)
+                .name_and_namespace(cluster)
                 .name(rolegroup.object_name())
-                .ownerreference_from_resource(owner, None, Some(true))
+                .ownerreference_from_resource(cluster, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(&build_recommended_labels(
-                    owner,
+                    cluster,
                     &cluster.image.app_version_label_value,
                     &rolegroup.role,
                     &rolegroup.role_group,

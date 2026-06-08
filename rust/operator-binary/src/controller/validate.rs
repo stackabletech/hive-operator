@@ -6,7 +6,10 @@ use stackable_operator::{
     kube::ResourceExt as _,
     role_utils::{GenericRoleConfig, JavaCommonConfig},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::operator::ClusterName,
+    v2::types::{
+        kubernetes::{NamespaceName, Uid},
+        operator::ClusterName,
+    },
 };
 
 use crate::{
@@ -38,6 +41,22 @@ pub enum Error {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
+    #[snafu(display("object defines no namespace"))]
+    ObjectHasNoNamespace,
+
+    #[snafu(display("invalid cluster namespace"))]
+    InvalidNamespace {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
+    #[snafu(display("object has no uid"))]
+    ObjectHasNoUid,
+
+    #[snafu(display("invalid cluster uid"))]
+    InvalidUid {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
     #[snafu(display("failed to resolve and merge config for role group {role_group}"))]
     FailedToResolveConfig {
         source: stackable_operator::config::fragment::ValidationError,
@@ -53,10 +72,11 @@ pub enum Error {
 pub fn validate_cluster(
     hive: &v1alpha1::HiveCluster,
     image_repository: &str,
-    namespace: &str,
     cluster_info: &KubernetesClusterInfo,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
+    let namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
+
     let image = hive
         .spec
         .image
@@ -121,21 +141,28 @@ pub fn validate_cluster(
     };
 
     // Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
-    let kerberos_config = kerberos_config_properties(hive, namespace, cluster_info)
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+    let kerberos_config = if hive.has_kerberos_enabled() {
+        kerberos_config_properties(&hive.name_any(), &namespace, cluster_info)
+    } else {
+        BTreeMap::new()
+    };
 
     // A `core-site.xml` with `hadoop.security.authentication=kerberos` is required when
     // Kerberos is enabled and there is no HDFS backend (i.e. S3).
     let needs_kerberos_core_site =
         hive.has_kerberos_enabled() && hive.spec.cluster_config.hdfs.is_none();
 
-    Ok(ValidatedCluster {
-        name: ClusterName::from_str(&hive.name_any()).context(InvalidClusterNameSnafu)?,
+    let name = ClusterName::from_str(&hive.name_any()).context(InvalidClusterNameSnafu)?;
+    let namespace = NamespaceName::from_str(&namespace).context(InvalidNamespaceSnafu)?;
+    let uid = Uid::from_str(&hive.uid().context(ObjectHasNoUidSnafu)?).context(InvalidUidSnafu)?;
+
+    Ok(ValidatedCluster::new(
+        name,
+        namespace,
+        uid,
         image,
         role_config,
-        cluster_config: ValidatedClusterConfig {
+        ValidatedClusterConfig {
             metadata_database_connection_details,
             connection_driver,
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
@@ -144,5 +171,5 @@ pub fn validate_cluster(
             needs_kerberos_core_site,
         },
         role_group_configs,
-    })
+    ))
 }

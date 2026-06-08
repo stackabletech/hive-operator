@@ -72,15 +72,10 @@ pub fn add_kerberos_pod_config(
 }
 
 pub fn kerberos_config_properties(
-    hive: &v1alpha1::HiveCluster,
+    hive_name: &str,
     hive_namespace: &str,
     cluster_info: &KubernetesClusterInfo,
 ) -> BTreeMap<String, String> {
-    if !hive.has_kerberos_enabled() {
-        return BTreeMap::new();
-    }
-
-    let hive_name = hive.name_any();
     let cluster_domain = &cluster_info.cluster_domain;
     let principal_host_part =
         format!("{hive_name}.{hive_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}");

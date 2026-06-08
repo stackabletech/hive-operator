@@ -9,7 +9,7 @@ use std::{collections::BTreeMap, hash::Hasher, sync::Arc};
 use const_format::concatcp;
 use fnv::FnvHasher;
 use indoc::formatdoc;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         self,
@@ -48,6 +48,7 @@ use stackable_operator::{
     },
     kube::{
         Resource, ResourceExt,
+        api::ObjectMeta,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
@@ -115,9 +116,6 @@ pub struct Ctx {
 #[strum_discriminants(derive(strum::IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("failed to apply Service for {rolegroup}"))]
     ApplyRoleGroupService {
         source: stackable_operator::cluster_resources::Error,
@@ -303,16 +301,80 @@ pub type HiveRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
 
 /// The validated cluster: the typed, merged result of the validate step. Subsequent
 /// build steps consume this struct instead of re-reading the raw CRD.
+///
+/// The cluster identity (`name`, `namespace`, `uid`) is captured here so that owner
+/// references for child objects can be built straight from this struct
+/// (via its [`Resource`] impl) without threading the raw [`v1alpha1::HiveCluster`]
+/// around. This mirrors the opensearch-operator's `ValidatedCluster`.
 pub struct ValidatedCluster {
-    /// The validated cluster name. Part of the validated cluster identity (mirrors the
-    /// shared `v2` framework / trino-operator); consumed as more logic migrates onto
-    /// `ValidatedCluster`.
-    #[allow(dead_code)]
+    /// `ObjectMeta` carrying `name`, `namespace` and `uid`, so this struct can act as the
+    /// owner [`Resource`] for child objects.
+    metadata: ObjectMeta,
     pub name: stackable_operator::v2::types::operator::ClusterName,
+    pub namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
     pub image: ResolvedProductImage,
     pub role_config: Option<ValidatedRoleConfig>,
     pub cluster_config: ValidatedClusterConfig,
     pub role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
+}
+
+impl ValidatedCluster {
+    pub fn new(
+        name: stackable_operator::v2::types::operator::ClusterName,
+        namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
+        uid: stackable_operator::v2::types::kubernetes::Uid,
+        image: ResolvedProductImage,
+        role_config: Option<ValidatedRoleConfig>,
+        cluster_config: ValidatedClusterConfig,
+        role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
+    ) -> Self {
+        Self {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                namespace: Some(namespace.to_string()),
+                uid: Some(uid.to_string()),
+                ..ObjectMeta::default()
+            },
+            name,
+            namespace,
+            image,
+            role_config,
+            cluster_config,
+            role_group_configs,
+        }
+    }
+}
+
+/// Lets [`ValidatedCluster`] stand in for the raw [`v1alpha1::HiveCluster`] when building owner
+/// references and metadata for child objects. Kind/group/version are delegated to the CRD; the
+/// `metadata` (name, namespace, uid) is captured during validation.
+impl Resource for ValidatedCluster {
+    type DynamicType = <v1alpha1::HiveCluster as Resource>::DynamicType;
+    type Scope = <v1alpha1::HiveCluster as Resource>::Scope;
+
+    fn kind(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HiveCluster::kind(dt)
+    }
+
+    fn group(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HiveCluster::group(dt)
+    }
+
+    fn version(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HiveCluster::version(dt)
+    }
+
+    fn plural(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HiveCluster::plural(dt)
+    }
+
+    fn meta(&self) -> &ObjectMeta {
+        &self.metadata
+    }
+
+    fn meta_mut(&mut self) -> &mut ObjectMeta {
+        &mut self.metadata
+    }
 }
 
 /// Cluster-wide settings resolved during validation and dereferencing.
@@ -350,7 +412,6 @@ pub async fn reconcile_hive(
         .map_err(error_boundary::InvalidObject::clone)
         .context(InvalidHiveClusterSnafu)?;
     let client = &ctx.client;
-    let hive_namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     let dereferenced_objects = crate::controller::dereference::dereference(client, hive)
         .await
@@ -359,7 +420,6 @@ pub async fn reconcile_hive(
     let validated_cluster = validate::validate_cluster(
         hive,
         &ctx.operator_environment.image_repository,
-        &hive_namespace,
         &client.kubernetes_cluster_info,
         dereferenced_objects,
     )
@@ -411,7 +471,7 @@ pub async fn reconcile_hive(
             let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
                 &validated_cluster,
                 &rolegroup,
-                hive,
+                rg,
             )
             .with_context(|_| BuildRoleGroupConfigMapSnafu {
                 rolegroup: rolegroup.clone(),
@@ -464,7 +524,7 @@ pub async fn reconcile_hive(
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    if let Some(role_config) = validated_cluster.role_config {
+    if let Some(role_config) = &validated_cluster.role_config {
         add_pdbs(
             &role_config.pdb,
             hive,
@@ -489,8 +549,7 @@ pub async fn reconcile_hive(
         )?;
 
         for discovery_cm in discovery::build_discovery_configmaps(
-            hive,
-            hive,
+            &validated_cluster,
             HiveRole::MetaStore,
             &validated_cluster.image,
             None,

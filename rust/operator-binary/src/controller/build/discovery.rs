@@ -1,24 +1,24 @@
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
     crd::listener::v1alpha1::Listener,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::{Resource, runtime::reflector::ObjectRef},
+    kube::runtime::reflector::ObjectRef,
 };
 
 use crate::{
-    controller::build_recommended_labels,
+    controller::{ValidatedCluster, build_recommended_labels},
     crd::{HiveRole, v1alpha1},
     listener::build_listener_connection_string,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object is missing metadata to build owner reference {hive}"))]
+    #[snafu(display("object is missing metadata to build owner reference {obj_ref}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
-        hive: ObjectRef<v1alpha1::HiveCluster>,
+        obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
 
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
@@ -26,8 +26,6 @@ pub enum Error {
         source: stackable_operator::builder::configmap::Error,
         obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
-    #[snafu(display("invalid owner name for discovery ConfigMap"))]
-    InvalidOwnerNameForDiscoveryConfigMap,
 
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
@@ -37,26 +35,23 @@ pub enum Error {
     ListenerConfiguration { source: crate::listener::Error },
 }
 
+/// An [`ObjectRef`] back to the owning [`v1alpha1::HiveCluster`], reconstructed from the validated
+/// cluster identity for use in error messages.
+fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveCluster> {
+    ObjectRef::new(cluster.name.as_ref()).within(cluster.namespace.as_ref())
+}
+
 /// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
 /// scenarios.
 pub async fn build_discovery_configmaps(
-    owner: &impl Resource<DynamicType = ()>,
-    hive: &v1alpha1::HiveCluster,
+    cluster: &ValidatedCluster,
     hive_role: HiveRole,
     resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
     listener: Listener,
 ) -> Result<Vec<ConfigMap>, Error> {
-    let name = owner
-        .meta()
-        .name
-        .as_ref()
-        .context(InvalidOwnerNameForDiscoveryConfigMapSnafu)?;
-
     let discovery_configmaps = vec![build_discovery_configmap(
-        name,
-        owner,
-        hive,
+        cluster,
         hive_role,
         resolved_product_image,
         chroot,
@@ -71,9 +66,7 @@ pub async fn build_discovery_configmaps(
 ///
 /// Data is coming from the [`Listener`] objects. Connection string is only build by [`build_listener_connection_string`].
 fn build_discovery_configmap(
-    name: &str,
-    owner: &impl Resource<DynamicType = ()>,
-    hive: &v1alpha1::HiveCluster,
+    cluster: &ValidatedCluster,
     hive_role: HiveRole,
     resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
@@ -83,14 +76,13 @@ fn build_discovery_configmap(
 
     discovery_configmap.metadata(
         ObjectMetaBuilder::new()
-            .name_and_namespace(hive)
-            .name(name)
-            .ownerreference_from_resource(owner, None, Some(true))
+            .name_and_namespace(cluster)
+            .ownerreference_from_resource(cluster, None, Some(true))
             .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                hive: ObjectRef::from_obj(hive),
+                obj_ref: cluster_object_ref(cluster),
             })?
             .with_recommended_labels(&build_recommended_labels(
-                hive,
+                cluster,
                 &resolved_product_image.app_version_label_value,
                 &hive_role.to_string(),
                 "discovery",
@@ -108,6 +100,6 @@ fn build_discovery_configmap(
     discovery_configmap
         .build()
         .with_context(|_| DiscoveryConfigMapSnafu {
-            obj_ref: ObjectRef::from_obj(hive),
+            obj_ref: cluster_object_ref(cluster),
         })
 }
