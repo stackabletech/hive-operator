@@ -1,7 +1,6 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
-    commons::product_image_selection::ResolvedProductImage,
     crd::listener::v1alpha1::Listener,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::runtime::reflector::ObjectRef,
@@ -46,17 +45,11 @@ fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveClu
 pub async fn build_discovery_configmaps(
     cluster: &ValidatedCluster,
     hive_role: HiveRole,
-    resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
     listener: Listener,
 ) -> Result<Vec<ConfigMap>, Error> {
-    let discovery_configmaps = vec![build_discovery_configmap(
-        cluster,
-        hive_role,
-        resolved_product_image,
-        chroot,
-        listener,
-    )?];
+    let discovery_configmaps =
+        vec![build_discovery_configmap(cluster, hive_role, chroot, listener)?];
 
     Ok(discovery_configmaps)
 }
@@ -68,7 +61,6 @@ pub async fn build_discovery_configmaps(
 fn build_discovery_configmap(
     cluster: &ValidatedCluster,
     hive_role: HiveRole,
-    resolved_product_image: &ResolvedProductImage,
     chroot: Option<&str>,
     listener: Listener,
 ) -> Result<ConfigMap, Error> {
@@ -83,7 +75,7 @@ fn build_discovery_configmap(
             })?
             .with_recommended_labels(&build_recommended_labels(
                 cluster,
-                &resolved_product_image.app_version_label_value,
+                &cluster.image.app_version_label_value,
                 &hive_role.to_string(),
                 "discovery",
             ))

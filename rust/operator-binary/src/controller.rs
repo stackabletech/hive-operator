@@ -551,7 +551,6 @@ pub async fn reconcile_hive(
         for discovery_cm in discovery::build_discovery_configmaps(
             &validated_cluster,
             HiveRole::MetaStore,
-            &validated_cluster.image,
             None,
             listener,
         )
