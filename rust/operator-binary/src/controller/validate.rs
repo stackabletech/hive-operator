@@ -59,7 +59,7 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role group {role_group}"))]
     FailedToResolveConfig {
-        source: stackable_operator::config::fragment::ValidationError,
+        source: crate::framework::role_utils::Error,
         role_group: String,
     },
 

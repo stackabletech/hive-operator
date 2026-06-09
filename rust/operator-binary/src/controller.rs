@@ -74,7 +74,6 @@ use stackable_operator::{
     utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::EnumDiscriminants;
-use tracing::warn;
 
 use crate::{
     OPERATOR_NAME,
@@ -632,17 +631,8 @@ fn build_metastore_rolegroup_statefulset(
     database_connection_details.add_to_container(&mut container_builder);
 
     // Environment variable overrides (highest precedence), merged from role and role group.
-    for (property_name, property_value) in &rg.env_overrides {
-        if property_name.is_empty() {
-            warn!(
-                property_name,
-                property_value,
-                "The env variable had an empty name, not adding it to the container"
-            );
-            continue;
-        }
-        container_builder.add_env_var(property_name, property_value);
-    }
+    // Names are validated during cluster validation, so they can be applied directly here.
+    container_builder.add_env_vars(rg.env_overrides.clone());
 
     let mut pod_builder = PodBuilder::new();
 
