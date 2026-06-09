@@ -21,6 +21,22 @@ const DEFAULT_WAREHOUSE_DIR: &str = "/stackable/warehouse";
 const HIVE_METASTORE_PORT: &str = "hive.metastore.port";
 const DEFAULT_HIVE_METASTORE_PORT: &str = "9083";
 
+// Metastore property keys.
+const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
+const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
+const CONNECTION_URL: &str = "javax.jdo.option.ConnectionURL";
+const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
+const METASTORE_METRICS_ENABLED: &str = "hive.metastore.metrics.enabled";
+const METASTORE_WAREHOUSE_DIR: &str = "hive.metastore.warehouse.dir";
+
+// S3 property keys.
+const S3_ACCESS_KEY: &str = "fs.s3a.access.key";
+const S3_ENDPOINT: &str = "fs.s3a.endpoint";
+const S3_PATH_STYLE_ACCESS: &str = "fs.s3a.path.style.access";
+const S3_REGION_NAME: &str = "fs.s3a.endpoint.region";
+const S3_SECRET_KEY: &str = "fs.s3a.secret.key";
+const S3_SSL_ENABLED: &str = "fs.s3a.connection.ssl.enabled";
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("failed to configure S3 connection"))]
@@ -49,62 +65,47 @@ pub fn build(
 
     // 2. Automatic / operator-injected.
     data.insert(
-        MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
+        METASTORE_WAREHOUSE_DIR.to_string(),
         DEFAULT_WAREHOUSE_DIR.to_string(),
     );
-    data.insert(
-        MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-        "true".to_string(),
-    );
+    data.insert(METASTORE_METRICS_ENABLED.to_string(), "true".to_string());
 
     data.insert(
-        MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
+        CONNECTION_DRIVER_NAME.to_string(),
         cluster_config.connection_driver.clone(),
     );
     data.insert(
-        MetaStoreConfig::CONNECTION_URL.to_string(),
+        CONNECTION_URL.to_string(),
         database_connection_details.connection_url.to_string(),
     );
     if let Some(EnvVar { name, .. }) = &database_connection_details.username_env {
-        data.insert(
-            MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-            format!("${{env:{name}}}"),
-        );
+        data.insert(CONNECTION_USER_NAME.to_string(), format!("${{env:{name}}}"));
     }
     if let Some(EnvVar { name, .. }) = &database_connection_details.password_env {
-        data.insert(
-            MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-            format!("${{env:{name}}}"),
-        );
+        data.insert(CONNECTION_PASSWORD.to_string(), format!("${{env:{name}}}"));
     }
 
     if let Some(s3) = cluster_config.s3_connection_spec.as_ref() {
         data.insert(
-            MetaStoreConfig::S3_ENDPOINT.to_string(),
+            S3_ENDPOINT.to_string(),
             s3.endpoint()
                 .context(ConfigureS3ConnectionSnafu)?
                 .to_string(),
         );
-        data.insert(
-            MetaStoreConfig::S3_REGION_NAME.to_string(),
-            s3.region.name.clone(),
-        );
+        data.insert(S3_REGION_NAME.to_string(), s3.region.name.clone());
         if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
             data.insert(
-                MetaStoreConfig::S3_ACCESS_KEY.to_string(),
+                S3_ACCESS_KEY.to_string(),
                 format!("${{file:UTF-8:{access_key_file}}}"),
             );
             data.insert(
-                MetaStoreConfig::S3_SECRET_KEY.to_string(),
+                S3_SECRET_KEY.to_string(),
                 format!("${{file:UTF-8:{secret_key_file}}}"),
             );
         }
+        data.insert(S3_SSL_ENABLED.to_string(), s3.tls.uses_tls().to_string());
         data.insert(
-            MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-            s3.tls.uses_tls().to_string(),
-        );
-        data.insert(
-            MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
+            S3_PATH_STYLE_ACCESS.to_string(),
             (s3.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string(),
         );
     }
@@ -120,10 +121,7 @@ pub fn build(
 
     // 3. Spec: warehouse dir from the merged CRD config (overrides the default).
     if let Some(warehouse_dir) = &merged_config.warehouse_dir {
-        data.insert(
-            MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-            warehouse_dir.clone(),
-        );
+        data.insert(METASTORE_WAREHOUSE_DIR.to_string(), warehouse_dir.clone());
     }
 
     // 4. User overrides (highest precedence).

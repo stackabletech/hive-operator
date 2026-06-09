@@ -84,9 +84,6 @@ pub type HiveRoleGroupType =
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("no metastore role configuration provided"))]
-    MissingMetaStoreRole,
-
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
@@ -155,7 +152,7 @@ pub mod versioned {
         #[serde(flatten)]
         pub common: GenericRoleConfig,
 
-        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the coordinator.
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the metastore.
         #[serde(default = "metastore_default_listener_class")]
         pub listener_class: String,
     }
@@ -467,21 +464,6 @@ pub struct MetaStoreConfig {
 }
 
 impl MetaStoreConfig {
-    pub const CONNECTION_DRIVER_NAME: &'static str = "javax.jdo.option.ConnectionDriverName";
-    pub const CONNECTION_PASSWORD: &'static str = "javax.jdo.option.ConnectionPassword";
-    // metastore
-    pub const CONNECTION_URL: &'static str = "javax.jdo.option.ConnectionURL";
-    pub const CONNECTION_USER_NAME: &'static str = "javax.jdo.option.ConnectionUserName";
-    pub const METASTORE_METRICS_ENABLED: &'static str = "hive.metastore.metrics.enabled";
-    pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
-    pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
-    // S3
-    pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
-    pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
-    pub const S3_REGION_NAME: &'static str = "fs.s3a.endpoint.region";
-    pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
-    pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
-
     pub(crate) fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
             warehouse_dir: None,

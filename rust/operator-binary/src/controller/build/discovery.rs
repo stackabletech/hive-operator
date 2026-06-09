@@ -48,8 +48,9 @@ pub async fn build_discovery_configmaps(
     chroot: Option<&str>,
     listener: Listener,
 ) -> Result<Vec<ConfigMap>, Error> {
-    let discovery_configmaps =
-        vec![build_discovery_configmap(cluster, hive_role, chroot, listener)?];
+    let discovery_configmaps = vec![build_discovery_configmap(
+        cluster, hive_role, chroot, listener,
+    )?];
 
     Ok(discovery_configmaps)
 }

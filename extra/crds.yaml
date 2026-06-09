@@ -881,7 +881,7 @@ spec:
                     properties:
                       listenerClass:
                         default: cluster-internal
-                        description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the coordinator.
+                        description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the metastore.
                         type: string
                       podDisruptionBudget:
                         default:

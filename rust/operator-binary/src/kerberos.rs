@@ -79,22 +79,20 @@ pub fn kerberos_config_properties(
     let cluster_domain = &cluster_info.cluster_domain;
     let principal_host_part =
         format!("{hive_name}.{hive_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}");
+    let metastore_principal = format!(
+        "{service_name}/{principal_host_part}",
+        service_name = HiveRole::MetaStore.kerberos_service_name()
+    );
 
     BTreeMap::from([
         // Kerberos settings
         (
             "hive.metastore.kerberos.principal".to_string(),
-            format!(
-                "{service_name}/{principal_host_part}",
-                service_name = HiveRole::MetaStore.kerberos_service_name()
-            ),
+            metastore_principal.clone(),
         ),
         (
             "hive.metastore.client.kerberos.principal".to_string(),
-            format!(
-                "{service_name}/{principal_host_part}",
-                service_name = HiveRole::MetaStore.kerberos_service_name()
-            ),
+            metastore_principal,
         ),
         (
             "hive.metastore.kerberos.keytab.file".to_string(),
