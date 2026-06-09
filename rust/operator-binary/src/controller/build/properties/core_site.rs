@@ -11,12 +11,12 @@ use crate::controller::ValidatedClusterConfig;
 const HADOOP_SECURITY_AUTHENTICATION: &str = "hadoop.security.authentication";
 
 /// Returns the `core-site.xml` properties, or `None` if the file should be omitted.
-pub fn build(cluster_config: &ValidatedClusterConfig) -> Option<BTreeMap<String, Option<String>>> {
+pub fn build(cluster_config: &ValidatedClusterConfig) -> Option<BTreeMap<String, String>> {
     if cluster_config.needs_kerberos_core_site {
         let mut data = BTreeMap::new();
         data.insert(
             HADOOP_SECURITY_AUTHENTICATION.to_string(),
-            Some("kerberos".to_string()),
+            "kerberos".to_string(),
         );
         Some(data)
     } else {
@@ -42,7 +42,7 @@ mod tests {
         let data = build(&cluster_config).expect("core-site present");
         assert_eq!(
             data.get("hadoop.security.authentication"),
-            Some(&Some("kerberos".to_string()))
+            Some(&"kerberos".to_string())
         );
     }
 }

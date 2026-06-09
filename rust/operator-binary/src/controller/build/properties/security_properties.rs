@@ -15,25 +15,25 @@ const DEFAULT_NETWORKADDRESS_CACHE_NEGATIVE_TTL: &str = "0";
 /// Build the `security.properties` key/value pairs.
 ///
 /// `overrides` are the resolved user overrides for `security.properties`
-/// (highest precedence). Values are wrapped in `Some` for the writer.
-pub fn build(overrides: BTreeMap<String, String>) -> BTreeMap<String, Option<String>> {
-    let mut props: BTreeMap<String, Option<String>> = BTreeMap::new();
+/// (highest precedence).
+pub fn build(overrides: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    let mut props: BTreeMap<String, String> = BTreeMap::new();
 
     // 1. Defaults (recommended values for the required properties).
     props.insert(
         NETWORKADDRESS_CACHE_TTL.to_string(),
-        Some(DEFAULT_NETWORKADDRESS_CACHE_TTL.to_string()),
+        DEFAULT_NETWORKADDRESS_CACHE_TTL.to_string(),
     );
     props.insert(
         NETWORKADDRESS_CACHE_NEGATIVE_TTL.to_string(),
-        Some(DEFAULT_NETWORKADDRESS_CACHE_NEGATIVE_TTL.to_string()),
+        DEFAULT_NETWORKADDRESS_CACHE_NEGATIVE_TTL.to_string(),
     );
 
     // 2. No automatic operator-injected values.
     // 3. No merged_config contribution.
     // 4. User overrides (highest precedence).
     for (k, v) in overrides {
-        props.insert(k, Some(v));
+        props.insert(k, v);
     }
 
     props
@@ -48,11 +48,11 @@ mod tests {
         let props = build(BTreeMap::new());
         assert_eq!(
             props.get("networkaddress.cache.ttl"),
-            Some(&Some("30".to_string()))
+            Some(&"30".to_string())
         );
         assert_eq!(
             props.get("networkaddress.cache.negative.ttl"),
-            Some(&Some("0".to_string()))
+            Some(&"0".to_string())
         );
     }
 
@@ -64,7 +64,7 @@ mod tests {
         let props = build(overrides);
         assert_eq!(
             props.get("networkaddress.cache.ttl"),
-            Some(&Some("60".to_string()))
+            Some(&"60".to_string())
         );
     }
 
@@ -74,9 +74,6 @@ mod tests {
             .into_iter()
             .collect();
         let props = build(overrides);
-        assert_eq!(
-            props.get("custom.security.prop"),
-            Some(&Some("x".to_string()))
-        );
+        assert_eq!(props.get("custom.security.prop"), Some(&"x".to_string()));
     }
 }

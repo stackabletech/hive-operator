@@ -31,113 +31,104 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Build the `hive-site.xml` key/value pairs. Values are `Option` so the writer
-/// can skip unset entries (no `None` is produced here, but the type matches the
-/// writer's iterator interface).
+/// Build the `hive-site.xml` key/value pairs.
 pub fn build(
     cluster_config: &ValidatedClusterConfig,
     product_version: &str,
     merged_config: &MetaStoreConfig,
     overrides: BTreeMap<String, String>,
-) -> Result<BTreeMap<String, Option<String>>> {
+) -> Result<BTreeMap<String, String>> {
     let database_connection_details = &cluster_config.metadata_database_connection_details;
-    let mut data: BTreeMap<String, Option<String>> = BTreeMap::new();
+    let mut data: BTreeMap<String, String> = BTreeMap::new();
 
     // 1. Defaults (required product-config property `hive.metastore.port`).
     data.insert(
         HIVE_METASTORE_PORT.to_string(),
-        Some(DEFAULT_HIVE_METASTORE_PORT.to_string()),
+        DEFAULT_HIVE_METASTORE_PORT.to_string(),
     );
 
     // 2. Automatic / operator-injected.
     data.insert(
         MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-        Some(DEFAULT_WAREHOUSE_DIR.to_string()),
+        DEFAULT_WAREHOUSE_DIR.to_string(),
     );
     data.insert(
         MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-        Some("true".to_string()),
+        "true".to_string(),
     );
 
     data.insert(
         MetaStoreConfig::CONNECTION_DRIVER_NAME.to_string(),
-        Some(cluster_config.connection_driver.clone()),
+        cluster_config.connection_driver.clone(),
     );
     data.insert(
         MetaStoreConfig::CONNECTION_URL.to_string(),
-        Some(database_connection_details.connection_url.to_string()),
+        database_connection_details.connection_url.to_string(),
     );
     if let Some(EnvVar { name, .. }) = &database_connection_details.username_env {
         data.insert(
             MetaStoreConfig::CONNECTION_USER_NAME.to_string(),
-            Some(format!("${{env:{name}}}")),
+            format!("${{env:{name}}}"),
         );
     }
     if let Some(EnvVar { name, .. }) = &database_connection_details.password_env {
         data.insert(
             MetaStoreConfig::CONNECTION_PASSWORD.to_string(),
-            Some(format!("${{env:{name}}}")),
+            format!("${{env:{name}}}"),
         );
     }
 
     if let Some(s3) = cluster_config.s3_connection_spec.as_ref() {
         data.insert(
             MetaStoreConfig::S3_ENDPOINT.to_string(),
-            Some(
-                s3.endpoint()
-                    .context(ConfigureS3ConnectionSnafu)?
-                    .to_string(),
-            ),
+            s3.endpoint()
+                .context(ConfigureS3ConnectionSnafu)?
+                .to_string(),
         );
         data.insert(
             MetaStoreConfig::S3_REGION_NAME.to_string(),
-            Some(s3.region.name.clone()),
+            s3.region.name.clone(),
         );
         if let Some((access_key_file, secret_key_file)) = s3.credentials_mount_paths() {
             data.insert(
                 MetaStoreConfig::S3_ACCESS_KEY.to_string(),
-                Some(format!("${{file:UTF-8:{access_key_file}}}")),
+                format!("${{file:UTF-8:{access_key_file}}}"),
             );
             data.insert(
                 MetaStoreConfig::S3_SECRET_KEY.to_string(),
-                Some(format!("${{file:UTF-8:{secret_key_file}}}")),
+                format!("${{file:UTF-8:{secret_key_file}}}"),
             );
         }
         data.insert(
             MetaStoreConfig::S3_SSL_ENABLED.to_string(),
-            Some(s3.tls.uses_tls().to_string()),
+            s3.tls.uses_tls().to_string(),
         );
         data.insert(
             MetaStoreConfig::S3_PATH_STYLE_ACCESS.to_string(),
-            Some((s3.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string()),
+            (s3.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string(),
         );
     }
 
     // Kerberos entries (resolved during validation; empty when Kerberos is disabled).
     for (name, value) in &cluster_config.kerberos_config {
-        data.insert(name.clone(), Some(value.clone()));
+        data.insert(name.clone(), value.clone());
     }
 
     if let Some(opa_config) = cluster_config.hive_opa_config.as_ref() {
-        data.extend(
-            opa_config
-                .as_config(product_version)
-                .into_iter()
-                .map(|(k, v)| (k, Some(v))),
-        );
+        data.extend(opa_config.as_config(product_version));
     }
 
     // 3. Spec: warehouse dir from the merged CRD config (overrides the default).
     if let Some(warehouse_dir) = &merged_config.warehouse_dir {
         data.insert(
             MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-            Some(warehouse_dir.clone()),
+            warehouse_dir.clone(),
         );
     }
 
     // 4. User overrides (highest precedence).
     for (k, v) in overrides {
-        data.insert(k, Some(v));
+        data.insert(k, v);
     }
 
     Ok(data)
@@ -156,17 +147,14 @@ mod tests {
         let data =
             build(&cluster_config, "4.0.0", &merged, BTreeMap::new()).expect("build hive-site");
 
-        assert_eq!(
-            data.get("hive.metastore.port"),
-            Some(&Some("9083".to_string()))
-        );
+        assert_eq!(data.get("hive.metastore.port"), Some(&"9083".to_string()));
         assert_eq!(
             data.get("hive.metastore.metrics.enabled"),
-            Some(&Some("true".to_string()))
+            Some(&"true".to_string())
         );
         assert_eq!(
             data.get("hive.metastore.warehouse.dir"),
-            Some(&Some("/stackable/warehouse".to_string()))
+            Some(&"/stackable/warehouse".to_string())
         );
         assert!(data.contains_key("javax.jdo.option.ConnectionDriverName"));
         // No env credentials for an embedded Derby database.
@@ -186,7 +174,7 @@ mod tests {
 
         assert_eq!(
             data.get("hive.metastore.warehouse.dir"),
-            Some(&Some("/custom/warehouse".to_string()))
+            Some(&"/custom/warehouse".to_string())
         );
     }
 
@@ -200,9 +188,6 @@ mod tests {
 
         let data = build(&cluster_config, "4.0.0", &merged, overrides).expect("build hive-site");
 
-        assert_eq!(
-            data.get("hive.metastore.port"),
-            Some(&Some("1234".to_string()))
-        );
+        assert_eq!(data.get("hive.metastore.port"), Some(&"1234".to_string()));
     }
 }
