@@ -12,9 +12,7 @@ use stackable_operator::{
 use crate::{
     controller::{
         HiveRoleGroupConfig, ValidatedCluster,
-        build::properties::{
-            ConfigFileName, core_site, hive_site, logging, resolved_overrides, security_properties,
-        },
+        build::properties::{ConfigFileName, core_site, hive_site, logging, security_properties},
         build_recommended_labels,
     },
     crd::v1alpha1,
@@ -55,7 +53,7 @@ pub fn build_metastore_rolegroup_config_map(
     rg: &HiveRoleGroupConfig,
 ) -> Result<ConfigMap> {
     // hive-site.xml
-    let hive_site_overrides = resolved_overrides(rg.config_overrides.hive_site_xml.clone());
+    let hive_site_overrides = rg.config_overrides.hive_site_xml.overrides.clone();
     let hive_site_data = hive_site::build(
         &cluster.cluster_config,
         &cluster.image.product_version,
@@ -65,7 +63,7 @@ pub fn build_metastore_rolegroup_config_map(
     .context(BuildHiveSiteSnafu)?;
 
     // security.properties
-    let security_overrides = resolved_overrides(rg.config_overrides.security_properties.clone());
+    let security_overrides = rg.config_overrides.security_properties.overrides.clone();
     let security_data = security_properties::build(security_overrides);
 
     let mut cm_builder = ConfigMapBuilder::new();
