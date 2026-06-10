@@ -777,12 +777,12 @@ fn build_metastore_rolegroup_statefulset(
 
     // TODO: refactor this when CRD versioning is in place
     // Warn if the capacity field has been set to anything other than 0Mi
-    if let Some(Quantity(capacity)) = merged_config.resources.storage.data.capacity.as_ref() {
-        if capacity != &"0Mi".to_string() {
-            tracing::warn!(
-                "The 'storage' CRD property is set to [{capacity}]. This field is not used and will be removed in a future release."
-            );
-        }
+    if let Some(Quantity(capacity)) = merged_config.resources.storage.data.capacity.as_ref()
+        && capacity != &"0Mi".to_string()
+    {
+        tracing::warn!(
+            "The 'storage' CRD property is set to [{capacity}]. This field is not used and will be removed in a future release."
+        );
     }
 
     let recommended_object_labels = build_recommended_labels(
