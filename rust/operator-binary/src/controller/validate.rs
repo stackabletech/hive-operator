@@ -1,15 +1,11 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
-    kube::ResourceExt as _,
     role_utils::{GenericRoleConfig, JavaCommonConfig},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::{
-        kubernetes::{NamespaceName, Uid},
-        operator::ClusterName,
-    },
+    v2::controller_utils::{get_cluster_name, get_namespace, get_uid},
 };
 
 use crate::{
@@ -36,25 +32,19 @@ pub enum Error {
     #[snafu(display("object defines no metastore role"))]
     NoMetaStoreRole,
 
-    #[snafu(display("invalid cluster name"))]
-    InvalidClusterName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to resolve cluster name"))]
+    ResolveClusterName {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
-
-    #[snafu(display("invalid cluster namespace"))]
-    InvalidNamespace {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to resolve namespace"))]
+    ResolveNamespace {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("object has no uid"))]
-    ObjectHasNoUid,
-
-    #[snafu(display("invalid cluster uid"))]
-    InvalidUid {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to resolve uid"))]
+    ResolveUid {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
     #[snafu(display("failed to resolve and merge config for role group {role_group}"))]
@@ -75,7 +65,9 @@ pub fn validate_cluster(
     cluster_info: &KubernetesClusterInfo,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
-    let namespace = hive.namespace().context(ObjectHasNoNamespaceSnafu)?;
+    let name = get_cluster_name(hive).context(ResolveClusterNameSnafu)?;
+    let namespace = get_namespace(hive).context(ResolveNamespaceSnafu)?;
+    let uid = get_uid(hive).context(ResolveUidSnafu)?;
 
     let image = hive
         .spec
@@ -105,7 +97,7 @@ pub fn validate_cluster(
         None
     };
 
-    let default_config = MetaStoreConfig::default_config(&hive.name_any(), &hive_role);
+    let default_config = MetaStoreConfig::default_config(name.as_ref(), &hive_role);
 
     let mut groups: BTreeMap<RoleGroupName, HiveRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {
@@ -142,7 +134,7 @@ pub fn validate_cluster(
 
     // Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
     let kerberos_config = if hive.has_kerberos_enabled() {
-        kerberos_config_properties(&hive.name_any(), &namespace, cluster_info)
+        kerberos_config_properties(name.as_ref(), namespace.as_ref(), cluster_info)
     } else {
         BTreeMap::new()
     };
@@ -151,10 +143,6 @@ pub fn validate_cluster(
     // Kerberos is enabled and there is no HDFS backend (i.e. S3).
     let needs_kerberos_core_site =
         hive.has_kerberos_enabled() && hive.spec.cluster_config.hdfs.is_none();
-
-    let name = ClusterName::from_str(&hive.name_any()).context(InvalidClusterNameSnafu)?;
-    let namespace = NamespaceName::from_str(&namespace).context(InvalidNamespaceSnafu)?;
-    let uid = Uid::from_str(&hive.uid().context(ObjectHasNoUidSnafu)?).context(InvalidUidSnafu)?;
 
     Ok(ValidatedCluster::new(
         name,

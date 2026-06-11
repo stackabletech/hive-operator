@@ -1,12 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{crd::s3, kube::ResourceExt};
+use stackable_operator::{crd::s3, v2::controller_utils::get_namespace};
 
 use crate::{controller::build::opa::HiveOpaConfig, crd::v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
+    #[snafu(display("failed to resolve namespace"))]
+    ResolveNamespace {
+        source: stackable_operator::v2::controller_utils::Error,
+    },
 
     #[snafu(display("failed to configure S3 connection"))]
     ConfigureS3Connection {
@@ -31,12 +33,10 @@ pub async fn dereference(
 ) -> Result<DereferencedObjects, Error> {
     let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {
+            let namespace = get_namespace(hive).context(ResolveNamespaceSnafu)?;
             Some(
                 s3.clone()
-                    .resolve(
-                        client,
-                        &hive.namespace().ok_or(Error::ObjectHasNoNamespace)?,
-                    )
+                    .resolve(client, namespace.as_ref())
                     .await
                     .context(ConfigureS3ConnectionSnafu)?,
             )
