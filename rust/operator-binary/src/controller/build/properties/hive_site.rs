@@ -1,7 +1,7 @@
 //! Builder for `hive-site.xml`.
 //!
-//! Precedence (matches the pre-product-config-removal behaviour):
-//! 1. Defaults: `hive.metastore.port=9083` (required product-config property, default value).
+//! Precedence:
+//! 1. Defaults: `hive.metastore.port=9083`.
 //! 2. Automatic / operator-injected: warehouse dir (hardcoded `/stackable/warehouse`),
 //!    metrics enabled (`true`), JDBC driver/url/credentials, S3, Kerberos, OPA.
 //! 3. Spec: `warehouseDir` from the merged config overrides the hardcoded warehouse dir.
@@ -57,7 +57,7 @@ pub fn build(
     let database_connection_details = &cluster_config.metadata_database_connection_details;
     let mut data: BTreeMap<String, String> = BTreeMap::new();
 
-    // 1. Defaults (required product-config property `hive.metastore.port`).
+    // 1. Defaults.
     data.insert(
         HIVE_METASTORE_PORT.to_string(),
         DEFAULT_HIVE_METASTORE_PORT.to_string(),

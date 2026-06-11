@@ -1,8 +1,7 @@
 //! Builder for `security.properties` (the JVM security properties file).
 //!
-//! Reproduces the product-config behaviour: `networkaddress.cache.ttl` and
-//! `networkaddress.cache.negative.ttl` are `required` properties with recommended
-//! values, so they are always emitted; user `security.properties` overrides win.
+//! `networkaddress.cache.ttl` and `networkaddress.cache.negative.ttl` are `required`
+//!  properties with recommended values, so they are always emitted.
 
 use std::collections::BTreeMap;
 
