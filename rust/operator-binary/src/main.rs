@@ -39,7 +39,6 @@ use crate::{
 
 mod controller;
 mod crd;
-mod framework;
 mod listener;
 mod operations;
 mod service;
