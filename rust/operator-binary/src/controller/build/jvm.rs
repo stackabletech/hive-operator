@@ -1,13 +1,13 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::{
-    memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, JvmArgumentOverrides},
-};
+use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
 use super::properties::ConfigFileName;
-use crate::crd::{
-    HiveRoleType, METRICS_PORT, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE,
-    STACKABLE_TRUST_STORE_PASSWORD, v1alpha1::HiveCluster,
+use crate::{
+    controller::HiveRoleGroupConfig,
+    crd::{
+        METRICS_PORT, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE,
+        STACKABLE_TRUST_STORE_PASSWORD, v1alpha1::HiveCluster,
+    },
 };
 
 const JAVA_HEAP_FACTOR: f32 = 0.8;
@@ -21,17 +21,10 @@ pub enum Error {
     InvalidMemoryConfig {
         source: stackable_operator::memory::Error,
     },
-
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
 /// All JVM arguments.
-fn construct_jvm_args(
-    hive: &HiveCluster,
-    role: &HiveRoleType,
-    role_group: &str,
-) -> Result<Vec<String>, Error> {
+fn construct_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> Vec<String> {
     let security_properties = ConfigFileName::Security;
     let mut jvm_args = vec![
         format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{security_properties}"),
@@ -47,27 +40,18 @@ fn construct_jvm_args(
         jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_owned());
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    let merged = role
-        .get_merged_jvm_argument_overrides(role_group, &operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)?;
-    Ok(merged
-        .effective_jvm_config_after_merging()
-        // Sorry for the clone, that's how operator-rs is currently modelled :P
-        .clone())
+    // Apply the already-merged (role + role group) JVM argument overrides on top of the
+    // operator-generated base arguments.
+    rg.jvm_argument_overrides.apply_to(jvm_args)
 }
 
 /// Arguments that go into `HADOOP_OPTS`, so *not* the heap settings (which you can get using
 /// [`construct_hadoop_heapsize_env`]).
-pub fn construct_non_heap_jvm_args(
-    hive: &HiveCluster,
-    role: &HiveRoleType,
-    role_group: &str,
-) -> Result<String, Error> {
-    let mut jvm_args = construct_jvm_args(hive, role, role_group)?;
+pub fn construct_non_heap_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> String {
+    let mut jvm_args = construct_jvm_args(hive, rg);
     jvm_args.retain(|arg| !is_heap_jvm_argument(arg));
 
-    Ok(jvm_args.join(" "))
+    jvm_args.join(" ")
 }
 
 /// This will be put into `HADOOP_HEAPSIZE`, which is just the heap size in megabytes (*without* the `m`
@@ -96,10 +80,21 @@ fn is_heap_jvm_argument(jvm_argument: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::utils::yaml_from_str_singleton_map;
-
     use super::*;
-    use crate::crd::HiveRole;
+    use crate::{
+        controller::test_support::{minimal_hive, validated_cluster},
+        crd::HiveRole,
+    };
+
+    fn metastore_default(hive: &crate::crd::v1alpha1::HiveCluster) -> HiveRoleGroupConfig {
+        let validated = validated_cluster(hive);
+        validated
+            .role_group_configs
+            .get(&HiveRole::MetaStore)
+            .and_then(|groups| groups.get("default"))
+            .expect("metastore default role group should exist")
+            .clone()
+    }
 
     #[test]
     fn test_construct_jvm_arguments_defaults() {
@@ -108,6 +103,8 @@ mod tests {
         kind: HiveCluster
         metadata:
           name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 4.2.0
@@ -119,9 +116,10 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
-        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &role, &rolegroup).unwrap();
-        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
+        let hive = minimal_hive(input);
+        let rg = metastore_default(&hive);
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &rg);
+        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&rg.config).unwrap();
 
         assert_eq!(
             non_heap_jvm_args,
@@ -141,6 +139,8 @@ mod tests {
         kind: HiveCluster
         metadata:
           name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 4.2.0
@@ -169,9 +169,10 @@ mod tests {
                     - -Xmx40000m
                     - -Dhttps.proxyPort=1234
         "#;
-        let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
-        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &role, &rolegroup).unwrap();
-        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
+        let hive = minimal_hive(input);
+        let rg = metastore_default(&hive);
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &rg);
+        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&rg.config).unwrap();
 
         assert_eq!(
             non_heap_jvm_args,
@@ -185,19 +186,5 @@ mod tests {
             -Dhttps.proxyPort=1234"
         );
         assert_eq!(hadoop_heapsize_env, "34406");
-    }
-
-    fn construct_boilerplate(
-        hive_cluster: &str,
-    ) -> (HiveCluster, MetaStoreConfig, HiveRoleType, String) {
-        let hive: HiveCluster =
-            yaml_from_str_singleton_map(hive_cluster).expect("invalid test input");
-
-        let hive_role = HiveRole::MetaStore;
-        let rolegroup_ref = hive.metastore_rolegroup_ref("default");
-        let merged_config = hive.merged_config(&hive_role, &rolegroup_ref).unwrap();
-        let role = hive.spec.metastore.clone().unwrap();
-
-        (hive, merged_config, role, "default".to_owned())
     }
 }

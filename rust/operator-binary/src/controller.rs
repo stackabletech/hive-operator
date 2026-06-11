@@ -294,11 +294,21 @@ impl ReconcilerError for Error {
 pub type RoleGroupName = String;
 
 /// A validated, merged Hive metastore role-group config.
-pub type HiveRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
-    MetaStoreConfig,
-    stackable_operator::role_utils::JavaCommonConfig,
-    v1alpha1::HiveConfigOverrides,
->;
+///
+/// Built by [`validate::validate_cluster`] from the upstream
+/// [`stackable_operator::v2::role_utils::with_validated_config`] result. Holds only the
+/// fields the build steps consume; `cli_overrides` and the product-specific common config
+/// are intentionally not carried (hive does not use them).
+#[derive(Clone, Debug, PartialEq)]
+pub struct HiveRoleGroupConfig {
+    pub replicas: u16,
+    pub config: MetaStoreConfig,
+    pub config_overrides: v1alpha1::HiveConfigOverrides,
+    pub env_overrides: stackable_operator::v2::builder::pod::container::EnvVarSet,
+    pub pod_overrides: stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec,
+    pub jvm_argument_overrides:
+        stackable_operator::v2::jvm_argument_overrides::JvmArgumentOverrides,
+}
 
 /// The validated cluster: the typed, merged result of the validate step. Subsequent
 /// build steps consume this struct instead of re-reading the raw CRD.
@@ -609,8 +619,6 @@ fn build_metastore_rolegroup_statefulset(
     let merged_config = &rg.config;
     let hive_opa_config = cluster.cluster_config.hive_opa_config.as_ref();
 
-    let role = hive.role(hive_role).context(InternalOperatorFailureSnafu)?;
-
     let mut container_builder =
         ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
             name: APP_NAME.to_string(),
@@ -621,11 +629,7 @@ fn build_metastore_rolegroup_statefulset(
             "HADOOP_HEAPSIZE",
             construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
         )
-        .add_env_var(
-            "HADOOP_OPTS",
-            construct_non_heap_jvm_args(hive, role, &rolegroup_ref.role_group)
-                .context(ConstructJvmArgumentsSnafu)?,
-        )
+        .add_env_var("HADOOP_OPTS", construct_non_heap_jvm_args(hive, rg))
         .add_env_var(
             "CONTAINERDEBUG_LOG_DIRECTORY",
             format!("{STACKABLE_LOG_DIR}/containerdebug"),
@@ -985,5 +989,40 @@ pub fn build_recommended_labels<'a, T>(
         controller_name: HIVE_CONTROLLER_NAME,
         role,
         role_group,
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use stackable_operator::{
+        commons::networking::DomainName,
+        utils::{cluster_info::KubernetesClusterInfo, yaml_from_str_singleton_map},
+    };
+
+    use super::{ValidatedCluster, dereference::DereferencedObjects, validate::validate_cluster};
+    use crate::crd::v1alpha1;
+
+    pub fn minimal_hive(yaml: &str) -> v1alpha1::HiveCluster {
+        yaml_from_str_singleton_map(yaml).expect("invalid test HiveCluster YAML")
+    }
+
+    pub fn cluster_info() -> KubernetesClusterInfo {
+        KubernetesClusterInfo {
+            cluster_domain: DomainName::try_from("cluster.local").expect("valid domain"),
+        }
+    }
+
+    /// Runs the real validate step against a minimal (S3/OPA-free) fixture.
+    pub fn validated_cluster(hive: &v1alpha1::HiveCluster) -> ValidatedCluster {
+        validate_cluster(
+            hive,
+            "oci.example.org",
+            &cluster_info(),
+            DereferencedObjects {
+                s3_connection_spec: None,
+                hive_opa_config: None,
+            },
+        )
+        .expect("validate should succeed for the test fixture")
     }
 }
