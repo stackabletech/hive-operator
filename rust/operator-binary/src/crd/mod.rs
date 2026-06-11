@@ -16,7 +16,7 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment::{self, Fragment, ValidationError},
+        fragment::{Fragment, ValidationError},
         merge::Merge,
     },
     crd::s3,
@@ -305,35 +305,6 @@ impl v1alpha1::HiveCluster {
             .authorization
             .as_ref()
             .and_then(|a| a.opa.as_ref())
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(
-        &self,
-        role: &HiveRole,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<MetaStoreConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
-
-        // Retrieve role resource config
-        let role = self.role(role)?;
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let role_group = self.rolegroup(rolegroup_ref)?;
-        let mut conf_role_group = role_group.config.config;
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_role_group.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_role_group);
-        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
     }
 }
 
