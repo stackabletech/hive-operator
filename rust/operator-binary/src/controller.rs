@@ -77,12 +77,13 @@ use strum::EnumDiscriminants;
 
 use crate::{
     OPERATOR_NAME,
-    command::build_container_command_args,
-    config::{
+    controller::build::{
+        command::build_container_command_args,
+        discovery,
         jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
+        kerberos::{self, add_kerberos_pod_config, kerberos_container_start_commands},
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
-    controller::build::discovery,
     crd::{
         APP_NAME, Container, HIVE_PORT, HIVE_PORT_NAME, HiveClusterStatus, HiveRole, METRICS_PORT,
         METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
@@ -90,7 +91,6 @@ use crate::{
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
         STACKABLE_LOG_DIR_NAME, v1alpha1,
     },
-    kerberos::{self, add_kerberos_pod_config, kerberos_container_start_commands},
     listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
@@ -250,7 +250,9 @@ pub enum Error {
     },
 
     #[snafu(display("failed to construct JVM arguments"))]
-    ConstructJvmArguments { source: crate::config::jvm::Error },
+    ConstructJvmArguments {
+        source: crate::controller::build::jvm::Error,
+    },
 
     #[snafu(display("failed to apply group listener for {role}"))]
     ApplyGroupListener {

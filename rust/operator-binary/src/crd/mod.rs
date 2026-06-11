@@ -54,12 +54,6 @@ pub const STACKABLE_LOG_DIR_NAME: &str = "log";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 
-// Config file names
-// TODO(@maltesander): remove once fully consolidated with ConfigFileName
-pub const HIVE_SITE_XML: &str = "hive-site.xml";
-pub const HIVE_METASTORE_LOG4J2_PROPERTIES: &str = "metastore-log4j2.properties";
-pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
-
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: u16 = 9083;

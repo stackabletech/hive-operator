@@ -4,10 +4,10 @@ use stackable_operator::{
     role_utils::{self, JvmArgumentOverrides},
 };
 
+use super::properties::ConfigFileName;
 use crate::crd::{
-    HiveRoleType, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, MetaStoreConfig,
-    STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-    v1alpha1::HiveCluster,
+    HiveRoleType, METRICS_PORT, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE,
+    STACKABLE_TRUST_STORE_PASSWORD, v1alpha1::HiveCluster,
 };
 
 const JAVA_HEAP_FACTOR: f32 = 0.8;
@@ -32,8 +32,9 @@ fn construct_jvm_args(
     role: &HiveRoleType,
     role_group: &str,
 ) -> Result<Vec<String>, Error> {
+    let security_properties = ConfigFileName::Security;
     let mut jvm_args = vec![
-        format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"),
+        format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{security_properties}"),
         format!(
             "-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml"
         ),

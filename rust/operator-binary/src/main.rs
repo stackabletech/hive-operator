@@ -37,12 +37,9 @@ use crate::{
     webhooks::conversion::create_webhook_server,
 };
 
-mod command;
-mod config;
 mod controller;
 mod crd;
 mod framework;
-mod kerberos;
 mod listener;
 mod operations;
 mod service;

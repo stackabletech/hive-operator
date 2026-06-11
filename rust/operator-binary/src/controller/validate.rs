@@ -15,7 +15,8 @@ use stackable_operator::{
 use crate::{
     controller::{
         CONTAINER_IMAGE_BASE_NAME, HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
-        ValidatedClusterConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
+        ValidatedClusterConfig, ValidatedRoleConfig, build::kerberos::kerberos_config_properties,
+        dereference::DereferencedObjects,
     },
     crd::{
         HiveRole, MetaStoreConfig,
@@ -23,7 +24,6 @@ use crate::{
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
     framework::role_utils::with_validated_config,
-    kerberos::kerberos_config_properties,
 };
 
 #[derive(Snafu, Debug)]

@@ -1,12 +1,9 @@
 use stackable_operator::crd::s3;
 
-use crate::{
-    config::opa::HiveOpaConfig,
-    crd::{
-        HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR,
-        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-        v1alpha1,
-    },
+use super::{opa::HiveOpaConfig, properties::ConfigFileName};
+use crate::crd::{
+    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+    STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,
 };
 
 pub fn build_container_command_args(
@@ -15,16 +12,17 @@ pub fn build_container_command_args(
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Vec<String> {
+    let log4j2_properties = ConfigFileName::Log4j2;
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set s3 access and secret keys
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
         format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
         // Copy log4j2 properties
         format!(
-            "echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES}"
+            "echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{log4j2_properties} to {STACKABLE_CONFIG_DIR}/{log4j2_properties}"
         ),
         format!(
-            "cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES} {STACKABLE_CONFIG_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES}"
+            "cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{log4j2_properties} {STACKABLE_CONFIG_DIR}/{log4j2_properties}"
         ),
         // Template config files
         format!(

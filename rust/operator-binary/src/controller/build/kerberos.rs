@@ -19,7 +19,8 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
 };
 
-use crate::crd::{HIVE_SITE_XML, HiveRole, STACKABLE_CONFIG_DIR, v1alpha1};
+use super::properties::ConfigFileName;
+use crate::crd::{HiveRole, STACKABLE_CONFIG_DIR, v1alpha1};
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
@@ -110,9 +111,10 @@ pub fn kerberos_container_start_commands(hive: &v1alpha1::HiveCluster) -> String
         return String::new();
     }
 
+    let hive_site_xml = ConfigFileName::HiveSite;
     let mut args = vec![formatdoc! {"
         export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)
-        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{HIVE_SITE_XML}",
+        sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{hive_site_xml}",
     }];
 
     if hive.spec.cluster_config.hdfs.is_some() {

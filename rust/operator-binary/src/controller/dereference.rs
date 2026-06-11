@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::s3, kube::ResourceExt};
 
-use crate::{config::opa::HiveOpaConfig, crd::v1alpha1};
+use crate::{controller::build::opa::HiveOpaConfig, crd::v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
