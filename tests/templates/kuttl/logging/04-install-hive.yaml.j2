@@ -55,7 +55,7 @@ spec:
     vectorAggregatorConfigMapName: hive-vector-aggregator-discovery
   metastore:
     roleGroups:
-      automatic-log-config:
+      automatic-log:
         replicas: 1
         config:
           logging:
@@ -90,7 +90,7 @@ spec:
               - name: prepared-logs
                 configMap:
                   name: prepared-logs
-      custom-log-config:
+      custom-log:
         replicas: 1
         config:
           logging:

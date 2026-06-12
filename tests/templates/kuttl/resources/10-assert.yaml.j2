@@ -6,7 +6,7 @@ timeout: 900
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hive-metastore-resources-from-role
+  name: hive-metastore-from-role
 spec:
   template:
     spec:
@@ -29,7 +29,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hive-metastore-resources-from-role-group
+  name: hive-metastore-from-role-group
 spec:
   template:
     spec:
@@ -52,7 +52,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hive-metastore-resources-from-pod-overrides
+  name: hive-metastore-pod-overrides
 spec:
   template:
     spec:

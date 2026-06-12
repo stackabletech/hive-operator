@@ -28,25 +28,25 @@ customConfig:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-hive-metastore-automatic-log-config-0" &&
+        .pod == "test-hive-metastore-automatic-log-0" &&
         .container == "hive"
     filteredAutomaticLogConfigMetastoreVector:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-hive-metastore-automatic-log-config-0" &&
+        .pod == "test-hive-metastore-automatic-log-0" &&
         .container == "vector"
     filteredCustomLogConfigMetastoreHive:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-hive-metastore-custom-log-config-0" &&
+        .pod == "test-hive-metastore-custom-log-0" &&
         .container == "hive"
     filteredCustomLogConfigMetastoreVector:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-hive-metastore-custom-log-config-0" &&
+        .pod == "test-hive-metastore-custom-log-0" &&
         .container == "vector"
     filteredInvalidEvents:
       type: filter
