@@ -39,9 +39,6 @@ use crate::{
 
 mod controller;
 mod crd;
-mod listener;
-mod operations;
-mod service;
 mod webhooks;
 
 mod built_info {

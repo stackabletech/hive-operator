@@ -12,13 +12,6 @@ use crate::{
     crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole},
 };
 
-// Listener volumes
-pub const LISTENER_VOLUME_NAME: &str = "listener";
-pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
-
-// Listener defaults
-pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
-
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("{role} listener has no adress"))]
@@ -98,9 +91,4 @@ pub fn listener_ports() -> Vec<ListenerPort> {
         port: HIVE_PORT.into(),
         protocol: Some("TCP".to_owned()),
     }]
-}
-
-// used by crds to define a default listener_class name
-pub fn metastore_default_listener_class() -> String {
-    DEFAULT_LISTENER_CLASS.to_owned()
 }

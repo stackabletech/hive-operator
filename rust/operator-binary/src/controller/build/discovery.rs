@@ -10,9 +10,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{RoleGroupName, ValidatedCluster},
+    controller::{
+        RoleGroupName, ValidatedCluster, build::listener::build_listener_connection_string,
+    },
     crd::{HiveRole, v1alpha1},
-    listener::build_listener_connection_string,
 };
 
 #[derive(Snafu, Debug)]
@@ -24,7 +25,9 @@ pub enum Error {
     },
 
     #[snafu(display("failed to configure listener discovery configmap"))]
-    ListenerConfiguration { source: crate::listener::Error },
+    ListenerConfiguration {
+        source: crate::controller::build::listener::Error,
+    },
 }
 
 /// An [`ObjectRef`] back to the owning [`v1alpha1::HiveCluster`], reconstructed from the validated

@@ -41,7 +41,7 @@ use stackable_operator::{
 use strum::{Display, EnumIter, EnumString};
 use v1alpha1::HiveMetastoreRoleConfig;
 
-use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_class};
+use crate::crd::affinity::get_affinity;
 
 pub mod affinity;
 pub mod databases;
@@ -68,6 +68,14 @@ pub const METRICS_PORT: u16 = 9084;
 // Certificates and trust stores
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
+
+// Listener defaults
+pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+
+// used by crds to define a default listener_class name
+pub fn metastore_default_listener_class() -> String {
+    DEFAULT_LISTENER_CLASS.to_owned()
+}
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 

@@ -21,8 +21,8 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        CONTAINER_IMAGE_BASE_NAME, HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
-        ValidatedClusterConfig, ValidatedRoleConfig, build::kerberos::kerberos_config_properties,
+        HiveRoleGroupConfig, RoleGroupName, ValidatedCluster, ValidatedClusterConfig,
+        ValidatedRoleConfig, build::kerberos::kerberos_config_properties,
         dereference::DereferencedObjects,
     },
     crd::{
@@ -31,6 +31,8 @@ use crate::{
         v1alpha1::{self, HiveMetastoreRoleConfig},
     },
 };
+
+pub const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
 
 #[derive(Snafu, Debug)]
 pub enum Error {

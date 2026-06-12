@@ -2,7 +2,7 @@
 //! config) assembled into the rolegroup `ConfigMap`.
 
 use stackable_operator::{
-    memory::BinaryMultiple,
+    memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         spec::{
@@ -12,7 +12,12 @@ use stackable_operator::{
     v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::{controller::MAX_HIVE_LOG_FILES_SIZE, crd::Container};
+use crate::crd::Container;
+
+pub(crate) const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
 
 const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %5p [%t] %c{2}: %m%n";
 const HIVE_LOG_FILE: &str = "hive.log4j2.xml";
