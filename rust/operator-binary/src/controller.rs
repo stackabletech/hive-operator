@@ -72,6 +72,7 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     utils::COMMON_BASH_TRAP_FUNCTIONS,
+    v2::{HasName, HasUid, builder::meta::ownerreference_from_resource},
 };
 use strum::EnumDiscriminants;
 
@@ -137,11 +138,6 @@ pub enum Error {
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
-    },
-
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to build discovery ConfigMap"))]
@@ -323,6 +319,7 @@ pub struct ValidatedCluster {
     metadata: ObjectMeta,
     pub name: stackable_operator::v2::types::operator::ClusterName,
     pub namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
+    pub uid: stackable_operator::v2::types::kubernetes::Uid,
     pub image: ResolvedProductImage,
     pub role_config: Option<ValidatedRoleConfig>,
     pub cluster_config: ValidatedClusterConfig,
@@ -348,11 +345,20 @@ impl ValidatedCluster {
             },
             name,
             namespace,
+            uid,
             image,
             role_config,
             cluster_config,
             role_group_configs,
         }
+    }
+
+    /// The name of the per-role [`Listener`] object.
+    ///
+    /// Must stay in sync with [`v1alpha1::HiveCluster::role_listener_name`], which derives the
+    /// same name from the raw cluster (used e.g. by the StatefulSet listener-volume PVC).
+    pub fn role_listener_name(&self, hive_role: &HiveRole) -> String {
+        format!("{name}-{role}", name = self.name, role = hive_role)
     }
 }
 
@@ -385,6 +391,18 @@ impl Resource for ValidatedCluster {
 
     fn meta_mut(&mut self) -> &mut ObjectMeta {
         &mut self.metadata
+    }
+}
+
+impl HasName for ValidatedCluster {
+    fn to_name(&self) -> String {
+        self.name.to_string()
+    }
+}
+
+impl HasUid for ValidatedCluster {
+    fn to_uid(&self) -> stackable_operator::v2::types::kubernetes::Uid {
+        self.uid.clone()
     }
 }
 
@@ -472,11 +490,11 @@ pub async fn reconcile_hive(
             let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
 
             let rg_metrics_service =
-                build_rolegroup_metrics_service(hive, &validated_cluster.image, &rolegroup)
+                build_rolegroup_metrics_service(&validated_cluster, &rolegroup)
                     .context(ServiceConfigurationSnafu)?;
 
             let rg_headless_service =
-                build_rolegroup_headless_service(hive, &validated_cluster.image, &rolegroup)
+                build_rolegroup_headless_service(&validated_cluster, &rolegroup)
                     .context(ServiceConfigurationSnafu)?;
 
             let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
@@ -547,8 +565,7 @@ pub async fn reconcile_hive(
         .context(FailedToCreatePdbSnafu)?;
 
         let role_listener: Listener = build_role_listener(
-            hive,
-            &validated_cluster.image,
+            &validated_cluster,
             &HiveRole::MetaStore,
             &role_config.listener_class,
         )
@@ -813,7 +830,7 @@ fn build_metastore_rolegroup_statefulset(
         .build();
 
     let pvc = ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(hive.role_listener_name(hive_role)),
+        &ListenerReference::ListenerName(cluster.role_listener_name(hive_role)),
         &unversioned_recommended_labels,
     )
     .build_pvc(LISTENER_VOLUME_NAME.to_owned())
@@ -929,10 +946,9 @@ fn build_metastore_rolegroup_statefulset(
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hive)
+            .name_and_namespace(cluster)
             .name(rolegroup_ref.object_name())
-            .ownerreference_from_resource(hive, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
             .with_recommended_labels(&recommended_object_labels)
             .context(MetadataBuildSnafu)?
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())

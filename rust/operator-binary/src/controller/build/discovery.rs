@@ -4,6 +4,7 @@ use stackable_operator::{
     crd::listener::v1alpha1::Listener,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::runtime::reflector::ObjectRef,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::{
@@ -14,12 +15,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object is missing metadata to build owner reference {obj_ref}"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-        obj_ref: ObjectRef<v1alpha1::HiveCluster>,
-    },
-
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
     DiscoveryConfigMap {
         source: stackable_operator::builder::configmap::Error,
@@ -70,10 +65,7 @@ fn build_discovery_configmap(
     discovery_configmap.metadata(
         ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .ownerreference_from_resource(cluster, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: cluster_object_ref(cluster),
-            })?
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
             .with_recommended_labels(&build_recommended_labels(
                 cluster,
                 &cluster.image.app_version_label_value,
