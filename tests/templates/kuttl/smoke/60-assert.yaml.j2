@@ -289,7 +289,7 @@ spec:
           name: listener
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - args:
-        - |
+        - |-
           mkdir --parents /stackable/log/_vector-state
           # Vector will ignore SIGTERM (as PID != 1) and must be shut down by writing a shutdown trigger file
           vector & vector_pid=$!
