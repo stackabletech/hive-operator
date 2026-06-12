@@ -17,16 +17,12 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{
             PodBuilder,
-            container::ContainerBuilder,
             security::PodSecurityContextBuilder,
-            volume::{
-                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-                ListenerReference, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
-            },
+            volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
         },
     },
     cli::OperatorEnvironmentOptions,
-    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    cluster_resources::ClusterResourceApplyStrategy,
     commons::{
         product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
         secret_class::SecretClassVolumeProvisionParts,
@@ -67,14 +63,21 @@ use stackable_operator::{
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        builder::{
+            meta::ownerreference_from_resource,
+            pod::{
+                container::{EnvVarSet, new_container_builder},
+                volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
+            },
+        },
+        cluster_resources::cluster_resources_new,
         kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
         role_group_utils::ResourceNames,
         types::{
-            kubernetes::{ContainerName, VolumeName},
+            kubernetes::{ContainerName, ListenerName, PersistentVolumeClaimName, VolumeName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
         },
     },
@@ -108,6 +111,14 @@ pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.',
 pub const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
 
 stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+
+// The main Hive container's name. Reuses the `APP_NAME` value (`hive`) so the produced
+// Container `name` is unchanged.
+stackable_operator::constant!(HIVE_CONTAINER_NAME: ContainerName = "hive");
+
+// Typed name for the listener-operator PersistentVolumeClaim. Reuses the existing
+// `LISTENER_VOLUME_NAME` string value (`listener`) so the produced PVC name is unchanged.
+stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. These reuse the
 // existing volume-name string values (`config-mount`/`log`) so the produced volume mounts are
@@ -176,17 +187,6 @@ pub enum Error {
     ))]
     S3TlsNoVerificationNotSupported,
 
-    #[snafu(display("failed to create hive container [{name}]"))]
-    FailedToCreateHiveContainer {
-        source: stackable_operator::builder::pod::container::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
@@ -252,11 +252,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
         role: String,
     },
-    #[snafu(display("failed to build listener volume"))]
-    BuildListenerVolume {
-        source: ListenerOperatorVolumeSourceBuilderError,
-    },
-
     #[snafu(display("failed to dereference cluster resources"))]
     Dereference {
         source: crate::controller::dereference::Error,
@@ -454,17 +449,17 @@ impl NameIsValidLabelValue for ValidatedCluster {
 }
 
 /// The product name (`hive`) as a type-safe label value.
-fn product_name() -> ProductName {
+pub(crate) fn product_name() -> ProductName {
     ProductName::from_str(APP_NAME).expect("'hive' is a valid product name")
 }
 
 /// The operator name as a type-safe label value.
-fn operator_name() -> OperatorName {
+pub(crate) fn operator_name() -> OperatorName {
     OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
 }
 
 /// The controller name as a type-safe label value.
-fn controller_name() -> ControllerName {
+pub(crate) fn controller_name() -> ControllerName {
     ControllerName::from_str(HIVE_CONTROLLER_NAME)
         .expect("the controller name is a valid label value")
 }
@@ -517,15 +512,16 @@ pub async fn reconcile_hive(
     )
     .context(ValidateSnafu)?;
 
-    let mut cluster_resources = ClusterResources::new(
-        APP_NAME,
-        OPERATOR_NAME,
-        HIVE_CONTROLLER_NAME,
-        &hive.object_ref(&()),
+    let mut cluster_resources = cluster_resources_new(
+        &product_name(),
+        &operator_name(),
+        &controller_name(),
+        &validated_cluster.name,
+        &validated_cluster.namespace,
+        &validated_cluster.uid,
         ClusterResourceApplyStrategy::from(&hive.spec.cluster_operation),
         &hive.spec.object_overrides,
-    )
-    .context(CreateClusterResourcesSnafu)?;
+    );
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         hive,
@@ -624,7 +620,7 @@ pub async fn reconcile_hive(
     if let Some(role_config) = &validated_cluster.role_config {
         add_pdbs(
             &role_config.pdb,
-            hive,
+            &validated_cluster,
             &HiveRole::MetaStore,
             client,
             &mut cluster_resources,
@@ -704,10 +700,7 @@ fn build_metastore_rolegroup_statefulset(
     let merged_config = &rg.config;
     let hive_opa_config = cluster.cluster_config.hive_opa_config.as_ref();
 
-    let mut container_builder =
-        ContainerBuilder::new(APP_NAME).context(FailedToCreateHiveContainerSnafu {
-            name: APP_NAME.to_string(),
-        })?;
+    let mut container_builder = new_container_builder(&HIVE_CONTAINER_NAME);
 
     container_builder
         .add_env_var(
@@ -888,12 +881,13 @@ fn build_metastore_rolegroup_statefulset(
         .with_labels(recommended_object_labels.clone())
         .build();
 
-    let pvc = ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(cluster.role_listener_name(hive_role)),
+    let listener_name = ListenerName::from_str(&cluster.role_listener_name(hive_role))
+        .expect("the role listener name is a valid Listener name");
+    let pvc = listener_operator_volume_source_builder_build_pvc(
+        &ListenerReference::Listener(listener_name),
         &unversioned_recommended_labels,
-    )
-    .build_pvc(LISTENER_VOLUME_NAME.to_owned())
-    .context(BuildListenerVolumeSnafu)?;
+        &LISTENER_PVC_NAME,
+    );
 
     container_builder
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)

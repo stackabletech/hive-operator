@@ -1,22 +1,16 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::PdbConfig, kube::ResourceExt,
+    client::Client, cluster_resources::ClusterResources, commons::pdb::PdbConfig,
+    kube::ResourceExt, v2::builder::pdb::pod_disruption_budget_builder_with_role,
 };
 
 use crate::{
-    OPERATOR_NAME,
-    controller::HIVE_CONTROLLER_NAME,
-    crd::{APP_NAME, HiveRole, v1alpha1},
+    controller::{ValidatedCluster, controller_name, operator_name, product_name},
+    crd::HiveRole,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Cannot create PodDisruptionBudget for role [{role}]"))]
-    CreatePdb {
-        source: stackable_operator::builder::pdb::Error,
-        role: String,
-    },
     #[snafu(display("Cannot apply PodDisruptionBudget [{name}]"))]
     ApplyPdb {
         source: stackable_operator::cluster_resources::Error,
@@ -26,7 +20,7 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    hive: &v1alpha1::HiveCluster,
+    cluster: &ValidatedCluster,
     role: &HiveRole,
     client: &Client,
     cluster_resources: &mut ClusterResources<'_>,
@@ -37,16 +31,13 @@ pub async fn add_pdbs(
     let max_unavailable = pdb.max_unavailable.unwrap_or(match role {
         HiveRole::MetaStore => max_unavailable_metastores(),
     });
-    let pdb = PodDisruptionBudgetBuilder::new_with_role(
-        hive,
-        APP_NAME,
-        &role.to_string(),
-        OPERATOR_NAME,
-        HIVE_CONTROLLER_NAME,
+    let pdb = pod_disruption_budget_builder_with_role(
+        cluster,
+        &product_name(),
+        &ValidatedCluster::role_name(),
+        &operator_name(),
+        &controller_name(),
     )
-    .with_context(|_| CreatePdbSnafu {
-        role: role.to_string(),
-    })?
     .with_max_unavailable(max_unavailable)
     .build();
     let pdb_name = pdb.name_any();
