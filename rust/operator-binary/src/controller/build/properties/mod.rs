@@ -2,7 +2,7 @@
 
 pub mod core_site;
 pub mod hive_site;
-pub mod logging;
+pub mod product_logging;
 pub mod security_properties;
 
 /// The names of the Hive config files assembled into the rolegroup `ConfigMap`.

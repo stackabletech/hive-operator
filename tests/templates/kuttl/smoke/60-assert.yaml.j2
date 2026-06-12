@@ -292,9 +292,11 @@ spec:
         - |
           mkdir --parents /stackable/log/_vector-state
           # Vector will ignore SIGTERM (as PID != 1) and must be shut down by writing a shutdown trigger file
-          vector --config /stackable/config/vector.yaml & vector_pid=$!
+          vector & vector_pid=$!
           if [ ! -f "/stackable/log/_vector/shutdown" ]; then
-            mkdir -p /stackable/log/_vector && inotifywait -qq --event create /stackable/log/_vector; fi
+          mkdir -p /stackable/log/_vector
+          inotifywait -qq --event create /stackable/log/_vector;
+          fi
           sleep 1
           kill $vector_pid
         command:
@@ -304,13 +306,31 @@ spec:
         - pipefail
         - -c
         env:
-        - name: VECTOR_LOG
-          value: info
+        - name: CLUSTER_NAME
+          value: hive
+        - name: DATA_DIR
+          value: /stackable/log/_vector-state
+        - name: LOG_DIR
+          value: /stackable/log
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ROLE_GROUP_NAME
+          value: default
+        - name: ROLE_NAME
+          value: metastore
         - name: VECTOR_AGGREGATOR_ADDRESS
           valueFrom:
             configMapKeyRef:
               key: ADDRESS
               name: vector-aggregator-discovery
+        - name: VECTOR_CONFIG_YAML
+          value: /stackable/config/vector.yaml
+        - name: VECTOR_FILE_LOG_LEVEL
+          value: info
+        - name: VECTOR_LOG
+          value: info
         imagePullPolicy: IfNotPresent
         name: vector
         resources:
@@ -321,8 +341,10 @@ spec:
             cpu: 250m
             memory: 128Mi
         volumeMounts:
-        - mountPath: /stackable/config
+        - mountPath: /stackable/config/vector.yaml
           name: config-mount
+          readOnly: true
+          subPath: vector.yaml
         - mountPath: /stackable/log
           name: log
 {% endif %}

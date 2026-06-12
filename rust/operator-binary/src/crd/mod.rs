@@ -1,4 +1,13 @@
 use databases::MetadataDatabaseConnection;
+/// Re-export of the shared product-logging spec data types (test-only).
+///
+/// These are plain logging *data* types (also consumed by the `stackable_operator::v2` logging
+/// framework). Re-exporting them through `crate::crd` lets the logging validation tests reference
+/// them without importing the v1 `product_logging` module by its fully-qualified path.
+#[cfg(test)]
+pub use product_logging::spec::{
+    ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
+};
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
@@ -20,9 +29,9 @@ use stackable_operator::{
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{CustomResource, runtime::reflector::ObjectRef},
+    kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -46,7 +55,6 @@ pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
 pub const STACKABLE_CONFIG_DIR_NAME: &str = "config";
 pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
 pub const STACKABLE_CONFIG_MOUNT_DIR_NAME: &str = "config-mount";
-pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_DIR_NAME: &str = "log";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
@@ -199,15 +207,6 @@ impl HasStatusCondition for v1alpha1::HiveCluster {
 }
 
 impl v1alpha1::HiveCluster {
-    /// Metadata about a metastore rolegroup
-    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: HiveRole::MetaStore.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
     pub fn role_config(&self, role: &HiveRole) -> Option<&HiveMetastoreRoleConfig> {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),

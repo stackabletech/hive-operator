@@ -18,7 +18,6 @@ use stackable_operator::{
         pod::{
             PodBuilder,
             container::ContainerBuilder,
-            resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
@@ -58,13 +57,7 @@ use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
-        framework::{
-            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
-        },
-        spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
-        },
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
     },
     shared::time::Duration,
     status::condition::{
@@ -74,10 +67,16 @@ use stackable_operator::{
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::meta::ownerreference_from_resource,
+        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
         kvp::label::{recommended_labels, role_group_selector},
+        product_logging::framework::{
+            STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
+        },
         role_group_utils::ResourceNames,
-        types::operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
+        types::{
+            kubernetes::{ContainerName, VolumeName},
+            operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
+        },
     },
 };
 use strum::EnumDiscriminants;
@@ -92,10 +91,10 @@ use crate::{
         opa::{HiveOpaConfig, OPA_TLS_VOLUME_NAME},
     },
     crd::{
-        APP_NAME, Container, HIVE_PORT, HIVE_PORT_NAME, HiveClusterStatus, HiveRole, METRICS_PORT,
+        APP_NAME, HIVE_PORT, HIVE_PORT_NAME, HiveClusterStatus, HiveRole, METRICS_PORT,
         METRICS_PORT_NAME, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
         STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
-        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR,
+        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_DIR_NAME, v1alpha1,
     },
     listener::{LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_role_listener},
@@ -107,6 +106,14 @@ pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
 pub const CONTAINER_IMAGE_BASE_NAME: &str = "hive";
+
+stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+
+// Typed `VolumeName`s for the Vector container's log-config and log volumes. These reuse the
+// existing volume-name string values (`config-mount`/`log`) so the produced volume mounts are
+// unchanged.
+stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config-mount");
+stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
 pub const MAX_HIVE_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
     value: 10.0,
@@ -185,9 +192,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
-    VectorAggregatorConfigMapMissing,
-
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::cluster_resources::Error,
@@ -224,9 +228,6 @@ pub enum Error {
 
     #[snafu(display("failed to add kerberos config"))]
     AddKerberosConfig { source: kerberos::Error },
-
-    #[snafu(display("failed to build vector container"))]
-    BuildVectorContainer { source: LoggingError },
 
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
@@ -292,6 +293,8 @@ pub struct HiveRoleGroupConfig {
     pub pod_overrides: stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec,
     pub jvm_argument_overrides:
         stackable_operator::v2::jvm_argument_overrides::JvmArgumentOverrides,
+    /// Validated logging configuration (derived from `config.logging` during validation).
+    pub logging: crate::controller::validate::ValidatedLogging,
 }
 
 /// The validated cluster: the typed, merged result of the validate step. Subsequent
@@ -547,13 +550,13 @@ pub async fn reconcile_hive(
 
     for (hive_role, role_group_configs) in &validated_cluster.role_group_configs {
         for (role_group_name, rg) in role_group_configs {
-            // The Vector agent config is still generated per role group via the upstream v1
-            // `create_vector_config`, which requires a `RoleGroupRef`. This is the only remaining
-            // use of `RoleGroupRef`; it is built here (where the raw cluster is available) and the
-            // resulting config string is threaded into the ConfigMap builder.
-            let rolegroup_ref = hive.metastore_rolegroup_ref(role_group_name.as_ref());
-            let vector_config =
-                build::properties::logging::build_vector_config(&rolegroup_ref, &rg.config.logging);
+            // The Vector agent config (`vector.yaml`) is a static, env-var-parameterized file
+            // (mirroring the opensearch-operator). It is only added to the ConfigMap when the
+            // Vector agent is enabled for this role group.
+            let vector_config = rg
+                .logging
+                .enable_vector_agent
+                .then(build::properties::product_logging::vector_config_file_content);
 
             let rg_metrics_service =
                 build_rolegroup_metrics_service(&validated_cluster, role_group_name);
@@ -928,35 +931,25 @@ fn build_metastore_rolegroup_statefulset(
         .service_account_name(sa_name)
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
-    if let Some(ContainerLogConfig {
-        choice:
-            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                custom: ConfigMapLogConfig { config_map },
-            })),
-    }) = merged_config.logging.containers.get(&Container::Hive)
-    {
-        pod_builder
-            .add_volume(Volume {
-                name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: config_map.into(),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            })
-            .context(AddVolumeSnafu)?;
-    } else {
-        pod_builder
-            .add_volume(Volume {
-                name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: resource_names.role_group_config_map().to_string(),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            })
-            .context(AddVolumeSnafu)?;
-    }
+    // The Hive container's log config ConfigMap: either the operator-generated one (the rolegroup
+    // ConfigMap, which carries the automatic `log4j2.properties`) or a user-provided custom
+    // ConfigMap. This branches on the *validated* logging choice (see `ValidatedLogging`).
+    let log_config_volume_config_map = match &rg.logging.hive_container {
+        ValidatedContainerLogConfigChoice::Custom(config_map_name) => config_map_name.to_string(),
+        ValidatedContainerLogConfigChoice::Automatic(_) => {
+            resource_names.role_group_config_map().to_string()
+        }
+    };
+    pod_builder
+        .add_volume(Volume {
+            name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: log_config_volume_config_map,
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        .context(AddVolumeSnafu)?;
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -970,30 +963,16 @@ fn build_metastore_rolegroup_statefulset(
 
     // N.B. the vector container should *follow* the hive container so that the hive one is the
     // default, is started first and can provide any dependencies that vector expects
-    if merged_config.logging.enable_vector_agent {
-        match &hive.spec.cluster_config.vector_aggregator_config_map_name {
-            Some(vector_aggregator_config_map_name) => {
-                pod_builder.add_container(
-                    product_logging::framework::vector_container(
-                        resolved_product_image,
-                        STACKABLE_CONFIG_MOUNT_DIR_NAME,
-                        STACKABLE_LOG_DIR_NAME,
-                        merged_config.logging.containers.get(&Container::Vector),
-                        ResourceRequirementsBuilder::new()
-                            .with_cpu_request("250m")
-                            .with_cpu_limit("500m")
-                            .with_memory_request("128Mi")
-                            .with_memory_limit("128Mi")
-                            .build(),
-                        vector_aggregator_config_map_name,
-                    )
-                    .context(BuildVectorContainerSnafu)?,
-                );
-            }
-            None => {
-                VectorAggregatorConfigMapMissingSnafu.fail()?;
-            }
-        }
+    if let Some(vector_log_config) = &rg.logging.vector_container {
+        pod_builder.add_container(vector_container(
+            &VECTOR_CONTAINER_NAME,
+            resolved_product_image,
+            vector_log_config,
+            &resource_names,
+            &VECTOR_LOG_CONFIG_VOLUME_NAME,
+            &VECTOR_LOG_VOLUME_NAME,
+            EnvVarSet::new(),
+        ));
     }
 
     let mut pod_template = pod_builder.build_template();

@@ -13,7 +13,9 @@ use stackable_operator::{
 
 use crate::controller::{
     HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
-    build::properties::{ConfigFileName, core_site, hive_site, logging, security_properties},
+    build::properties::{
+        ConfigFileName, core_site, hive_site, product_logging, security_properties,
+    },
 };
 
 #[derive(Debug, Snafu)]
@@ -36,8 +38,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the
 /// administrator.
 ///
-/// `vector_config` is the Vector agent config (`vector.yaml`) built by the caller (where a
-/// `RoleGroupRef` is available); it is `None` when the Vector agent is disabled.
+/// `vector_config` is the Vector agent config (`vector.yaml`) built by the caller; it is `None`
+/// when the Vector agent is disabled.
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
@@ -91,7 +93,7 @@ pub fn build_metastore_rolegroup_config_map(
         );
     }
 
-    if let Some(log4j2_properties) = logging::build_log4j2(&rg.config.logging) {
+    if let Some(log4j2_properties) = product_logging::build_log4j2(&rg.config.logging) {
         cm_builder.add_data(ConfigFileName::Log4j2.to_string(), log4j2_properties);
     }
     if let Some(vector_config) = vector_config {

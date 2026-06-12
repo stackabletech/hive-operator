@@ -9,16 +9,21 @@ use stackable_operator::{
             AutomaticContainerLogConfig, ContainerLogConfig, ContainerLogConfigChoice, Logging,
         },
     },
-    role_utils::RoleGroupRef,
+    v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::{
-    controller::MAX_HIVE_LOG_FILES_SIZE,
-    crd::{Container, STACKABLE_LOG_DIR, v1alpha1},
-};
+use crate::{controller::MAX_HIVE_LOG_FILES_SIZE, crd::Container};
 
 const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %5p [%t] %c{2}: %m%n";
 const HIVE_LOG_FILE: &str = "hive.log4j2.xml";
+
+/// The Vector agent configuration (`vector.yaml`).
+const VECTOR_CONFIG: &str = include_str!("vector.yaml");
+
+/// Returns the Vector agent config (`vector.yaml`) content.
+pub fn vector_config_file_content() -> String {
+    VECTOR_CONFIG.to_owned()
+}
 
 /// Renders `log4j2.properties` for the Hive metastore container.
 ///
@@ -32,30 +37,6 @@ pub fn build_log4j2(logging: &Logging<Container>) -> Option<String> {
         }) => Some(log4j2_config(log_config)),
         _ => None,
     }
-}
-
-/// Renders the Vector agent config (`vector.yaml`).
-///
-/// Returns `None` when the Vector agent is disabled for this role group.
-pub fn build_vector_config(
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-    logging: &Logging<Container>,
-) -> Option<String> {
-    if !logging.enable_vector_agent {
-        return None;
-    }
-
-    let vector_log_config = match logging.containers.get(&Container::Vector) {
-        Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) => Some(log_config),
-        _ => None,
-    };
-
-    Some(product_logging::framework::create_vector_config(
-        rolegroup,
-        vector_log_config,
-    ))
 }
 
 fn log4j2_config(log_config: &AutomaticContainerLogConfig) -> String {
@@ -72,4 +53,19 @@ fn log4j2_config(log_config: &AutomaticContainerLogConfig) -> String {
         CONSOLE_CONVERSION_PATTERN,
         log_config,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector_config_file_content() {
+        let content = vector_config_file_content();
+        assert!(!content.is_empty());
+        // A kept source must be present ...
+        assert!(content.contains("files_log4j2"));
+        // ... while a dropped source must not.
+        assert!(!content.contains("files_tracing_rs"));
+    }
 }
