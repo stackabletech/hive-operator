@@ -1,17 +1,13 @@
-use std::str::FromStr;
-
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
-    crd::listener::v1alpha1::Listener,
-    k8s_openapi::api::core::v1::ConfigMap,
-    kube::runtime::reflector::ObjectRef,
-    v2::builder::meta::ownerreference_from_resource,
+    builder::configmap::ConfigMapBuilder, crd::listener::v1alpha1::Listener,
+    k8s_openapi::api::core::v1::ConfigMap, kube::runtime::reflector::ObjectRef,
 };
 
 use crate::{
     controller::{
-        RoleGroupName, ValidatedCluster, build::listener::build_listener_connection_string,
+        ValidatedCluster,
+        build::{PLACEHOLDER_DISCOVERY_ROLE_GROUP, listener::build_listener_connection_string},
     },
     crd::{HiveRole, v1alpha1},
 };
@@ -64,17 +60,11 @@ fn build_discovery_configmap(
     let mut discovery_configmap = ConfigMapBuilder::new();
 
     discovery_configmap.metadata(
-        ObjectMetaBuilder::new()
-            .name_and_namespace(cluster)
-            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            // Discovery is a role-level object; "discovery" is used as a placeholder role-group
-            // name for the recommended labels.
-            .with_labels(
-                cluster.recommended_labels(
-                    &RoleGroupName::from_str("discovery")
-                        .expect("'discovery' is a valid role group name"),
-                ),
-            )
+        cluster
+            // Discovery is a role-level object; the cluster name is used as the resource name
+            // (matching `name_and_namespace`) and "discovery" as a placeholder role-group name
+            // for the recommended labels.
+            .object_meta(cluster.name.to_string(), &PLACEHOLDER_DISCOVERY_ROLE_GROUP)
             .build(),
     );
 

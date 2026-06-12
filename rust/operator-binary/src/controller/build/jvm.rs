@@ -1,7 +1,7 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
-use super::properties::ConfigFileName;
+use super::{kerberos::STACKABLE_KERBEROS_DIR, properties::ConfigFileName};
 use crate::{
     controller::HiveRoleGroupConfig,
     crd::{
@@ -37,7 +37,9 @@ fn construct_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> Vec<Strin
     ];
 
     if hive.has_kerberos_enabled() {
-        jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_owned());
+        jvm_args.push(format!(
+            "-Djava.security.krb5.conf={STACKABLE_KERBEROS_DIR}/krb5.conf"
+        ));
     }
 
     // Apply the already-merged (role + role group) JVM argument overrides on top of the
@@ -123,11 +125,13 @@ mod tests {
 
         assert_eq!(
             non_heap_jvm_args,
-            "-Djava.security.properties=/stackable/config/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9084:/stackable/jmx/jmx_hive_config.yaml \
-            -Djavax.net.ssl.trustStore=/stackable/truststore.p12 \
-            -Djavax.net.ssl.trustStorePassword=changeit \
+            format!(
+                "-Djava.security.properties={STACKABLE_CONFIG_DIR}/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml \
+            -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE} \
+            -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD} \
             -Djavax.net.ssl.trustStoreType=pkcs12"
+            )
         );
         assert_eq!(hadoop_heapsize_env, "614");
     }
@@ -176,14 +180,16 @@ mod tests {
 
         assert_eq!(
             non_heap_jvm_args,
-            "-Djava.security.properties=/stackable/config/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9084:/stackable/jmx/jmx_hive_config.yaml \
-            -Djavax.net.ssl.trustStore=/stackable/truststore.p12 \
-            -Djavax.net.ssl.trustStorePassword=changeit \
+            format!(
+                "-Djava.security.properties={STACKABLE_CONFIG_DIR}/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml \
+            -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE} \
+            -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD} \
             -Djavax.net.ssl.trustStoreType=pkcs12 \
             -Dhttps.proxyHost=proxy.my.corp \
             -Djava.net.preferIPv4Stack=true \
             -Dhttps.proxyPort=1234"
+            )
         );
         assert_eq!(hadoop_heapsize_env, "34406");
     }

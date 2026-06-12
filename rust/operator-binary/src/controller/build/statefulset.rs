@@ -33,18 +33,14 @@ use stackable_operator::{
     },
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
-        builder::{
-            meta::ownerreference_from_resource,
-            pod::{
-                container::{EnvVarSet, new_container_builder},
-                volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
-            },
+        builder::pod::{
+            container::{EnvVarSet, new_container_builder},
+            volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
         },
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
         types::kubernetes::{ContainerName, ListenerName, PersistentVolumeClaimName, VolumeName},
-        types::operator::ProductVersion,
     },
 };
 
@@ -52,6 +48,7 @@ use crate::{
     controller::{
         HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
         build::{
+            UNVERSIONED_PRODUCT_VERSION,
             command::build_container_command_args,
             graceful_shutdown::add_graceful_shutdown_config,
             jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
@@ -133,6 +130,15 @@ stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
+// Typed name for the HDFS discovery ConfigMap volume, reusing the existing `"hdfs-discovery"`
+// string value so the produced volume/mount name is unchanged.
+stackable_operator::constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
+
+/// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
+/// [`build_container_command_args`](super::command::build_container_command_args) when copying the
+/// mounted HDFS config into the writeable config directory.
+pub(crate) const HDFS_CONFIG_MOUNT_DIR: &str = "/stackable/mount/hdfs-config";
+
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -175,13 +181,13 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
         pod_builder
             .add_volume(
-                VolumeBuilder::new("hdfs-discovery")
+                VolumeBuilder::new(&*HDFS_DISCOVERY_VOLUME_NAME)
                     .with_config_map(&hdfs.config_map)
                     .build(),
             )
             .context(AddVolumeSnafu)?;
         container_builder
-            .add_volume_mount("hdfs-discovery", "/stackable/mount/hdfs-config")
+            .add_volume_mount(&*HDFS_DISCOVERY_VOLUME_NAME, HDFS_CONFIG_MOUNT_DIR)
             .context(AddVolumeMountSnafu)?;
     }
 
@@ -324,13 +330,11 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     let recommended_object_labels = cluster.recommended_labels(role_group_name);
     // Used for PVC templates that cannot be modified once they are deployed. A version value is
     // required, so a constant "none" is used to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.recommended_labels_for(
-        &ProductVersion::from_str("none").expect("'none' is a valid product version"),
-        role_group_name,
-    );
+    let unversioned_recommended_labels =
+        cluster.recommended_labels_for(&UNVERSIONED_PRODUCT_VERSION, role_group_name);
 
     let metadata = ObjectMetaBuilder::new()
-        .with_labels(recommended_object_labels.clone())
+        .with_labels(recommended_object_labels)
         .build();
 
     let listener_name = ListenerName::from_str(&cluster.role_listener_name(hive_role))
@@ -426,11 +430,11 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(cluster)
-            .name(resource_names.stateful_set_name().to_string())
-            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_labels(recommended_object_labels)
+        metadata: cluster
+            .object_meta(
+                resource_names.stateful_set_name().to_string(),
+                role_group_name,
+            )
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
         spec: Some(StatefulSetSpec {

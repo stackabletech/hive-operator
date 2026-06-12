@@ -1,6 +1,6 @@
 use stackable_operator::crd::s3;
 
-use super::{opa::HiveOpaConfig, properties::ConfigFileName};
+use super::{opa::HiveOpaConfig, properties::ConfigFileName, statefulset::HDFS_CONFIG_MOUNT_DIR};
 use crate::crd::{
     STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,
@@ -13,6 +13,7 @@ pub fn build_container_command_args(
     hive_opa_config: Option<&HiveOpaConfig>,
 ) -> Vec<String> {
     let log4j2_properties = ConfigFileName::Log4j2;
+    let core_site = ConfigFileName::CoreSite;
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set s3 access and secret keys
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
@@ -26,7 +27,7 @@ pub fn build_container_command_args(
         ),
         // Template config files
         format!(
-            "if test -f {STACKABLE_CONFIG_DIR}/core-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/core-site.xml; fi"
+            "if test -f {STACKABLE_CONFIG_DIR}/{core_site}; then config-utils template {STACKABLE_CONFIG_DIR}/{core_site}; fi"
         ),
         format!(
             "if test -f {STACKABLE_CONFIG_DIR}/hive-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/hive-site.xml; fi"
@@ -39,8 +40,8 @@ pub fn build_container_command_args(
 
     if hive.spec.cluster_config.hdfs.is_some() {
         args.extend([
-            format!("echo copying /stackable/mount/hdfs-config to {STACKABLE_CONFIG_DIR}"),
-            format!("cp -RL /stackable/mount/hdfs-config/* {STACKABLE_CONFIG_DIR}"),
+            format!("echo copying {HDFS_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
+            format!("cp -RL {HDFS_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
         ]);
     }
 

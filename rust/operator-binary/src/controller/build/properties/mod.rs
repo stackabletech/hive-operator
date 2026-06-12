@@ -12,6 +12,8 @@ pub enum ConfigFileName {
     HiveSite,
     #[strum(serialize = "core-site.xml")]
     CoreSite,
+    #[strum(serialize = "hdfs-site.xml")]
+    HdfsSite,
     #[strum(serialize = "security.properties")]
     Security,
     #[strum(serialize = "metastore-log4j2.properties")]
@@ -26,6 +28,7 @@ mod tests {
     fn file_names_match_the_hive_on_disk_names() {
         assert_eq!(ConfigFileName::HiveSite.to_string(), "hive-site.xml");
         assert_eq!(ConfigFileName::CoreSite.to_string(), "core-site.xml");
+        assert_eq!(ConfigFileName::HdfsSite.to_string(), "hdfs-site.xml");
         assert_eq!(ConfigFileName::Security.to_string(), "security.properties");
         assert_eq!(
             ConfigFileName::Log4j2.to_string(),

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
@@ -17,10 +17,19 @@ use stackable_operator::{
     commons::secret_class::SecretClassVolumeProvisionParts,
     kube::ResourceExt,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::types::kubernetes::VolumeName,
 };
 
 use super::properties::ConfigFileName;
 use crate::crd::{HiveRole, STACKABLE_CONFIG_DIR, v1alpha1};
+
+// Typed name for the Kerberos secret-operator volume, reusing the existing `"kerberos"` string
+// value so the produced volume/mount name is unchanged.
+stackable_operator::constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
+
+/// The directory the Kerberos secret-operator volume is mounted at. `krb5.conf` and `keytab`
+/// sub-paths are derived from this.
+pub(crate) const STACKABLE_KERBEROS_DIR: &str = "/stackable/kerberos";
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
@@ -57,16 +66,16 @@ pub fn add_kerberos_pod_config(
         .build()
         .context(AddKerberosSecretVolumeSnafu)?;
         pb.add_volume(
-            VolumeBuilder::new("kerberos")
+            VolumeBuilder::new(&*KERBEROS_VOLUME_NAME)
                 .ephemeral(kerberos_secret_operator_volume)
                 .build(),
         )
         .context(AddVolumeSnafu)?;
-        cb.add_volume_mount("kerberos", "/stackable/kerberos")
+        cb.add_volume_mount(&*KERBEROS_VOLUME_NAME, STACKABLE_KERBEROS_DIR)
             .context(AddVolumeMountSnafu)?;
 
         // Needed env vars
-        cb.add_env_var("KRB5_CONFIG", "/stackable/kerberos/krb5.conf");
+        cb.add_env_var("KRB5_CONFIG", format!("{STACKABLE_KERBEROS_DIR}/krb5.conf"));
     }
 
     Ok(())
@@ -97,7 +106,7 @@ pub fn kerberos_config_properties(
         ),
         (
             "hive.metastore.kerberos.keytab.file".to_string(),
-            "/stackable/kerberos/keytab".to_string(),
+            format!("{STACKABLE_KERBEROS_DIR}/keytab"),
         ),
         (
             "hive.metastore.sasl.enabled".to_string(),
@@ -113,15 +122,17 @@ pub fn kerberos_container_start_commands(hive: &v1alpha1::HiveCluster) -> String
 
     let hive_site_xml = ConfigFileName::HiveSite;
     let mut args = vec![formatdoc! {"
-        export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)
+        export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' {STACKABLE_KERBEROS_DIR}/krb5.conf)
         sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{hive_site_xml}",
     }];
 
     if hive.spec.cluster_config.hdfs.is_some() {
+        let core_site_xml = ConfigFileName::CoreSite;
+        let hdfs_site_xml = ConfigFileName::HdfsSite;
         args.extend([
             formatdoc! {"
-                sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/core-site.xml
-                sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/hdfs-site.xml",
+                sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{core_site_xml}
+                sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{hdfs_site_xml}",
             }
         ]);
     }

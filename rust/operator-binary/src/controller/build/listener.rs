@@ -1,14 +1,8 @@
-use std::str::FromStr;
-
 use snafu::{OptionExt, Snafu};
-use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
-    crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
-    v2::builder::meta::ownerreference_from_resource,
-};
+use stackable_operator::crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec};
 
 use crate::{
-    controller::{RoleGroupName, ValidatedCluster},
+    controller::{ValidatedCluster, build::PLACEHOLDER_LISTENER_ROLE_GROUP},
     crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole},
 };
 
@@ -63,13 +57,11 @@ pub fn build_role_listener(
 ) -> Listener {
     // The role listener is a role-level (not role-group-level) object, so there is no real
     // role-group name; "none" is used as a placeholder for the recommended labels.
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(cluster)
-        .name(cluster.role_listener_name(hive_role))
-        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_labels(cluster.recommended_labels(
-            &RoleGroupName::from_str("none").expect("'none' is a valid role group name"),
-        ))
+    let metadata = cluster
+        .object_meta(
+            cluster.role_listener_name(hive_role),
+            &PLACEHOLDER_LISTENER_ROLE_GROUP,
+        )
         .build();
 
     let spec = ListenerSpec {
