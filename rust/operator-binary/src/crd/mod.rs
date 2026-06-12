@@ -1,9 +1,7 @@
-use std::{collections::BTreeMap, str::FromStr};
-
 use databases::MetadataDatabaseConnection;
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::Snafu;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -22,17 +20,16 @@ use stackable_operator::{
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
+    kube::{CustomResource, runtime::reflector::ObjectRef},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    utils::cluster_info::KubernetesClusterInfo,
     v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
     versioned::versioned,
 };
-use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use strum::{Display, EnumIter, EnumString};
 use v1alpha1::HiveMetastoreRoleConfig;
 
 use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_class};
@@ -83,16 +80,6 @@ pub enum Error {
 
     #[snafu(display("the role {role} is not defined"))]
     CannotRetrieveHiveRole { role: String },
-
-    #[snafu(display("the role group {role_group} is not defined"))]
-    CannotRetrieveHiveRoleGroup { role_group: String },
-
-    #[snafu(display("unknown role {role}. Should be one of {roles:?}"))]
-    UnknownHiveRole {
-        source: strum::ParseError,
-        role: String,
-        roles: Vec<String>,
-    },
 }
 
 #[versioned(
@@ -221,65 +208,6 @@ impl v1alpha1::HiveCluster {
         }
     }
 
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .metastore
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
-    pub fn role(&self, role_variant: &HiveRole) -> Result<&HiveRoleType, Error> {
-        match role_variant {
-            HiveRole::MetaStore => self.spec.metastore.as_ref(),
-        }
-        .with_context(|| CannotRetrieveHiveRoleSnafu {
-            role: role_variant.to_string(),
-        })
-    }
-
-    /// The name of the role-listener provided for a specific role.
-    /// returns a name `<cluster>-<role>`
-    pub fn role_listener_name(&self, hive_role: &HiveRole) -> String {
-        format!("{name}-{role}", name = self.name_any(), role = hive_role)
-    }
-
-    pub fn rolegroup(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<HiveRoleGroupType, Error> {
-        let role_variant =
-            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
-                role: rolegroup_ref.role.to_owned(),
-                roles: HiveRole::roles(),
-            })?;
-
-        let role = self.role(&role_variant)?;
-        role.role_groups
-            .get(&rolegroup_ref.role_group)
-            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
-                role_group: rolegroup_ref.role_group.to_owned(),
-            })
-            .cloned()
-    }
-
     pub fn role_config(&self, role: &HiveRole) -> Option<&HiveMetastoreRoleConfig> {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
@@ -326,27 +254,6 @@ pub enum HiveRole {
 }
 
 impl HiveRole {
-    /// Metadata about a rolegroup
-    pub fn rolegroup_ref(
-        &self,
-        hive: &v1alpha1::HiveCluster,
-        group_name: impl Into<String>,
-    ) -> RoleGroupRef<v1alpha1::HiveCluster> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(hive),
-            role: self.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    pub fn roles() -> Vec<String> {
-        let mut roles = vec![];
-        for role in Self::iter() {
-            roles.push(role.to_string())
-        }
-        roles
-    }
-
     /// A Kerberos principal has three parts, with the form username/fully.qualified.domain.name@YOUR-REALM.COM.
     /// We only have one role and will use "hive" everywhere (which e.g. differs from the current hdfs implementation).
     pub fn kerberos_service_name(&self) -> &'static str {
@@ -464,30 +371,6 @@ pub struct HiveClusterStatus {
     pub discovery_hash: Option<String>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(display("object has no namespace associated"))]
-pub struct NoNamespaceError;
-
-/// Reference to a single `Pod` that is a component of a [`HiveCluster`]
-/// Used for service discovery.
-pub struct PodRef {
-    pub namespace: String,
-    pub role_group_service_name: String,
-    pub pod_name: String,
-}
-
-impl PodRef {
-    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
-        format!(
-            "{pod_name}.{service_name}.{namespace}.svc.{cluster_domain}",
-            pod_name = self.pod_name,
-            service_name = self.role_group_service_name,
-            namespace = self.namespace,
-            cluster_domain = cluster_info.cluster_domain
-        )
-    }
 }
 
 #[cfg(test)]

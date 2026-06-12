@@ -1,48 +1,33 @@
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kvp::{Annotations, Labels},
-    role_utils::RoleGroupRef,
     v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::{
-    controller::{ValidatedCluster, build_recommended_labels},
-    crd::{APP_NAME, HIVE_PORT, HIVE_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, v1alpha1},
+    controller::{RoleGroupName, ValidatedCluster},
+    crd::{HIVE_PORT, HIVE_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME},
 };
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
-    },
-}
 
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 pub fn build_rolegroup_headless_service(
     cluster: &ValidatedCluster,
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-) -> Result<Service, Error> {
-    let headless_service = Service {
+    role_group_name: &RoleGroupName,
+) -> Service {
+    Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(rolegroup.rolegroup_headless_service_name())
+            .name(
+                cluster
+                    .resource_names(role_group_name)
+                    .headless_service_name()
+                    .to_string(),
+            )
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_recommended_labels(&build_recommended_labels(
-                cluster,
-                &cluster.image.app_version_label_value,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            ))
-            .context(MetadataBuildSnafu)?
+            .with_labels(cluster.recommended_labels(role_group_name))
             .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
@@ -50,41 +35,25 @@ pub fn build_rolegroup_headless_service(
             cluster_ip: Some("None".to_string()),
             // Expecting same ports as on listener service, just as a headless, internal service
             ports: Some(service_ports()),
-            selector: Some(
-                Labels::role_group_selector(
-                    cluster,
-                    APP_NAME,
-                    &rolegroup.role,
-                    &rolegroup.role_group,
-                )
-                .context(LabelBuildSnafu)?
-                .into(),
-            ),
+            selector: Some(cluster.role_group_selector(role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,
-    };
-    Ok(headless_service)
+    }
 }
 
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label
 pub fn build_rolegroup_metrics_service(
     cluster: &ValidatedCluster,
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
-) -> Result<Service, Error> {
-    let metrics_service = Service {
+    role_group_name: &RoleGroupName,
+) -> Service {
+    Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(rolegroup.rolegroup_metrics_service_name())
+            .name(metrics_service_name(cluster, role_group_name))
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_recommended_labels(&build_recommended_labels(
-                cluster,
-                &cluster.image.app_version_label_value,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            ))
-            .context(MetadataBuildSnafu)?
+            .with_labels(cluster.recommended_labels(role_group_name))
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations())
             .build(),
@@ -93,22 +62,24 @@ pub fn build_rolegroup_metrics_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(metrics_ports()),
-            selector: Some(
-                Labels::role_group_selector(
-                    cluster,
-                    APP_NAME,
-                    &rolegroup.role,
-                    &rolegroup.role_group,
-                )
-                .context(LabelBuildSnafu)?
-                .into(),
-            ),
+            selector: Some(cluster.role_group_selector(role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,
-    };
-    Ok(metrics_service)
+    }
+}
+
+/// The metrics [`Service`] name, `<cluster>-<role>-<rolegroup>-metrics`.
+///
+/// [`ResourceNames`](stackable_operator::v2::role_group_utils::ResourceNames) has no metrics
+/// service helper, so the `-metrics` suffix is appended to the qualified role-group name (which is
+/// also the StatefulSet name).
+fn metrics_service_name(cluster: &ValidatedCluster, role_group_name: &RoleGroupName) -> String {
+    format!(
+        "{qualified}-metrics",
+        qualified = cluster.resource_names(role_group_name).stateful_set_name()
+    )
 }
 
 fn metrics_ports() -> Vec<ServicePort> {

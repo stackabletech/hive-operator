@@ -4,12 +4,13 @@ mod build;
 mod dereference;
 mod validate;
 
-use std::{collections::BTreeMap, hash::Hasher, sync::Arc};
+use std::{collections::BTreeMap, hash::Hasher, str::FromStr, sync::Arc};
 
 use const_format::concatcp;
 use fnv::FnvHasher;
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
+pub use stackable_operator::v2::types::operator::RoleGroupName;
 use stackable_operator::{
     builder::{
         self,
@@ -52,7 +53,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
-    kvp::{Labels, ObjectLabels},
+    kvp::Labels,
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
@@ -65,14 +66,19 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::RoleGroupRef,
     shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
     utils::COMMON_BASH_TRAP_FUNCTIONS,
-    v2::{HasName, HasUid, builder::meta::ownerreference_from_resource},
+    v2::{
+        HasName, HasUid, NameIsValidLabelValue,
+        builder::meta::ownerreference_from_resource,
+        kvp::label::{recommended_labels, role_group_selector},
+        role_group_utils::ResourceNames,
+        types::operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
+    },
 };
 use strum::EnumDiscriminants;
 
@@ -116,28 +122,28 @@ pub struct Ctx {
 #[strum_discriminants(derive(strum::IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to apply Service for {rolegroup}"))]
+    #[snafu(display("failed to apply Service for role group {role_group}"))]
     ApplyRoleGroupService {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
+        role_group: RoleGroupName,
     },
 
-    #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
+    #[snafu(display("failed to build ConfigMap for role group {role_group}"))]
     BuildRoleGroupConfigMap {
         source: build::config_map::Error,
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
+        role_group: RoleGroupName,
     },
 
-    #[snafu(display("failed to apply ConfigMap for {rolegroup}"))]
+    #[snafu(display("failed to apply ConfigMap for role group {role_group}"))]
     ApplyRoleGroupConfig {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
+        role_group: RoleGroupName,
     },
 
-    #[snafu(display("failed to apply StatefulSet for {rolegroup}"))]
+    #[snafu(display("failed to apply StatefulSet for role group {role_group}"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
+        role_group: RoleGroupName,
     },
 
     #[snafu(display("failed to build discovery ConfigMap"))]
@@ -210,16 +216,6 @@ pub enum Error {
         source: crate::operations::graceful_shutdown::Error,
     },
 
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
-    },
-
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
         source:
@@ -255,16 +251,10 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
         role: String,
     },
-    #[snafu(display("failed to configure listener"))]
-    ListenerConfiguration { source: crate::listener::Error },
-
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
-
-    #[snafu(display("failed to configure service"))]
-    ServiceConfiguration { source: crate::service::Error },
 
     #[snafu(display("failed to dereference cluster resources"))]
     Dereference {
@@ -286,8 +276,6 @@ impl ReconcilerError for Error {
         ErrorDiscriminants::from(self).into()
     }
 }
-
-pub type RoleGroupName = String;
 
 /// A validated, merged Hive metastore role-group config.
 ///
@@ -321,6 +309,9 @@ pub struct ValidatedCluster {
     pub namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
     pub uid: stackable_operator::v2::types::kubernetes::Uid,
     pub image: ResolvedProductImage,
+    /// The product version as a valid label value, used for the recommended `app.kubernetes.io/version`
+    /// label. Derived from the resolved image's app version label value.
+    pub product_version: ProductVersion,
     pub role_config: Option<ValidatedRoleConfig>,
     pub cluster_config: ValidatedClusterConfig,
     pub role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
@@ -336,6 +327,10 @@ impl ValidatedCluster {
         cluster_config: ValidatedClusterConfig,
         role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
     ) -> Self {
+        // `app_version_label_value` is constructed to be a valid label value, so it is also a
+        // valid `ProductVersion`.
+        let product_version = ProductVersion::from_str(&image.app_version_label_value)
+            .expect("the app version label value is a valid product version");
         Self {
             metadata: ObjectMeta {
                 name: Some(name.to_string()),
@@ -347,10 +342,53 @@ impl ValidatedCluster {
             namespace,
             uid,
             image,
+            product_version,
             role_config,
             cluster_config,
             role_group_configs,
         }
+    }
+
+    /// The single Hive role name (`metastore`).
+    pub fn role_name() -> RoleName {
+        RoleName::from_str(&HiveRole::MetaStore.to_string())
+            .expect("the metastore role name is a valid role name")
+    }
+
+    /// Type-safe names for the resources of a given role group.
+    pub(crate) fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
+        ResourceNames {
+            cluster_name: self.name.clone(),
+            role_name: Self::role_name(),
+            role_group_name: role_group_name.clone(),
+        }
+    }
+
+    /// Recommended labels for a role-group resource, using the given product version.
+    fn recommended_labels_for(
+        &self,
+        product_version: &ProductVersion,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        recommended_labels(
+            self,
+            &product_name(),
+            product_version,
+            &operator_name(),
+            &controller_name(),
+            &Self::role_name(),
+            role_group_name,
+        )
+    }
+
+    /// Recommended labels for a role-group resource.
+    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
+        self.recommended_labels_for(&self.product_version, role_group_name)
+    }
+
+    /// Selector labels matching the pods of a role group.
+    pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
+        role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
     }
 
     /// The name of the per-role [`Listener`] object.
@@ -404,6 +442,28 @@ impl HasUid for ValidatedCluster {
     fn to_uid(&self) -> stackable_operator::v2::types::kubernetes::Uid {
         self.uid.clone()
     }
+}
+
+impl NameIsValidLabelValue for ValidatedCluster {
+    fn to_label_value(&self) -> String {
+        self.name.to_label_value()
+    }
+}
+
+/// The product name (`hive`) as a type-safe label value.
+fn product_name() -> ProductName {
+    ProductName::from_str(APP_NAME).expect("'hive' is a valid product name")
+}
+
+/// The operator name as a type-safe label value.
+fn operator_name() -> OperatorName {
+    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
+}
+
+/// The controller name as a type-safe label value.
+fn controller_name() -> ControllerName {
+    ControllerName::from_str(HIVE_CONTROLLER_NAME)
+        .expect("the controller name is a valid label value")
 }
 
 /// Cluster-wide settings resolved during validation and dereferencing.
@@ -486,31 +546,36 @@ pub async fn reconcile_hive(
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (hive_role, role_group_configs) in &validated_cluster.role_group_configs {
-        for (rolegroup_name, rg) in role_group_configs {
-            let rolegroup = hive.metastore_rolegroup_ref(rolegroup_name);
+        for (role_group_name, rg) in role_group_configs {
+            // The Vector agent config is still generated per role group via the upstream v1
+            // `create_vector_config`, which requires a `RoleGroupRef`. This is the only remaining
+            // use of `RoleGroupRef`; it is built here (where the raw cluster is available) and the
+            // resulting config string is threaded into the ConfigMap builder.
+            let rolegroup_ref = hive.metastore_rolegroup_ref(role_group_name.as_ref());
+            let vector_config =
+                build::properties::logging::build_vector_config(&rolegroup_ref, &rg.config.logging);
 
             let rg_metrics_service =
-                build_rolegroup_metrics_service(&validated_cluster, &rolegroup)
-                    .context(ServiceConfigurationSnafu)?;
+                build_rolegroup_metrics_service(&validated_cluster, role_group_name);
 
             let rg_headless_service =
-                build_rolegroup_headless_service(&validated_cluster, &rolegroup)
-                    .context(ServiceConfigurationSnafu)?;
+                build_rolegroup_headless_service(&validated_cluster, role_group_name);
 
             let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
                 &validated_cluster,
-                &rolegroup,
+                role_group_name,
                 rg,
+                vector_config,
             )
             .with_context(|_| BuildRoleGroupConfigMapSnafu {
-                rolegroup: rolegroup.clone(),
+                role_group: role_group_name.clone(),
             })?;
 
             let rg_statefulset = build_metastore_rolegroup_statefulset(
                 hive,
                 hive_role,
                 &validated_cluster,
-                &rolegroup,
+                role_group_name,
                 rg,
                 &rbac_sa.name_any(),
             )?;
@@ -519,19 +584,19 @@ pub async fn reconcile_hive(
                 .add(client, rg_metrics_service)
                 .await
                 .context(ApplyRoleGroupServiceSnafu {
-                    rolegroup: rolegroup.clone(),
+                    role_group: role_group_name.clone(),
                 })?;
 
             cluster_resources
                 .add(client, rg_headless_service)
                 .await
                 .context(ApplyRoleGroupServiceSnafu {
-                    rolegroup: rolegroup.clone(),
+                    role_group: role_group_name.clone(),
                 })?;
 
             cluster_resources.add(client, rg_configmap).await.context(
                 ApplyRoleGroupConfigSnafu {
-                    rolegroup: rolegroup.clone(),
+                    role_group: role_group_name.clone(),
                 },
             )?;
 
@@ -543,7 +608,7 @@ pub async fn reconcile_hive(
                     .add(client, rg_statefulset)
                     .await
                     .context(ApplyRoleGroupStatefulSetSnafu {
-                        rolegroup: rolegroup.clone(),
+                        role_group: role_group_name.clone(),
                     })?,
             );
         }
@@ -568,8 +633,7 @@ pub async fn reconcile_hive(
             &validated_cluster,
             &HiveRole::MetaStore,
             &role_config.listener_class,
-        )
-        .context(ListenerConfigurationSnafu)?;
+        );
         let listener = cluster_resources.add(client, role_listener).await.context(
             ApplyGroupListenerSnafu {
                 role: HiveRole::MetaStore.to_string(),
@@ -626,10 +690,11 @@ fn build_metastore_rolegroup_statefulset(
     hive: &v1alpha1::HiveCluster,
     hive_role: &HiveRole,
     cluster: &ValidatedCluster,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HiveCluster>,
+    role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
     sa_name: &str,
 ) -> Result<StatefulSet> {
+    let resource_names = cluster.resource_names(role_group_name);
     let resolved_product_image = &cluster.image;
     let database_connection_details = &cluster.cluster_config.metadata_database_connection_details;
     let s3_connection = cluster.cluster_config.s3_connection_spec.as_ref();
@@ -808,25 +873,16 @@ fn build_metastore_rolegroup_statefulset(
         );
     }
 
-    let recommended_object_labels = build_recommended_labels(
-        hive,
-        &resolved_product_image.app_version_label_value,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
+    let recommended_object_labels = cluster.recommended_labels(role_group_name);
+    // Used for PVC templates that cannot be modified once they are deployed. A version value is
+    // required, so a constant "none" is used to keep the labels stable across version upgrades.
+    let unversioned_recommended_labels = cluster.recommended_labels_for(
+        &ProductVersion::from_str("none").expect("'none' is a valid product version"),
+        role_group_name,
     );
-    // Used for PVC templates that cannot be modified once they are deployed
-    let unversioned_recommended_labels = Labels::recommended(&build_recommended_labels(
-        hive,
-        // A version value is required, and we do want to use the "recommended" format for the other desired labels
-        "none",
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    ))
-    .context(LabelBuildSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(&recommended_object_labels)
-        .context(MetadataBuildSnafu)?
+        .with_labels(recommended_object_labels.clone())
         .build();
 
     let pvc = ListenerOperatorVolumeSourceBuilder::new(
@@ -855,7 +911,7 @@ fn build_metastore_rolegroup_statefulset(
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
             name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: rolegroup_ref.object_name(),
+                name: resource_names.role_group_config_map().to_string(),
                 ..Default::default()
             }),
             ..Default::default()
@@ -894,7 +950,7 @@ fn build_metastore_rolegroup_statefulset(
             .add_volume(Volume {
                 name: STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME.to_string(),
                 config_map: Some(ConfigMapVolumeSource {
-                    name: rolegroup_ref.object_name(),
+                    name: resource_names.role_group_config_map().to_string(),
                     ..ConfigMapVolumeSource::default()
                 }),
                 ..Volume::default()
@@ -947,29 +1003,19 @@ fn build_metastore_rolegroup_statefulset(
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(rolegroup_ref.object_name())
+            .name(resource_names.stateful_set_name().to_string())
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_recommended_labels(&recommended_object_labels)
-            .context(MetadataBuildSnafu)?
+            .with_labels(recommended_object_labels)
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             replicas: Some(i32::from(rg.replicas)),
             selector: LabelSelector {
-                match_labels: Some(
-                    Labels::role_group_selector(
-                        hive,
-                        APP_NAME,
-                        &rolegroup_ref.role,
-                        &rolegroup_ref.role_group,
-                    )
-                    .context(LabelBuildSnafu)?
-                    .into(),
-                ),
+                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()
             },
-            service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
+            service_name: Some(resource_names.headless_service_name().to_string()),
             template: pod_template,
             volume_claim_templates: Some(vec![pvc]),
             ..StatefulSetSpec::default()
@@ -987,24 +1033,6 @@ pub fn error_policy(
         // An invalid HBaseCluster was deserialized. Await for it to change.
         Error::InvalidHiveCluster { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
-    }
-}
-
-/// Creates recommended `ObjectLabels` to be used in deployed resources
-pub fn build_recommended_labels<'a, T>(
-    owner: &'a T,
-    app_version: &'a str,
-    role: &'a str,
-    role_group: &'a str,
-) -> ObjectLabels<'a, T> {
-    ObjectLabels {
-        owner,
-        app_name: APP_NAME,
-        app_version,
-        operator_name: OPERATOR_NAME,
-        controller_name: HIVE_CONTROLLER_NAME,
-        role,
-        role_group,
     }
 }
 

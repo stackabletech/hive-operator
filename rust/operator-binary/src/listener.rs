@@ -1,4 +1,6 @@
-use snafu::{OptionExt, ResultExt, Snafu};
+use std::str::FromStr;
+
+use snafu::{OptionExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
@@ -6,7 +8,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{ValidatedCluster, build_recommended_labels},
+    controller::{RoleGroupName, ValidatedCluster},
     crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole},
 };
 
@@ -19,10 +21,6 @@ pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
     #[snafu(display("{role} listener has no adress"))]
     RoleListenerHasNoAddress { role: String },
     #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
@@ -69,18 +67,16 @@ pub fn build_role_listener(
     cluster: &ValidatedCluster,
     hive_role: &HiveRole,
     listener_class: &String,
-) -> Result<Listener, Error> {
+) -> Listener {
+    // The role listener is a role-level (not role-group-level) object, so there is no real
+    // role-group name; "none" is used as a placeholder for the recommended labels.
     let metadata = ObjectMetaBuilder::new()
         .name_and_namespace(cluster)
         .name(cluster.role_listener_name(hive_role))
         .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_recommended_labels(&build_recommended_labels(
-            cluster,
-            &cluster.image.app_version_label_value,
-            &hive_role.to_string(),
-            "none",
+        .with_labels(cluster.recommended_labels(
+            &RoleGroupName::from_str("none").expect("'none' is a valid role group name"),
         ))
-        .context(MetadataBuildSnafu)?
         .build();
 
     let spec = ListenerSpec {
@@ -89,13 +85,11 @@ pub fn build_role_listener(
         ..Default::default()
     };
 
-    let listener = Listener {
+    Listener {
         metadata,
         spec,
         status: None,
-    };
-
-    Ok(listener)
+    }
 }
 
 pub fn listener_ports() -> Vec<ListenerPort> {

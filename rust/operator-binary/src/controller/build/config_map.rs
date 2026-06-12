@@ -5,20 +5,15 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     product_logging::framework::VECTOR_CONFIG_FILE,
-    role_utils::RoleGroupRef,
     v2::{
         builder::meta::ownerreference_from_resource,
         config_file_writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
     },
 };
 
-use crate::{
-    controller::{
-        HiveRoleGroupConfig, ValidatedCluster,
-        build::properties::{ConfigFileName, core_site, hive_site, logging, security_properties},
-        build_recommended_labels,
-    },
-    crd::v1alpha1,
+use crate::controller::{
+    HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
+    build::properties::{ConfigFileName, core_site, hive_site, logging, security_properties},
 };
 
 #[derive(Debug, Snafu)]
@@ -29,15 +24,10 @@ pub enum Error {
     #[snafu(display("failed to serialize {}", ConfigFileName::Security))]
     WriteSecurityProperties { source: PropertiesWriterError },
 
-    #[snafu(display("failed to build metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to assemble ConfigMap for {rolegroup}"))]
+    #[snafu(display("failed to assemble ConfigMap for role group {role_group}"))]
     Assemble {
         source: stackable_operator::builder::configmap::Error,
-        rolegroup: RoleGroupRef<v1alpha1::HiveCluster>,
+        role_group: RoleGroupName,
     },
 }
 
@@ -45,10 +35,14 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the
 /// administrator.
+///
+/// `vector_config` is the Vector agent config (`vector.yaml`) built by the caller (where a
+/// `RoleGroupRef` is available); it is `None` when the Vector agent is disabled.
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
-    rolegroup: &RoleGroupRef<v1alpha1::HiveCluster>,
+    role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
+    vector_config: Option<String>,
 ) -> Result<ConfigMap> {
     // hive-site.xml
     let hive_site_overrides = rg.config_overrides.hive_site_xml.overrides.clone();
@@ -69,15 +63,14 @@ pub fn build_metastore_rolegroup_config_map(
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(cluster)
-                .name(rolegroup.object_name())
+                .name(
+                    cluster
+                        .resource_names(role_group_name)
+                        .role_group_config_map()
+                        .to_string(),
+                )
                 .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-                .with_recommended_labels(&build_recommended_labels(
-                    cluster,
-                    &cluster.image.app_version_label_value,
-                    &rolegroup.role,
-                    &rolegroup.role_group,
-                ))
-                .context(MetadataBuildSnafu)?
+                .with_labels(cluster.recommended_labels(role_group_name))
                 .build(),
         )
         .add_data(
@@ -101,11 +94,11 @@ pub fn build_metastore_rolegroup_config_map(
     if let Some(log4j2_properties) = logging::build_log4j2(&rg.config.logging) {
         cm_builder.add_data(ConfigFileName::Log4j2.to_string(), log4j2_properties);
     }
-    if let Some(vector_config) = logging::build_vector_config(rolegroup, &rg.config.logging) {
+    if let Some(vector_config) = vector_config {
         cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
     }
 
     cm_builder.build().with_context(|_| AssembleSnafu {
-        rolegroup: rolegroup.clone(),
+        role_group: role_group_name.clone(),
     })
 }

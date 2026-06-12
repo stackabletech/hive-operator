@@ -60,7 +60,7 @@ mod tests {
         let merged_config = validated
             .role_group_configs
             .get(&role)
-            .and_then(|groups| groups.get("default"))
+            .and_then(|groups| groups.get(&"default".parse().expect("valid role group name")))
             .expect("role group should exist")
             .config
             .clone();

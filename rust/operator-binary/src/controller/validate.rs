@@ -51,16 +51,22 @@ pub enum Error {
         source: stackable_operator::v2::controller_utils::Error,
     },
 
+    #[snafu(display("invalid role group name {role_group}"))]
+    ParseRoleGroupName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+        role_group: String,
+    },
+
     #[snafu(display("failed to validate the config for role group {role_group}"))]
     ValidateConfig {
         source: fragment::ValidationError,
-        role_group: String,
+        role_group: RoleGroupName,
     },
 
     #[snafu(display("invalid environment variable override name in role group {role_group}"))]
     ParseEnvVarName {
         source: container::Error,
-        role_group: String,
+        role_group: RoleGroupName,
     },
 
     #[snafu(display("invalid metadata database connection"))]
@@ -111,8 +117,12 @@ pub fn validate_cluster(
 
     let mut groups: BTreeMap<RoleGroupName, HiveRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {
-        let validated_rg = validate_role_group_config(rg_name, rg, role, &default_config)?;
-        groups.insert(rg_name.clone(), validated_rg);
+        let role_group_name =
+            RoleGroupName::from_str(rg_name).with_context(|_| ParseRoleGroupNameSnafu {
+                role_group: rg_name.clone(),
+            })?;
+        let validated_rg = validate_role_group_config(&role_group_name, rg, role, &default_config)?;
+        groups.insert(role_group_name, validated_rg);
     }
 
     let mut role_group_configs = BTreeMap::new();
@@ -171,7 +181,7 @@ pub fn validate_cluster(
 /// (`HashMap`) are converted into an [`EnvVarSet`] here so invalid names fail validation
 /// early (the opensearch-operator pattern).
 fn validate_role_group_config(
-    role_group_name: &str,
+    role_group_name: &RoleGroupName,
     role_group: &crate::crd::HiveRoleGroupType,
     role: &crate::crd::HiveRoleType,
     default_config: &crate::crd::MetaStoreConfigFragment,
@@ -184,14 +194,14 @@ fn validate_role_group_config(
         v1alpha1::HiveConfigOverrides,
     >(role_group, role, default_config)
     .with_context(|_| ValidateConfigSnafu {
-        role_group: role_group_name.to_owned(),
+        role_group: role_group_name.clone(),
     })?;
 
     let mut env_overrides = EnvVarSet::new();
     for (env_var_name, env_var_value) in merged.config.env_overrides {
         env_overrides = env_overrides.with_value(
             &EnvVarName::from_str(&env_var_name).with_context(|_| ParseEnvVarNameSnafu {
-                role_group: role_group_name.to_owned(),
+                role_group: role_group_name.clone(),
             })?,
             env_var_value,
         );

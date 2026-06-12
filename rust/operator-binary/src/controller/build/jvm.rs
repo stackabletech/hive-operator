@@ -91,7 +91,7 @@ mod tests {
         validated
             .role_group_configs
             .get(&HiveRole::MetaStore)
-            .and_then(|groups| groups.get("default"))
+            .and_then(|groups| groups.get(&"default".parse().expect("valid role group name")))
             .expect("metastore default role group should exist")
             .clone()
     }

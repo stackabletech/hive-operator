@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
@@ -8,7 +10,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{ValidatedCluster, build_recommended_labels},
+    controller::{RoleGroupName, ValidatedCluster},
     crd::{HiveRole, v1alpha1},
     listener::build_listener_connection_string,
 };
@@ -21,10 +23,6 @@ pub enum Error {
         obj_ref: ObjectRef<v1alpha1::HiveCluster>,
     },
 
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
     #[snafu(display("failed to configure listener discovery configmap"))]
     ListenerConfiguration { source: crate::listener::Error },
 }
@@ -66,13 +64,14 @@ fn build_discovery_configmap(
         ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_recommended_labels(&build_recommended_labels(
-                cluster,
-                &cluster.image.app_version_label_value,
-                &hive_role.to_string(),
-                "discovery",
-            ))
-            .context(MetadataBuildSnafu)?
+            // Discovery is a role-level object; "discovery" is used as a placeholder role-group
+            // name for the recommended labels.
+            .with_labels(
+                cluster.recommended_labels(
+                    &RoleGroupName::from_str("discovery")
+                        .expect("'discovery' is a valid role group name"),
+                ),
+            )
             .build(),
     );
 
