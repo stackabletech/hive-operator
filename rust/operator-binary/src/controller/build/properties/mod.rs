@@ -42,30 +42,12 @@ pub(crate) mod test_support {
     use std::collections::BTreeMap;
 
     use crate::{
-        controller::ValidatedClusterConfig,
+        controller::{ValidatedClusterConfig, test_support::DERBY_YAML},
         crd::{
             databases::{MetadataDatabaseConnection, derby_driver_class},
             v1alpha1,
         },
     };
-
-    pub const DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
-        kind: HiveCluster
-        metadata:
-          name: simple-hive
-          namespace: default
-        spec:
-          image:
-            productVersion: "4.0.0"
-          clusterConfig:
-            metadataDatabase:
-              derby: {}
-          metastore:
-            roleGroups:
-              default:
-                replicas: 1
-        "#;
 
     /// Build a minimal Derby-backed [`ValidatedClusterConfig`] for builder tests.
     pub fn derby_cluster_config() -> ValidatedClusterConfig {

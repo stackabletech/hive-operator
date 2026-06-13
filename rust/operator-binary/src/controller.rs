@@ -624,6 +624,28 @@ pub(crate) mod test_support {
     use super::{ValidatedCluster, dereference::DereferencedObjects, validate::validate_cluster};
     use crate::crd::v1alpha1;
 
+    /// Minimal Derby-backed `HiveCluster` fixture shared across the crate's tests.
+    ///
+    /// Includes a `uid` so owner references can be derived from it.
+    pub const DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
     pub fn minimal_hive(yaml: &str) -> v1alpha1::HiveCluster {
         yaml_from_str_singleton_map(yaml).expect("invalid test HiveCluster YAML")
     }
@@ -654,25 +676,6 @@ mod tests {
     use std::str::FromStr;
 
     use super::{RoleGroupName, test_support::*};
-
-    const DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
-        kind: HiveCluster
-        metadata:
-          name: simple-hive
-          namespace: default
-          uid: 12345678-1234-1234-1234-123456789012
-        spec:
-          image:
-            productVersion: 4.2.0
-          clusterConfig:
-            metadataDatabase:
-              derby: {}
-          metastore:
-            roleGroups:
-              default:
-                replicas: 1
-        "#;
 
     #[test]
     fn object_meta_sets_namespace_owner_and_recommended_labels() {
