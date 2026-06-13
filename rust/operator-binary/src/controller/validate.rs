@@ -228,8 +228,20 @@ pub fn validate_cluster(
         _ => metadata_database_connection_details.driver.clone(),
     };
 
+    // The database type passed to Hive via the `--db-type` CLI argument.
+    let db_type = hive
+        .spec
+        .cluster_config
+        .metadata_database
+        .as_hive_db_type()
+        .to_owned();
+
+    let hdfs = hive.spec.cluster_config.hdfs.clone();
+
+    let kerberos_secret_class = hive.kerberos_secret_class();
+
     // Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
-    let kerberos_config = if hive.has_kerberos_enabled() {
+    let kerberos_config = if kerberos_secret_class.is_some() {
         kerberos_config_properties(name.as_ref(), namespace.as_ref(), cluster_info)
     } else {
         BTreeMap::new()
@@ -237,8 +249,7 @@ pub fn validate_cluster(
 
     // A `core-site.xml` with `hadoop.security.authentication=kerberos` is required when
     // Kerberos is enabled and there is no HDFS backend (i.e. S3).
-    let needs_kerberos_core_site =
-        hive.has_kerberos_enabled() && hive.spec.cluster_config.hdfs.is_none();
+    let needs_kerberos_core_site = kerberos_secret_class.is_some() && hdfs.is_none();
 
     Ok(ValidatedCluster::new(
         name,
@@ -249,8 +260,11 @@ pub fn validate_cluster(
         ValidatedClusterConfig {
             metadata_database_connection_details,
             connection_driver,
+            db_type,
+            hdfs,
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
             hive_opa_config: dereferenced_objects.hive_opa_config,
+            kerberos_secret_class,
             kerberos_config,
             needs_kerberos_core_site,
         },

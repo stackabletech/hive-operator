@@ -64,11 +64,20 @@ pub(crate) mod test_support {
             MetadataDatabaseConnection::Derby(_) => derby_driver_class("4.0.0").to_owned(),
             _ => metadata_database_connection_details.driver.clone(),
         };
+        let db_type = hive
+            .spec
+            .cluster_config
+            .metadata_database
+            .as_hive_db_type()
+            .to_owned();
         ValidatedClusterConfig {
             metadata_database_connection_details,
             connection_driver,
+            db_type,
+            hdfs: None,
             s3_connection_spec: None,
             hive_opa_config: None,
+            kerberos_secret_class: None,
             kerberos_config: BTreeMap::new(),
             needs_kerberos_core_site: false,
         }

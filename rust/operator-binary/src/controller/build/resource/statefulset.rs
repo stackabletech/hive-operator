@@ -61,7 +61,7 @@ use crate::{
         HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
         STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
         STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
-        STACKABLE_LOG_DIR_NAME, v1alpha1,
+        STACKABLE_LOG_DIR_NAME,
     },
 };
 
@@ -144,7 +144,6 @@ pub(crate) const HDFS_CONFIG_MOUNT_DIR: &str = "/stackable/mount/hdfs-config";
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`](`stackable_operator::k8s_openapi::api::core::v1::Service`) (via [`build_rolegroup_headless_service`](super::service::build_rolegroup_headless_service) and metrics from [`build_rolegroup_metrics_service`](super::service::build_rolegroup_metrics_service)).
 pub(crate) fn build_metastore_rolegroup_statefulset(
-    hive: &v1alpha1::HiveCluster,
     hive_role: &HiveRole,
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
@@ -165,7 +164,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             "HADOOP_HEAPSIZE",
             construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
         )
-        .add_env_var("HADOOP_OPTS", construct_non_heap_jvm_args(hive, rg))
+        .add_env_var("HADOOP_OPTS", construct_non_heap_jvm_args(cluster, rg))
         .add_env_var(
             "CONTAINERDEBUG_LOG_DIRECTORY",
             format!("{STACKABLE_LOG_DIR}/containerdebug"),
@@ -178,7 +177,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
-    if let Some(hdfs) = &hive.spec.cluster_config.hdfs {
+    if let Some(hdfs) = &cluster.cluster_config.hdfs {
         pod_builder
             .add_volume(
                 VolumeBuilder::new(&*HDFS_DISCOVERY_VOLUME_NAME)
@@ -230,7 +229,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             .context(AddVolumeSnafu)?;
     }
 
-    let db_type = hive.spec.cluster_config.metadata_database.as_hive_db_type();
+    let db_type = &cluster.cluster_config.db_type;
     let start_command = if resolved_product_image.product_version.starts_with("3.") {
         // The schematool version in 3.1.x does *not* support the `-initOrUpgradeSchema` flag yet, so we can not use that.
         // As we *only* support HMS 3.1.x (or newer) since SDP release 23.11, we can safely assume we are always coming
@@ -262,7 +261,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             "-c".to_string(),
         ])
         .args(build_container_command_args(
-            hive,
+            cluster,
             formatdoc! {"
             {kerberos_container_start_commands}
 
@@ -274,7 +273,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             wait_for_termination $!
             {create_vector_shutdown_file_command}
             ",
-                kerberos_container_start_commands = kerberos_container_start_commands(hive),
+                kerberos_container_start_commands = kerberos_container_start_commands(cluster),
                 remove_vector_shutdown_file_command =
                     remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                 create_vector_shutdown_file_command =
@@ -403,8 +402,8 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
-    if hive.has_kerberos_enabled() {
-        add_kerberos_pod_config(hive, hive_role, container_builder, &mut pod_builder)
+    if cluster.has_kerberos_enabled() {
+        add_kerberos_pod_config(cluster, hive_role, container_builder, &mut pod_builder)
             .context(AddKerberosConfigSnafu)?;
     }
 

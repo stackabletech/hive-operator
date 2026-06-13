@@ -15,13 +15,15 @@ use stackable_operator::{
         },
     },
     commons::secret_class::SecretClassVolumeProvisionParts,
-    kube::ResourceExt,
     utils::cluster_info::KubernetesClusterInfo,
     v2::types::kubernetes::VolumeName,
 };
 
 use super::properties::ConfigFileName;
-use crate::crd::{HiveRole, STACKABLE_CONFIG_DIR, v1alpha1};
+use crate::{
+    controller::ValidatedCluster,
+    crd::{HiveRole, STACKABLE_CONFIG_DIR},
+};
 
 // Typed name for the Kerberos secret-operator volume, reusing the existing `"kerberos"` string
 // value so the produced volume/mount name is unchanged.
@@ -49,19 +51,19 @@ pub enum Error {
 }
 
 pub fn add_kerberos_pod_config(
-    hive: &v1alpha1::HiveCluster,
+    cluster: &ValidatedCluster,
     role: &HiveRole,
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
 ) -> Result<(), Error> {
-    if let Some(kerberos_secret_class) = hive.kerberos_secret_class() {
+    if let Some(kerberos_secret_class) = &cluster.cluster_config.kerberos_secret_class {
         // Mount keytab
         let kerberos_secret_operator_volume = SecretOperatorVolumeSourceBuilder::new(
-            kerberos_secret_class,
+            kerberos_secret_class.clone(),
             // We need both public (krb5.conf) and private (keytab) parts.
             SecretClassVolumeProvisionParts::PublicPrivate,
         )
-        .with_service_scope(hive.name_any())
+        .with_service_scope(cluster.name.to_string())
         .with_kerberos_service_name(role.kerberos_service_name())
         .build()
         .context(AddKerberosSecretVolumeSnafu)?;
@@ -115,8 +117,8 @@ pub fn kerberos_config_properties(
     ])
 }
 
-pub fn kerberos_container_start_commands(hive: &v1alpha1::HiveCluster) -> String {
-    if !hive.has_kerberos_enabled() {
+pub fn kerberos_container_start_commands(cluster: &ValidatedCluster) -> String {
+    if !cluster.has_kerberos_enabled() {
         return String::new();
     }
 
@@ -126,7 +128,7 @@ pub fn kerberos_container_start_commands(hive: &v1alpha1::HiveCluster) -> String
         sed -i -e 's/${{env.KERBEROS_REALM}}/'\"$KERBEROS_REALM/g\" {STACKABLE_CONFIG_DIR}/{hive_site_xml}",
     }];
 
-    if hive.spec.cluster_config.hdfs.is_some() {
+    if cluster.cluster_config.hdfs.is_some() {
         let core_site_xml = ConfigFileName::CoreSite;
         let hdfs_site_xml = ConfigFileName::HdfsSite;
         args.extend([

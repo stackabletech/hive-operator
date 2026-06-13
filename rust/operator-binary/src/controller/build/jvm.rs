@@ -3,10 +3,10 @@ use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
 use super::{kerberos::STACKABLE_KERBEROS_DIR, properties::ConfigFileName};
 use crate::{
-    controller::HiveRoleGroupConfig,
+    controller::{HiveRoleGroupConfig, ValidatedCluster},
     crd::{
         METRICS_PORT, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE,
-        STACKABLE_TRUST_STORE_PASSWORD, v1alpha1::HiveCluster,
+        STACKABLE_TRUST_STORE_PASSWORD,
     },
 };
 
@@ -24,7 +24,7 @@ pub enum Error {
 }
 
 /// All JVM arguments.
-fn construct_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> Vec<String> {
+fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> Vec<String> {
     let security_properties = ConfigFileName::Security;
     let mut jvm_args = vec![
         format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{security_properties}"),
@@ -36,7 +36,7 @@ fn construct_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> Vec<Strin
         format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
     ];
 
-    if hive.has_kerberos_enabled() {
+    if cluster.has_kerberos_enabled() {
         jvm_args.push(format!(
             "-Djava.security.krb5.conf={STACKABLE_KERBEROS_DIR}/krb5.conf"
         ));
@@ -49,8 +49,8 @@ fn construct_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> Vec<Strin
 
 /// Arguments that go into `HADOOP_OPTS`, so *not* the heap settings (which you can get using
 /// [`construct_hadoop_heapsize_env`]).
-pub fn construct_non_heap_jvm_args(hive: &HiveCluster, rg: &HiveRoleGroupConfig) -> String {
-    let mut jvm_args = construct_jvm_args(hive, rg);
+pub fn construct_non_heap_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> String {
+    let mut jvm_args = construct_jvm_args(cluster, rg);
     jvm_args.retain(|arg| !is_heap_jvm_argument(arg));
 
     jvm_args.join(" ")
@@ -88,14 +88,17 @@ mod tests {
         crd::HiveRole,
     };
 
-    fn metastore_default(hive: &crate::crd::v1alpha1::HiveCluster) -> HiveRoleGroupConfig {
+    fn metastore_default(
+        hive: &crate::crd::v1alpha1::HiveCluster,
+    ) -> (ValidatedCluster, HiveRoleGroupConfig) {
         let validated = validated_cluster(hive);
-        validated
+        let rg = validated
             .role_group_configs
             .get(&HiveRole::MetaStore)
             .and_then(|groups| groups.get(&"default".parse().expect("valid role group name")))
             .expect("metastore default role group should exist")
-            .clone()
+            .clone();
+        (validated, rg)
     }
 
     #[test]
@@ -119,8 +122,8 @@ mod tests {
                 replicas: 1
         "#;
         let hive = minimal_hive(input);
-        let rg = metastore_default(&hive);
-        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &rg);
+        let (cluster, rg) = metastore_default(&hive);
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&cluster, &rg);
         let hadoop_heapsize_env = construct_hadoop_heapsize_env(&rg.config).unwrap();
 
         assert_eq!(
@@ -174,8 +177,8 @@ mod tests {
                     - -Dhttps.proxyPort=1234
         "#;
         let hive = minimal_hive(input);
-        let rg = metastore_default(&hive);
-        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &rg);
+        let (cluster, rg) = metastore_default(&hive);
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&cluster, &rg);
         let hadoop_heapsize_env = construct_hadoop_heapsize_env(&rg.config).unwrap();
 
         assert_eq!(

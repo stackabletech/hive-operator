@@ -3,13 +3,16 @@ use stackable_operator::crd::s3;
 use super::{
     opa::HiveOpaConfig, properties::ConfigFileName, resource::statefulset::HDFS_CONFIG_MOUNT_DIR,
 };
-use crate::crd::{
-    STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
-    STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,
+use crate::{
+    controller::ValidatedCluster,
+    crd::{
+        STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+        STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
+    },
 };
 
 pub fn build_container_command_args(
-    hive: &v1alpha1::HiveCluster,
+    cluster: &ValidatedCluster,
     start_command: String,
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
     hive_opa_config: Option<&HiveOpaConfig>,
@@ -40,7 +43,7 @@ pub fn build_container_command_args(
         ),
     ];
 
-    if hive.spec.cluster_config.hdfs.is_some() {
+    if cluster.cluster_config.hdfs.is_some() {
         args.extend([
             format!("echo copying {HDFS_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
             format!("cp -RL {HDFS_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),

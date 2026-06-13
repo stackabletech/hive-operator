@@ -50,7 +50,7 @@ use crate::{
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
         },
     },
-    crd::{APP_NAME, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
+    crd::{APP_NAME, HdfsConnection, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -284,6 +284,14 @@ impl ValidatedCluster {
         role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
     }
 
+    /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
+    ///
+    /// Mirrors [`v1alpha1::HiveCluster::has_kerberos_enabled`], derived here from the validated
+    /// config so build steps don't have to re-read the raw cluster.
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.cluster_config.kerberos_secret_class.is_some()
+    }
+
     /// The name of the per-role [`Listener`] object.
     ///
     /// Must stay in sync with [`v1alpha1::HiveCluster::role_listener_name`], which derives the
@@ -392,8 +400,14 @@ pub struct ValidatedClusterConfig {
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     /// The resolved JDBC driver class (Derby version special-casing already applied).
     pub connection_driver: String,
+    /// The database type passed to Hive via the `--db-type` CLI argument (e.g. `derby`).
+    pub db_type: String,
+    /// The HDFS connection (discovery ConfigMap reference), if an HDFS backend is configured.
+    pub hdfs: Option<HdfsConnection>,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<HiveOpaConfig>,
+    /// The Kerberos `SecretClass` name, if Kerberos is enabled.
+    pub kerberos_secret_class: Option<String>,
     /// Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
     pub kerberos_config: BTreeMap<String, String>,
     /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is
@@ -492,7 +506,6 @@ pub async fn reconcile_hive(
 
             let rg_statefulset =
                 build::resource::statefulset::build_metastore_rolegroup_statefulset(
-                    hive,
                     hive_role,
                     &validated_cluster,
                     role_group_name,
