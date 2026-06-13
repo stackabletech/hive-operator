@@ -46,7 +46,7 @@ use crate::{
         resource::{
             discovery,
             listener::build_role_listener,
-            pdb::add_pdbs,
+            pdb::build_pdb,
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
         },
     },
@@ -125,9 +125,9 @@ pub enum Error {
     #[snafu(display("internal operator failure"))]
     InternalOperatorFailure { source: crate::crd::Error },
 
-    #[snafu(display("failed to create PodDisruptionBudget"))]
-    FailedToCreatePdb {
-        source: crate::controller::build::resource::pdb::Error,
+    #[snafu(display("failed to apply PodDisruptionBudget"))]
+    ApplyPdb {
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to get required Labels"))]
@@ -542,15 +542,12 @@ pub async fn reconcile_hive(
     let mut discovery_hash = FnvHasher::with_key(0);
 
     if let Some(role_config) = &validated_cluster.role_config {
-        add_pdbs(
-            &role_config.pdb,
-            &validated_cluster,
-            &HiveRole::MetaStore,
-            client,
-            &mut cluster_resources,
-        )
-        .await
-        .context(FailedToCreatePdbSnafu)?;
+        if let Some(pdb) = build_pdb(&role_config.pdb, &validated_cluster, &HiveRole::MetaStore) {
+            cluster_resources
+                .add(client, pdb)
+                .await
+                .context(ApplyPdbSnafu)?;
+        }
 
         let role_listener: Listener = build_role_listener(
             &validated_cluster,
