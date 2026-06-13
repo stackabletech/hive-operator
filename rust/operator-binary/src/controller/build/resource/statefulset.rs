@@ -135,7 +135,7 @@ pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 stackable_operator::constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
 
 /// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
-/// [`build_container_command_args`](super::command::build_container_command_args) when copying the
+/// [`build_container_command_args`](super::super::command::build_container_command_args) when copying the
 /// mounted HDFS config into the writeable config directory.
 pub(crate) const HDFS_CONFIG_MOUNT_DIR: &str = "/stackable/mount/hdfs-config";
 

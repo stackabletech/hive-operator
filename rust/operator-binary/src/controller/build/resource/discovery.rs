@@ -7,7 +7,9 @@ use stackable_operator::{
 use crate::{
     controller::{
         ValidatedCluster,
-        build::{PLACEHOLDER_DISCOVERY_ROLE_GROUP, listener::build_listener_connection_string},
+        build::{
+            PLACEHOLDER_DISCOVERY_ROLE_GROUP, resource::listener::build_listener_connection_string,
+        },
     },
     crd::{HiveRole, v1alpha1},
 };
@@ -22,7 +24,7 @@ pub enum Error {
 
     #[snafu(display("failed to configure listener discovery configmap"))]
     ListenerConfiguration {
-        source: crate::controller::build::listener::Error,
+        source: crate::controller::build::resource::listener::Error,
     },
 }
 

@@ -42,11 +42,13 @@ use strum::EnumDiscriminants;
 use crate::{
     OPERATOR_NAME,
     controller::build::{
-        discovery,
-        listener::build_role_listener,
         opa::HiveOpaConfig,
-        pdb::add_pdbs,
-        service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
+        resource::{
+            discovery,
+            listener::build_role_listener,
+            pdb::add_pdbs,
+            service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
+        },
     },
     crd::{APP_NAME, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
 };
@@ -71,7 +73,7 @@ pub enum Error {
 
     #[snafu(display("failed to build ConfigMap for role group {role_group}"))]
     BuildRoleGroupConfigMap {
-        source: build::config_map::Error,
+        source: build::resource::config_map::Error,
         role_group: RoleGroupName,
     },
 
@@ -125,7 +127,7 @@ pub enum Error {
 
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
-        source: crate::controller::build::pdb::Error,
+        source: crate::controller::build::resource::pdb::Error,
     },
 
     #[snafu(display("failed to get required Labels"))]
@@ -154,7 +156,7 @@ pub enum Error {
 
     #[snafu(display("failed to build StatefulSet for role group {role_group}"))]
     BuildRoleGroupStatefulSet {
-        source: build::statefulset::Error,
+        source: build::resource::statefulset::Error,
         role_group: RoleGroupName,
     },
 }
@@ -478,7 +480,7 @@ pub async fn reconcile_hive(
             let rg_headless_service =
                 build_rolegroup_headless_service(&validated_cluster, role_group_name);
 
-            let rg_configmap = build::config_map::build_metastore_rolegroup_config_map(
+            let rg_configmap = build::resource::config_map::build_metastore_rolegroup_config_map(
                 &validated_cluster,
                 role_group_name,
                 rg,
@@ -488,17 +490,18 @@ pub async fn reconcile_hive(
                 role_group: role_group_name.clone(),
             })?;
 
-            let rg_statefulset = build::statefulset::build_metastore_rolegroup_statefulset(
-                hive,
-                hive_role,
-                &validated_cluster,
-                role_group_name,
-                rg,
-                &rbac_sa.name_any(),
-            )
-            .with_context(|_| BuildRoleGroupStatefulSetSnafu {
-                role_group: role_group_name.clone(),
-            })?;
+            let rg_statefulset =
+                build::resource::statefulset::build_metastore_rolegroup_statefulset(
+                    hive,
+                    hive_role,
+                    &validated_cluster,
+                    role_group_name,
+                    rg,
+                    &rbac_sa.name_any(),
+                )
+                .with_context(|_| BuildRoleGroupStatefulSetSnafu {
+                    role_group: role_group_name.clone(),
+                })?;
 
             cluster_resources
                 .add(client, rg_metrics_service)

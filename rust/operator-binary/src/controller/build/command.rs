@@ -1,6 +1,8 @@
 use stackable_operator::crd::s3;
 
-use super::{opa::HiveOpaConfig, properties::ConfigFileName, statefulset::HDFS_CONFIG_MOUNT_DIR};
+use super::{
+    opa::HiveOpaConfig, properties::ConfigFileName, resource::statefulset::HDFS_CONFIG_MOUNT_DIR,
+};
 use crate::crd::{
     STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
     STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD, v1alpha1,

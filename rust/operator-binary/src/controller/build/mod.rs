@@ -17,14 +17,9 @@ stackable_operator::constant!(pub(crate) PLACEHOLDER_LISTENER_ROLE_GROUP: RoleGr
 stackable_operator::constant!(pub(crate) UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
 pub mod command;
-pub mod config_map;
-pub mod discovery;
 pub mod graceful_shutdown;
 pub mod jvm;
 pub mod kerberos;
-pub mod listener;
 pub mod opa;
-pub mod pdb;
 pub mod properties;
-pub mod service;
-pub mod statefulset;
+pub mod resource;
