@@ -383,7 +383,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     // The Hive container's log config ConfigMap: either the operator-generated one (the rolegroup
     // ConfigMap, which carries the automatic `log4j2.properties`) or a user-provided custom
     // ConfigMap. This branches on the *validated* logging choice (see `ValidatedLogging`).
-    let log_config_volume_config_map = match &rg.logging.hive_container {
+    let log_config_volume_config_map = match &rg.config.logging.hive_container {
         ValidatedContainerLogConfigChoice::Custom(config_map_name) => config_map_name.to_string(),
         ValidatedContainerLogConfigChoice::Automatic(_) => {
             resource_names.role_group_config_map().to_string()
@@ -412,7 +412,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     // N.B. the vector container should *follow* the hive container so that the hive one is the
     // default, is started first and can provide any dependencies that vector expects
-    if let Some(vector_log_config) = &rg.logging.vector_container {
+    if let Some(vector_log_config) = &rg.config.logging.vector_container {
         pod_builder.add_container(vector_container(
             &VECTOR_CONTAINER_NAME,
             resolved_product_image,

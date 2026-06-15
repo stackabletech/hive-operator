@@ -3,10 +3,9 @@ use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
 use super::{kerberos::STACKABLE_KERBEROS_DIR, properties::ConfigFileName};
 use crate::{
-    controller::{HiveRoleGroupConfig, ValidatedCluster},
+    controller::{HiveRoleGroupConfig, ValidatedCluster, ValidatedMetaStoreConfig},
     crd::{
-        METRICS_PORT, MetaStoreConfig, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE,
-        STACKABLE_TRUST_STORE_PASSWORD,
+        METRICS_PORT, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
     },
 };
 
@@ -44,7 +43,9 @@ fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> V
 
     // Apply the already-merged (role + role group) JVM argument overrides on top of the
     // operator-generated base arguments.
-    rg.jvm_argument_overrides.apply_to(jvm_args)
+    rg.product_specific_common_config
+        .jvm_argument_overrides
+        .apply_to(jvm_args)
 }
 
 /// Arguments that go into `HADOOP_OPTS`, so *not* the heap settings (which you can get using
@@ -58,7 +59,9 @@ pub fn construct_non_heap_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGrou
 
 /// This will be put into `HADOOP_HEAPSIZE`, which is just the heap size in megabytes (*without* the `m`
 /// unit prepended).
-pub fn construct_hadoop_heapsize_env(merged_config: &MetaStoreConfig) -> Result<String, Error> {
+pub fn construct_hadoop_heapsize_env(
+    merged_config: &ValidatedMetaStoreConfig,
+) -> Result<String, Error> {
     let heap_size_in_mb = (MemoryQuantity::try_from(
         merged_config
             .resources

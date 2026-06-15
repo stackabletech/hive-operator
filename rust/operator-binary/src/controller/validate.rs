@@ -22,7 +22,7 @@ use stackable_operator::{
 use crate::{
     controller::{
         HiveRoleGroupConfig, RoleGroupName, ValidatedCluster, ValidatedClusterConfig,
-        ValidatedRoleConfig, build::kerberos::kerberos_config_properties,
+        ValidatedMetaStoreConfig, ValidatedRoleConfig, build::kerberos::kerberos_config_properties,
         dereference::DereferencedObjects,
     },
     crd::{
@@ -273,12 +273,6 @@ pub fn validate_cluster(
 }
 
 /// Merges and validates one role group into a [`HiveRoleGroupConfig`].
-///
-/// Uses the upstream [`with_validated_config`] (which merges the config fragment, the
-/// `configOverrides`, the `envOverrides`, the `podOverrides` and the product-specific
-/// [`JavaCommonConfig`] — including its `jvmArgumentOverrides`). The merged `envOverrides`
-/// (`HashMap`) are converted into an [`EnvVarSet`] here so invalid names fail validation
-/// early (the opensearch-operator pattern).
 fn validate_role_group_config(
     role_group_name: &RoleGroupName,
     role_group: &crate::crd::HiveRoleGroupType,
@@ -314,15 +308,13 @@ fn validate_role_group_config(
 
     Ok(HiveRoleGroupConfig {
         replicas: merged.replicas.unwrap_or(1),
-        config: merged.config.config,
+        config: ValidatedMetaStoreConfig::from_merged(merged.config.config, logging),
         config_overrides: merged.config.config_overrides,
         env_overrides,
+        // Hive does not use CLI overrides; the field is carried (and merged upstream) but unused.
+        cli_overrides: merged.config.cli_overrides,
         pod_overrides: merged.config.pod_overrides,
-        jvm_argument_overrides: merged
-            .config
-            .product_specific_common_config
-            .jvm_argument_overrides,
-        logging,
+        product_specific_common_config: merged.config.product_specific_common_config,
     })
 }
 

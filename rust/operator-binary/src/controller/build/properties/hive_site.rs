@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::s3, k8s_openapi::api::core::v1::EnvVar};
 
-use crate::{controller::ValidatedClusterConfig, crd::MetaStoreConfig};
+use crate::controller::{ValidatedClusterConfig, ValidatedMetaStoreConfig};
 
 const DEFAULT_WAREHOUSE_DIR: &str = "/stackable/warehouse";
 const HIVE_METASTORE_PORT: &str = "hive.metastore.port";
@@ -51,7 +51,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build(
     cluster_config: &ValidatedClusterConfig,
     product_version: &str,
-    merged_config: &MetaStoreConfig,
+    merged_config: &ValidatedMetaStoreConfig,
     overrides: BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>> {
     let database_connection_details = &cluster_config.metadata_database_connection_details;
@@ -135,12 +135,14 @@ pub fn build(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::derby_cluster_config;
+    use crate::{
+        controller::build::properties::test_support::derby_cluster_config, crd::MetaStoreConfig,
+    };
 
     #[test]
     fn defaults_present_for_minimal_derby_cluster() {
         let cluster_config = derby_cluster_config();
-        let merged = MetaStoreConfig::default();
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
 
         let data =
             build(&cluster_config, "4.0.0", &merged, BTreeMap::new()).expect("build hive-site");
@@ -162,10 +164,10 @@ mod tests {
     #[test]
     fn warehouse_dir_spec_overrides_default() {
         let cluster_config = derby_cluster_config();
-        let merged = MetaStoreConfig {
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig {
             warehouse_dir: Some("/custom/warehouse".to_string()),
             ..MetaStoreConfig::default()
-        };
+        });
 
         let data =
             build(&cluster_config, "4.0.0", &merged, BTreeMap::new()).expect("build hive-site");
@@ -179,7 +181,7 @@ mod tests {
     #[test]
     fn user_override_wins_over_everything() {
         let cluster_config = derby_cluster_config();
-        let merged = MetaStoreConfig::default();
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
         let overrides = [("hive.metastore.port".to_string(), "1234".to_string())]
             .into_iter()
             .collect();

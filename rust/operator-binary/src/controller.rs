@@ -13,7 +13,12 @@ pub use stackable_operator::v2::types::operator::RoleGroupName;
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     cluster_resources::ClusterResourceApplyStrategy,
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        affinity::StackableAffinity,
+        product_image_selection::ResolvedProductImage,
+        rbac::build_rbac_resources,
+        resources::{NoRuntimeLimits, Resources},
+    },
     crd::{listener::v1alpha1::Listener, s3},
     database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     kube::{
@@ -169,22 +174,58 @@ impl ReconcilerError for Error {
 }
 
 /// A validated, merged Hive metastore role-group config.
-///
-/// Built by [`validate::validate_cluster`] from the upstream
-/// [`stackable_operator::v2::role_utils::with_validated_config`] result. Holds only the
-/// fields the build steps consume; `cli_overrides` and the product-specific common config
-/// are intentionally not carried (hive does not use them).
+pub type HiveRoleGroupConfig = stackable_operator::v2::role_utils::RoleGroupConfig<
+    ValidatedMetaStoreConfig,
+    stackable_operator::v2::role_utils::JavaCommonConfig,
+    v1alpha1::HiveConfigOverrides,
+>;
+
+/// A validated Hive metastore config: the merged [`MetaStoreConfig`] with its raw `logging`
+/// replaced by the up-front [`ValidatedLogging`](validate::ValidatedLogging) (so an invalid
+/// custom log ConfigMap name or a missing Vector aggregator name fails reconciliation during
+/// validation).
 #[derive(Clone, Debug, PartialEq)]
-pub struct HiveRoleGroupConfig {
-    pub replicas: u16,
-    pub config: MetaStoreConfig,
-    pub config_overrides: v1alpha1::HiveConfigOverrides,
-    pub env_overrides: stackable_operator::v2::builder::pod::container::EnvVarSet,
-    pub pod_overrides: stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec,
-    pub jvm_argument_overrides:
-        stackable_operator::v2::jvm_argument_overrides::JvmArgumentOverrides,
-    /// Validated logging configuration (derived from `config.logging` during validation).
-    pub logging: crate::controller::validate::ValidatedLogging,
+pub struct ValidatedMetaStoreConfig {
+    pub affinity: StackableAffinity,
+    pub graceful_shutdown_timeout: Option<Duration>,
+    pub logging: validate::ValidatedLogging,
+    pub resources: Resources<crate::crd::MetastoreStorageConfig, NoRuntimeLimits>,
+    pub warehouse_dir: Option<String>,
+}
+
+impl ValidatedMetaStoreConfig {
+    /// Builds the validated config from the merged [`MetaStoreConfig`], swapping in the
+    /// already-validated logging.
+    fn from_merged(merged: MetaStoreConfig, logging: validate::ValidatedLogging) -> Self {
+        Self {
+            warehouse_dir: merged.warehouse_dir,
+            resources: merged.resources,
+            logging,
+            affinity: merged.affinity,
+            graceful_shutdown_timeout: merged.graceful_shutdown_timeout,
+        }
+    }
+
+    /// Wraps a merged [`MetaStoreConfig`] with trivial automatic logging, for builder tests
+    /// that only exercise the non-logging parts of the config.
+    #[cfg(test)]
+    pub(crate) fn from_merged_for_test(merged: MetaStoreConfig) -> Self {
+        use stackable_operator::{
+            product_logging::spec::AutomaticContainerLogConfig,
+            v2::product_logging::framework::ValidatedContainerLogConfigChoice,
+        };
+
+        Self::from_merged(
+            merged,
+            validate::ValidatedLogging {
+                hive_container: ValidatedContainerLogConfigChoice::Automatic(
+                    AutomaticContainerLogConfig::default(),
+                ),
+                vector_container: None,
+                enable_vector_agent: false,
+            },
+        )
+    }
 }
 
 /// The validated cluster: the typed, merged result of the validate step. Subsequent
@@ -480,14 +521,6 @@ pub async fn reconcile_hive(
 
     for (hive_role, role_group_configs) in &validated_cluster.role_group_configs {
         for (role_group_name, rg) in role_group_configs {
-            // The Vector agent config (`vector.yaml`) is a static, env-var-parameterized file
-            // (mirroring the opensearch-operator). It is only added to the ConfigMap when the
-            // Vector agent is enabled for this role group.
-            let vector_config = rg
-                .logging
-                .enable_vector_agent
-                .then(build::properties::product_logging::vector_config_file_content);
-
             let rg_metrics_service =
                 build_rolegroup_metrics_service(&validated_cluster, role_group_name);
 
@@ -498,7 +531,6 @@ pub async fn reconcile_hive(
                 &validated_cluster,
                 role_group_name,
                 rg,
-                vector_config,
             )
             .with_context(|_| BuildRoleGroupConfigMapSnafu {
                 role_group: role_group_name.clone(),

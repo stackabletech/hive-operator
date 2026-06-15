@@ -3,13 +3,8 @@
 
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    product_logging::{
-        self,
-        spec::{
-            AutomaticContainerLogConfig, ContainerLogConfig, ContainerLogConfigChoice, Logging,
-        },
-    },
-    v2::product_logging::framework::STACKABLE_LOG_DIR,
+    product_logging::{self, spec::AutomaticContainerLogConfig},
+    v2::product_logging::framework::{STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice},
 };
 
 use crate::crd::Container;
@@ -33,14 +28,12 @@ pub fn vector_config_file_content() -> String {
 /// Renders `log4j2.properties` for the Hive metastore container.
 ///
 /// Returns `None` when the Hive container does not use the operator's automatic logging
-/// configuration (e.g. a custom log ConfigMap is referenced instead), in which case no
+/// configuration (i.e. a custom log ConfigMap is referenced instead), in which case no
 /// `log4j2.properties` should be added to the rolegroup `ConfigMap`.
-pub fn build_log4j2(logging: &Logging<Container>) -> Option<String> {
-    match logging.containers.get(&Container::Hive) {
-        Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) => Some(log4j2_config(log_config)),
-        _ => None,
+pub fn build_log4j2(hive_container: &ValidatedContainerLogConfigChoice) -> Option<String> {
+    match hive_container {
+        ValidatedContainerLogConfigChoice::Automatic(log_config) => Some(log4j2_config(log_config)),
+        ValidatedContainerLogConfigChoice::Custom(_) => None,
     }
 }
 

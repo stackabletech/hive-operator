@@ -34,14 +34,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the
 /// administrator.
-///
-/// `vector_config` is the Vector agent config (`vector.yaml`) built by the caller; it is `None`
-/// when the Vector agent is disabled.
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
-    vector_config: Option<String>,
 ) -> Result<ConfigMap> {
     // hive-site.xml
     let hive_site_overrides = rg.config_overrides.hive_site_xml.overrides.clone();
@@ -88,11 +84,16 @@ pub fn build_metastore_rolegroup_config_map(
         );
     }
 
-    if let Some(log4j2_properties) = product_logging::build_log4j2(&rg.config.logging) {
+    if let Some(log4j2_properties) =
+        product_logging::build_log4j2(&rg.config.logging.hive_container)
+    {
         cm_builder.add_data(ConfigFileName::Log4j2.to_string(), log4j2_properties);
     }
-    if let Some(vector_config) = vector_config {
-        cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
+    if rg.config.logging.enable_vector_agent {
+        cm_builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
     }
 
     cm_builder.build().with_context(|_| AssembleSnafu {
