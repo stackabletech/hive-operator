@@ -40,7 +40,7 @@ use stackable_operator::{
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
-        types::kubernetes::{ContainerName, ListenerName, PersistentVolumeClaimName, VolumeName},
+        types::kubernetes::{ContainerName, PersistentVolumeClaimName, VolumeName},
     },
 };
 
@@ -336,8 +336,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         .with_labels(recommended_object_labels)
         .build();
 
-    let listener_name = ListenerName::from_str(&cluster.role_listener_name(hive_role))
-        .expect("the role listener name is a valid Listener name");
+    let listener_name = cluster.role_listener_name(hive_role);
     let pvc = listener_operator_volume_source_builder_build_pvc(
         &ListenerReference::Listener(listener_name),
         &unversioned_recommended_labels,

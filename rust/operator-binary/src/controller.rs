@@ -39,7 +39,10 @@ use stackable_operator::{
         cluster_resources::cluster_resources_new,
         kvp::label::{recommended_labels, role_group_selector},
         role_group_utils::ResourceNames,
-        types::operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
+        types::{
+            kubernetes::ListenerName,
+            operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
+        },
     },
 };
 use strum::EnumDiscriminants;
@@ -337,8 +340,13 @@ impl ValidatedCluster {
     ///
     /// Must stay in sync with [`v1alpha1::HiveCluster::role_listener_name`], which derives the
     /// same name from the raw cluster (used e.g. by the StatefulSet listener-volume PVC).
-    pub fn role_listener_name(&self, hive_role: &HiveRole) -> String {
-        format!("{name}-{role}", name = self.name, role = hive_role)
+    pub fn role_listener_name(&self, hive_role: &HiveRole) -> ListenerName {
+        ListenerName::from_str(&format!(
+            "{name}-{role}",
+            name = self.name,
+            role = hive_role
+        ))
+        .expect("the role listener name is a valid Listener name")
     }
 
     /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, an owner reference back to
