@@ -40,7 +40,7 @@ use stackable_operator::{
         kvp::label::{recommended_labels, role_group_selector},
         role_group_utils::ResourceNames,
         types::{
-            kubernetes::ListenerName,
+            kubernetes::{ListenerClassName, ListenerName, SecretClassName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
         },
     },
@@ -456,7 +456,7 @@ pub struct ValidatedClusterConfig {
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<HiveOpaConfig>,
     /// The Kerberos `SecretClass` name, if Kerberos is enabled.
-    pub kerberos_secret_class: Option<String>,
+    pub kerberos_secret_class: Option<SecretClassName>,
     /// Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
     pub kerberos_config: BTreeMap<String, String>,
     /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is
@@ -468,7 +468,7 @@ pub struct ValidatedClusterConfig {
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
 }
 
 pub async fn reconcile_hive(

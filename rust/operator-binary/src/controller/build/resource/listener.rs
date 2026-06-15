@@ -1,5 +1,8 @@
 use snafu::{OptionExt, Snafu};
-use stackable_operator::crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec};
+use stackable_operator::{
+    crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
+    v2::types::kubernetes::ListenerClassName,
+};
 
 use crate::{
     controller::{ValidatedCluster, build::PLACEHOLDER_LISTENER_ROLE_GROUP},
@@ -53,7 +56,7 @@ pub fn build_listener_connection_string(
 pub fn build_role_listener(
     cluster: &ValidatedCluster,
     hive_role: &HiveRole,
-    listener_class: &String,
+    listener_class: &ListenerClassName,
 ) -> Listener {
     // The role listener is a role-level (not role-group-level) object, so there is no real
     // role-group name; "none" is used as a placeholder for the recommended labels.
@@ -65,7 +68,7 @@ pub fn build_role_listener(
         .build();
 
     let spec = ListenerSpec {
-        class_name: Some(listener_class.to_owned()),
+        class_name: Some(listener_class.to_string()),
         ports: Some(listener_ports()),
         ..Default::default()
     };

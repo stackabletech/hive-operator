@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use databases::MetadataDatabaseConnection;
 /// Re-export of the shared product-logging spec data types (test-only).
 ///
@@ -36,8 +38,12 @@ use stackable_operator::{
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     v2::{
-        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
-        types::common::Port,
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::JavaCommonConfig,
+        types::{
+            common::Port,
+            kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
+        },
     },
     versioned::versioned,
 };
@@ -76,8 +82,9 @@ pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 // used by crds to define a default listener_class name
-pub fn metastore_default_listener_class() -> String {
-    DEFAULT_LISTENER_CLASS.to_owned()
+pub fn metastore_default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str(DEFAULT_LISTENER_CLASS)
+        .expect("the default listener class is a valid listener class name")
 }
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
@@ -154,7 +161,7 @@ pub mod versioned {
 
         /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the metastore.
         #[serde(default = "metastore_default_listener_class")]
-        pub listener_class: String,
+        pub listener_class: ListenerClassName,
     }
 
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -185,7 +192,7 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
@@ -228,7 +235,7 @@ impl v1alpha1::HiveCluster {
         self.kerberos_secret_class().is_some()
     }
 
-    pub fn kerberos_secret_class(&self) -> Option<String> {
+    pub fn kerberos_secret_class(&self) -> Option<SecretClassName> {
         self.spec
             .cluster_config
             .authentication
@@ -253,7 +260,7 @@ pub struct HdfsConnection {
     /// providing information about the HDFS cluster.
     /// See also the [Stackable Operator for HDFS](DOCS_BASE_URL_PLACEHOLDER/hdfs/) to learn
     /// more about setting up an HDFS cluster.
-    pub config_map: String,
+    pub config_map: ConfigMapName,
 }
 
 #[derive(Clone, Debug, Display, EnumString, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]

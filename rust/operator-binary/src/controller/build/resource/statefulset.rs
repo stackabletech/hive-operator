@@ -209,10 +209,10 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         })
     {
         container_builder
-            .add_volume_mount(OPA_TLS_VOLUME_NAME, &tls_mount_path)
+            .add_volume_mount(&*OPA_TLS_VOLUME_NAME, &tls_mount_path)
             .context(AddVolumeMountSnafu)?;
 
-        let opa_tls_volume = VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+        let opa_tls_volume = VolumeBuilder::new(&*OPA_TLS_VOLUME_NAME)
             .ephemeral(
                 SecretOperatorVolumeSourceBuilder::new(
                     tls_secret_class,

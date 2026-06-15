@@ -196,7 +196,7 @@ fn references_config_map(
     };
 
     match &hive.spec.cluster_config.hdfs {
-        Some(hdfs_connection) => hdfs_connection.config_map == config_map.name_any(),
+        Some(hdfs_connection) => hdfs_connection.config_map.as_ref() == config_map.name_any(),
         None => false,
     }
 }

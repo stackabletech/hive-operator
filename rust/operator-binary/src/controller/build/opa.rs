@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use stackable_operator::{
     client::Client,
     commons::opa::{OpaApiVersion, OpaConfig},
     k8s_openapi::api::core::v1::ConfigMap,
     kube::ResourceExt,
+    v2::types::kubernetes::VolumeName,
 };
 
 use crate::crd::v1alpha1::HiveCluster;
@@ -33,7 +34,9 @@ const OPA_AUTHORIZATION_POLICY_URL_PARTITION: &str =
     "com.bosch.bdps.opa.authorization.policy.url.partition";
 const OPA_AUTHORIZATION_POLICY_URL_USER: &str = "com.bosch.bdps.opa.authorization.policy.url.user";
 
-pub const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
+// Typed name for the OPA TLS secret-operator volume, reusing the existing `"opa-tls"` string
+// value so the produced volume/mount name is unchanged.
+stackable_operator::constant!(pub(crate) OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
 
 pub struct HiveOpaConfig {
     /// Endpoint for OPA, e.g.
@@ -124,6 +127,6 @@ impl HiveOpaConfig {
     pub fn tls_ca_cert_mount_path(&self) -> Option<String> {
         self.tls_secret_class
             .as_ref()
-            .map(|_| format!("/stackable/secrets/{OPA_TLS_VOLUME_NAME}"))
+            .map(|_| format!("/stackable/secrets/{}", &*OPA_TLS_VOLUME_NAME))
     }
 }

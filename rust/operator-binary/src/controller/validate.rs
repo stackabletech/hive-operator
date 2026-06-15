@@ -91,11 +91,6 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
-
-    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
-    ParseVectorAggregatorConfigMapName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-    },
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -183,16 +178,13 @@ pub fn validate_cluster(
 
     let default_config = MetaStoreConfig::default_config(name.as_ref(), &hive_role);
 
-    // The Vector aggregator discovery ConfigMap name (validated here so an invalid name fails
-    // up-front). It is only required when the Vector agent is enabled for a role group.
+    // The Vector aggregator discovery ConfigMap name. It is only required when the Vector agent is
+    // enabled for a role group; validity is already enforced by the `ConfigMapName` type on the CRD.
     let vector_aggregator_config_map_name = hive
         .spec
         .cluster_config
         .vector_aggregator_config_map_name
-        .as_deref()
-        .map(ConfigMapName::from_str)
-        .transpose()
-        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+        .clone();
 
     let mut groups: BTreeMap<RoleGroupName, HiveRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {
