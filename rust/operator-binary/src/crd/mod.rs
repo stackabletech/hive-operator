@@ -35,7 +35,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
+    v2::{
+        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
+        types::common::Port,
+    },
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString};
@@ -61,9 +64,9 @@ pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
-pub const HIVE_PORT: u16 = 9083;
+pub const HIVE_PORT: Port = Port(9083);
 pub const METRICS_PORT_NAME: &str = "metrics";
-pub const METRICS_PORT: u16 = 9084;
+pub const METRICS_PORT: Port = Port(9084);
 
 // Certificates and trust stores
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
