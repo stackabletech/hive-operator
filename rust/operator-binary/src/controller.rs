@@ -49,14 +49,11 @@ use strum::EnumDiscriminants;
 
 use crate::{
     OPERATOR_NAME,
-    controller::build::{
-        opa::HiveOpaConfig,
-        resource::{
-            discovery,
-            listener::build_role_listener,
-            pdb::build_pdb,
-            service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
-        },
+    controller::build::resource::{
+        discovery,
+        listener::build_role_listener,
+        pdb::build_pdb,
+        service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
     },
     crd::{APP_NAME, HdfsConnection, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
 };
@@ -448,7 +445,7 @@ pub struct ValidatedClusterConfig {
     /// The HDFS connection (discovery ConfigMap reference), if an HDFS backend is configured.
     pub hdfs: Option<HdfsConnection>,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
-    pub hive_opa_config: Option<HiveOpaConfig>,
+    pub hive_opa_config: Option<dereference::ResolvedOpaConfig>,
     /// The Kerberos `SecretClass` name, if Kerberos is enabled.
     pub kerberos_secret_class: Option<SecretClassName>,
 }

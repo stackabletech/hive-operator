@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::s3, k8s_openapi::api::core::v1::EnvVar};
 
-use crate::controller::{ValidatedClusterConfig, ValidatedMetaStoreConfig};
+use crate::controller::{
+    ValidatedClusterConfig, ValidatedMetaStoreConfig, build::opa::build_opa_hive_site_config,
+};
 
 const DEFAULT_WAREHOUSE_DIR: &str = "/stackable/warehouse";
 const HIVE_METASTORE_PORT: &str = "hive.metastore.port";
@@ -103,7 +105,7 @@ pub fn build(
     data.extend(kerberos_config);
 
     if let Some(opa_config) = cluster_config.hive_opa_config.as_ref() {
-        data.extend(opa_config.as_config(product_version));
+        data.extend(build_opa_hive_site_config(opa_config, product_version));
     }
 
     // 3. Spec: warehouse dir from the merged CRD config (overrides the default).

@@ -1,10 +1,11 @@
 use stackable_operator::crd::s3;
 
 use super::{
-    opa::HiveOpaConfig, properties::ConfigFileName, resource::statefulset::HDFS_CONFIG_MOUNT_DIR,
+    opa::build_opa_tls_ca_cert_mount_path, properties::ConfigFileName,
+    resource::statefulset::HDFS_CONFIG_MOUNT_DIR,
 };
 use crate::{
-    controller::ValidatedCluster,
+    controller::{ValidatedCluster, dereference::ResolvedOpaConfig},
     crd::{
         STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
         STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
@@ -15,7 +16,7 @@ pub fn build_container_command_args(
     cluster: &ValidatedCluster,
     start_command: String,
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
-    hive_opa_config: Option<&HiveOpaConfig>,
+    hive_opa_config: Option<&ResolvedOpaConfig>,
 ) -> Vec<String> {
     let log4j2_properties = ConfigFileName::Log4j2;
     let core_site = ConfigFileName::CoreSite;
@@ -59,7 +60,7 @@ pub fn build_container_command_args(
     }
 
     if let Some(opa) = hive_opa_config
-        && let Some(ca_cert_dir) = opa.tls_ca_cert_mount_path()
+        && let Some(ca_cert_dir) = build_opa_tls_ca_cert_mount_path(opa)
     {
         args.push(format!(
                 "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_dir}/ca.crt --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"

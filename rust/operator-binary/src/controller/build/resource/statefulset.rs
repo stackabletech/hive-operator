@@ -53,7 +53,7 @@ use crate::{
             graceful_shutdown::add_graceful_shutdown_config,
             jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
             kerberos::{add_kerberos_pod_config, kerberos_container_start_commands},
-            opa::OPA_TLS_VOLUME_NAME,
+            opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
         },
     },
@@ -205,7 +205,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             opa_config
                 .tls_secret_class
                 .as_ref()
-                .zip(opa_config.tls_ca_cert_mount_path())
+                .zip(build_opa_tls_ca_cert_mount_path(opa_config))
         })
     {
         container_builder
@@ -215,7 +215,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         let opa_tls_volume = VolumeBuilder::new(&*OPA_TLS_VOLUME_NAME)
             .ephemeral(
                 SecretOperatorVolumeSourceBuilder::new(
-                    tls_secret_class,
+                    tls_secret_class.clone(),
                     // We only need the public CA certificate to verify the OPA server.
                     SecretClassVolumeProvisionParts::Public,
                 )
