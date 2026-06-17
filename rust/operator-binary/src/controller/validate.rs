@@ -279,7 +279,7 @@ fn validate_role_group_config(
     )?;
 
     Ok(HiveRoleGroupConfig {
-        replicas: merged.replicas.unwrap_or(1),
+        replicas: merged.replicas,
         config: ValidatedMetaStoreConfig::from_merged(merged.config.config, logging),
         config_overrides: merged.config.config_overrides,
         env_overrides,

@@ -437,7 +437,9 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: Some(i32::from(rg.replicas)),
+            // `None` (no replica count specified) leaves `.spec.replicas` unset so a
+            // HorizontalPodAutoscaler can manage it.
+            replicas: rg.replicas.map(i32::from),
             selector: LabelSelector {
                 match_labels: Some(cluster.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()
