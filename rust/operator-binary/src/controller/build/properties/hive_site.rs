@@ -1,15 +1,4 @@
 //! Builder for `hive-site.xml`.
-//!
-//! Precedence:
-//! 1. Defaults: `hive.metastore.port=9083`.
-//! 2. Automatic / operator-injected: warehouse dir (hardcoded `/stackable/warehouse`),
-//!    metrics enabled (`true`), JDBC driver/url/credentials, S3, Kerberos, OPA.
-//! 3. Spec: `warehouseDir` from the merged config overrides the hardcoded warehouse dir.
-//! 4. User `hive-site.xml` overrides (highest precedence).
-//!
-//! All inputs are read from the validated [`ValidatedClusterConfig`]; this builder never
-//! touches the raw `HiveCluster` spec.
-
 use std::collections::BTreeMap;
 
 use snafu::{ResultExt, Snafu};
@@ -47,7 +36,6 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Build the `hive-site.xml` key/value pairs.
 pub fn build(
     cluster_config: &ValidatedClusterConfig,
     product_version: &str,
