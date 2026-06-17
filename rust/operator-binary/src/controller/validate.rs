@@ -94,10 +94,6 @@ pub enum Error {
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
-///
-/// Produced up-front by [`validate_logging`] (mirroring the opensearch-operator) so that an
-/// invalid custom log ConfigMap name or a missing Vector aggregator discovery ConfigMap name
-/// fails reconciliation during validation rather than at resource-build time.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatedLogging {
     pub hive_container: ValidatedContainerLogConfigChoice,

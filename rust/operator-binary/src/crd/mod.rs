@@ -2,10 +2,6 @@ use std::str::FromStr;
 
 use databases::MetadataDatabaseConnection;
 /// Re-export of the shared product-logging spec data types (test-only).
-///
-/// These are plain logging *data* types (also consumed by the `stackable_operator::v2` logging
-/// framework). Re-exporting them through `crate::crd` lets the logging validation tests reference
-/// them without importing the v1 `product_logging` module by its fully-qualified path.
 #[cfg(test)]
 pub use product_logging::spec::{
     ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,

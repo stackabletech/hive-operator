@@ -131,7 +131,6 @@ pub enum Error {
     },
 
     #[snafu(display("internal operator failure"))]
-    InternalOperatorFailure { source: crate::crd::Error },
 
     #[snafu(display("failed to apply PodDisruptionBudget"))]
     ApplyPdb {
@@ -329,9 +328,6 @@ impl ValidatedCluster {
     }
 
     /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
-    ///
-    /// Mirrors [`v1alpha1::HiveCluster::has_kerberos_enabled`], derived here from the validated
-    /// config so build steps don't have to re-read the raw cluster.
     pub fn has_kerberos_enabled(&self) -> bool {
         self.cluster_config.kerberos_secret_class.is_some()
     }

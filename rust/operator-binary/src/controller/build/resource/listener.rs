@@ -11,7 +11,7 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("{role} listener has no adress"))]
+    #[snafu(display("{role} listener has no address"))]
     RoleListenerHasNoAddress { role: String },
     #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
     NoServicePort { port_name: String, role: String },
