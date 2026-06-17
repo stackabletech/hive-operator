@@ -130,8 +130,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("internal operator failure"))]
-
     #[snafu(display("failed to apply PodDisruptionBudget"))]
     ApplyPdb {
         source: stackable_operator::cluster_resources::Error,
