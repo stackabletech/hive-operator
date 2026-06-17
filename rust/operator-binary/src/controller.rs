@@ -458,6 +458,14 @@ pub struct ValidatedClusterConfig {
     pub needs_kerberos_core_site: bool,
 }
 
+impl ValidatedClusterConfig {
+    /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is required:
+    /// Kerberos is enabled and there is no HDFS backend (i.e. S3).
+    pub fn needs_kerberos_core_site(&self) -> bool {
+        self.kerberos_secret_class.is_some() && self.hdfs.is_none()
+    }
+}
+
 /// Per-role configuration extracted during validation.
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleConfig {
