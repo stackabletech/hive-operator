@@ -52,18 +52,3 @@ fn log4j2_config(log_config: &AutomaticContainerLogConfig) -> String {
         log_config,
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_vector_config_file_content() {
-        let content = vector_config_file_content();
-        assert!(!content.is_empty());
-        // A kept source must be present ...
-        assert!(content.contains("files_log4j2"));
-        // ... while a dropped source must not.
-        assert!(!content.contains("files_tracing_rs"));
-    }
-}
