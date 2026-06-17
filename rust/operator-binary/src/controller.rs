@@ -539,6 +539,7 @@ pub async fn reconcile_hive(
 
             let rg_configmap = build::resource::config_map::build_metastore_rolegroup_config_map(
                 &validated_cluster,
+                &client.kubernetes_cluster_info,
                 role_group_name,
                 rg,
             )

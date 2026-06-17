@@ -40,6 +40,7 @@ pub fn build(
     cluster_config: &ValidatedClusterConfig,
     product_version: &str,
     merged_config: &ValidatedMetaStoreConfig,
+    kerberos_config: BTreeMap<String, String>,
     overrides: BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>> {
     let database_connection_details = &cluster_config.metadata_database_connection_details;
@@ -98,10 +99,8 @@ pub fn build(
         );
     }
 
-    // Kerberos entries (resolved during validation; empty when Kerberos is disabled).
-    for (name, value) in &cluster_config.kerberos_config {
-        data.insert(name.clone(), value.clone());
-    }
+    // Kerberos entries (empty when Kerberos is disabled).
+    data.extend(kerberos_config);
 
     if let Some(opa_config) = cluster_config.hive_opa_config.as_ref() {
         data.extend(opa_config.as_config(product_version));
@@ -132,8 +131,14 @@ mod tests {
         let cluster_config = derby_cluster_config();
         let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
 
-        let data =
-            build(&cluster_config, "4.0.0", &merged, BTreeMap::new()).expect("build hive-site");
+        let data = build(
+            &cluster_config,
+            "4.0.0",
+            &merged,
+            BTreeMap::new(),
+            BTreeMap::new(),
+        )
+        .expect("build hive-site");
 
         assert_eq!(data.get("hive.metastore.port"), Some(&"9083".to_string()));
         assert_eq!(
@@ -157,8 +162,14 @@ mod tests {
             ..MetaStoreConfig::default()
         });
 
-        let data =
-            build(&cluster_config, "4.0.0", &merged, BTreeMap::new()).expect("build hive-site");
+        let data = build(
+            &cluster_config,
+            "4.0.0",
+            &merged,
+            BTreeMap::new(),
+            BTreeMap::new(),
+        )
+        .expect("build hive-site");
 
         assert_eq!(
             data.get("hive.metastore.warehouse.dir"),
@@ -174,7 +185,14 @@ mod tests {
             .into_iter()
             .collect();
 
-        let data = build(&cluster_config, "4.0.0", &merged, overrides).expect("build hive-site");
+        let data = build(
+            &cluster_config,
+            "4.0.0",
+            &merged,
+            BTreeMap::new(),
+            overrides,
+        )
+        .expect("build hive-site");
 
         assert_eq!(data.get("hive.metastore.port"), Some(&"1234".to_string()));
     }

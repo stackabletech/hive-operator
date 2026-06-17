@@ -5,13 +5,15 @@ use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     k8s_openapi::api::core::v1::ConfigMap,
     product_logging::framework::VECTOR_CONFIG_FILE,
+    utils::cluster_info::KubernetesClusterInfo,
     v2::config_file_writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
 };
 
 use crate::controller::{
     HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
-    build::properties::{
-        ConfigFileName, core_site, hive_site, product_logging, security_properties,
+    build::{
+        kerberos::kerberos_config_properties,
+        properties::{ConfigFileName, core_site, hive_site, product_logging, security_properties},
     },
 };
 
@@ -36,15 +38,29 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// administrator.
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
+    cluster_info: &KubernetesClusterInfo,
     role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
 ) -> Result<ConfigMap> {
+    // Kerberos-related hive-site.xml entries (empty when Kerberos is disabled). Computed here, in
+    // the build step, from the validated cluster identity and the controller's cluster info.
+    let kerberos_config = if cluster.has_kerberos_enabled() {
+        kerberos_config_properties(
+            cluster.name.as_ref(),
+            cluster.namespace.as_ref(),
+            cluster_info,
+        )
+    } else {
+        Default::default()
+    };
+
     // hive-site.xml
     let hive_site_overrides = rg.config_overrides.hive_site_xml.overrides.clone();
     let hive_site_data = hive_site::build(
         &cluster.cluster_config,
         &cluster.image.product_version,
         &rg.config,
+        kerberos_config,
         hive_site_overrides,
     )
     .context(BuildHiveSiteSnafu)?;
