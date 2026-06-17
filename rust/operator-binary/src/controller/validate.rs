@@ -22,8 +22,7 @@ use stackable_operator::{
 use crate::{
     controller::{
         HiveRoleGroupConfig, RoleGroupName, ValidatedCluster, ValidatedClusterConfig,
-        ValidatedMetaStoreConfig, ValidatedRoleConfig, build::kerberos::kerberos_config_properties,
-        dereference::DereferencedObjects,
+        ValidatedMetaStoreConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
         HiveRole, MetaStoreConfig,
@@ -228,17 +227,6 @@ pub fn validate_cluster(
 
     let kerberos_secret_class = hive.kerberos_secret_class();
 
-    // Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
-    let kerberos_config = if kerberos_secret_class.is_some() {
-        kerberos_config_properties(name.as_ref(), namespace.as_ref(), cluster_info)
-    } else {
-        BTreeMap::new()
-    };
-
-    // A `core-site.xml` with `hadoop.security.authentication=kerberos` is required when
-    // Kerberos is enabled and there is no HDFS backend (i.e. S3).
-    let needs_kerberos_core_site = kerberos_secret_class.is_some() && hdfs.is_none();
-
     Ok(ValidatedCluster::new(
         name,
         namespace,
@@ -253,8 +241,6 @@ pub fn validate_cluster(
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
             hive_opa_config: dereferenced_objects.hive_opa_config,
             kerberos_secret_class,
-            kerberos_config,
-            needs_kerberos_core_site,
         },
         role_group_configs,
     ))

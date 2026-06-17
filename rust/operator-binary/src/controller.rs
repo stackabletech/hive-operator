@@ -451,11 +451,6 @@ pub struct ValidatedClusterConfig {
     pub hive_opa_config: Option<HiveOpaConfig>,
     /// The Kerberos `SecretClass` name, if Kerberos is enabled.
     pub kerberos_secret_class: Option<SecretClassName>,
-    /// Kerberos-related `hive-site.xml` entries (empty when Kerberos is disabled).
-    pub kerberos_config: BTreeMap<String, String>,
-    /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is
-    /// required (Kerberos enabled and no HDFS backend).
-    pub needs_kerberos_core_site: bool,
 }
 
 impl ValidatedClusterConfig {

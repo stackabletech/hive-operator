@@ -39,8 +39,6 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use std::collections::BTreeMap;
-
     use crate::{
         controller::{ValidatedClusterConfig, test_support::DERBY_YAML},
         crd::{
@@ -78,8 +76,6 @@ pub(crate) mod test_support {
             s3_connection_spec: None,
             hive_opa_config: None,
             kerberos_secret_class: None,
-            kerberos_config: BTreeMap::new(),
-            needs_kerberos_core_site: false,
         }
     }
 }

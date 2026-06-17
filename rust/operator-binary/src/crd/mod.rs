@@ -221,10 +221,6 @@ impl v1alpha1::HiveCluster {
         }
     }
 
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.kerberos_secret_class().is_some()
-    }
-
     pub fn kerberos_secret_class(&self) -> Option<SecretClassName> {
         self.spec
             .cluster_config
