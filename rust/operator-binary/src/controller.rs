@@ -655,7 +655,7 @@ pub fn error_policy(
     _ctx: Arc<Ctx>,
 ) -> Action {
     match error {
-        // An invalid HBaseCluster was deserialized. Await for it to change.
+        // An invalid HiveCluster was deserialized. Await for it to change.
         Error::InvalidHiveCluster { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
     }
