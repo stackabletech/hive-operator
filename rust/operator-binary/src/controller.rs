@@ -487,7 +487,6 @@ pub async fn reconcile_hive(
     let validated_cluster = validate::validate_cluster(
         hive,
         &ctx.operator_environment.image_repository,
-        &client.kubernetes_cluster_info,
         dereferenced_objects,
     )
     .context(ValidateSnafu)?;
@@ -667,10 +666,7 @@ pub fn error_policy(
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use stackable_operator::{
-        commons::networking::DomainName,
-        utils::{cluster_info::KubernetesClusterInfo, yaml_from_str_singleton_map},
-    };
+    use stackable_operator::utils::yaml_from_str_singleton_map;
 
     use super::{ValidatedCluster, dereference::DereferencedObjects, validate::validate_cluster};
     use crate::crd::v1alpha1;
@@ -701,18 +697,11 @@ pub(crate) mod test_support {
         yaml_from_str_singleton_map(yaml).expect("invalid test HiveCluster YAML")
     }
 
-    pub fn cluster_info() -> KubernetesClusterInfo {
-        KubernetesClusterInfo {
-            cluster_domain: DomainName::try_from("cluster.local").expect("valid domain"),
-        }
-    }
-
     /// Runs the real validate step against a minimal (S3/OPA-free) fixture.
     pub fn validated_cluster(hive: &v1alpha1::HiveCluster) -> ValidatedCluster {
         validate_cluster(
             hive,
             "oci.example.org",
-            &cluster_info(),
             DereferencedObjects {
                 s3_connection_spec: None,
                 hive_opa_config: None,

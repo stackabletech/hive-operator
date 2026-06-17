@@ -6,7 +6,6 @@ use stackable_operator::{
     config::fragment,
     product_logging::spec::Logging,
     role_utils::GenericRoleConfig,
-    utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::pod::container::{self, EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
@@ -136,7 +135,6 @@ fn validate_logging(
 pub fn validate_cluster(
     hive: &v1alpha1::HiveCluster,
     image_repository: &str,
-    cluster_info: &KubernetesClusterInfo,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
     let name = get_cluster_name(hive).context(ResolveClusterNameSnafu)?;
