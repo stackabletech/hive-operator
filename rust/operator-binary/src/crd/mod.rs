@@ -20,10 +20,7 @@ use stackable_operator::{
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
-    config::{
-        fragment::{Fragment, ValidationError},
-        merge::Merge,
-    },
+    config::{fragment::Fragment, merge::Merge},
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -97,9 +94,6 @@ pub type HiveRoleGroupType =
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("fragment validation failure"))]
-    FragmentValidationFailure { source: ValidationError },
-
     #[snafu(display("the role {role} is not defined"))]
     CannotRetrieveHiveRole { role: String },
 }
