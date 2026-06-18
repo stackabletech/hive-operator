@@ -231,7 +231,7 @@ impl ValidatedMetaStoreConfig {
 /// The cluster identity (`name`, `namespace`, `uid`) is captured here so that owner
 /// references for child objects can be built straight from this struct
 /// (via its [`Resource`] impl) without threading the raw [`v1alpha1::HiveCluster`]
-/// around. This mirrors the opensearch-operator's `ValidatedCluster`.
+/// around.
 pub struct ValidatedCluster {
     /// `ObjectMeta` carrying `name`, `namespace` and `uid`, so this struct can act as the
     /// owner [`Resource`] for child objects.

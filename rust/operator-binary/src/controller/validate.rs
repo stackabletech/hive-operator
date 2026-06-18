@@ -283,7 +283,7 @@ fn validate_role_group_config(
         config: ValidatedMetaStoreConfig::from_merged(merged.config.config, logging),
         config_overrides: merged.config.config_overrides,
         env_overrides,
-        // Hive does not use CLI overrides; the field is carried (and merged upstream) but unused.
+        // Hive does not use CLI overrides; the field is carried through the merge but unused.
         cli_overrides: merged.config.cli_overrides,
         pod_overrides: merged.config.pod_overrides,
         product_specific_common_config: merged.config.product_specific_common_config,
