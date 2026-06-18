@@ -34,29 +34,13 @@ fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveClu
     ObjectRef::new(cluster.name.as_ref()).within(cluster.namespace.as_ref())
 }
 
-/// Builds discovery [`ConfigMap`]s for connecting to a [`v1alpha1::HiveCluster`] for all expected
-/// scenarios.
-pub async fn build_discovery_configmaps(
-    cluster: &ValidatedCluster,
-    hive_role: HiveRole,
-    chroot: Option<&str>,
-    listener: Listener,
-) -> Result<Vec<ConfigMap>, Error> {
-    let discovery_configmaps = vec![build_discovery_configmap(
-        cluster, hive_role, chroot, listener,
-    )?];
-
-    Ok(discovery_configmaps)
-}
-
 /// Build a discovery [`ConfigMap`] containing information about how to connect to a certain
 /// [`v1alpha1::HiveCluster`].
 ///
-/// Data is coming from the [`Listener`] objects. Connection string is only build by [`build_listener_connection_string`].
-fn build_discovery_configmap(
+/// Data is coming from the [`Listener`] objects. Connection string is only built by [`build_listener_connection_string`].
+pub fn build_discovery_configmap(
     cluster: &ValidatedCluster,
     hive_role: HiveRole,
-    chroot: Option<&str>,
     listener: Listener,
 ) -> Result<ConfigMap, Error> {
     let mut discovery_configmap = ConfigMapBuilder::new();
@@ -72,7 +56,7 @@ fn build_discovery_configmap(
 
     discovery_configmap.add_data(
         "HIVE".to_string(),
-        build_listener_connection_string(listener, &hive_role.to_string(), chroot)
+        build_listener_connection_string(listener, &hive_role.to_string())
             .context(ListenerConfigurationSnafu)?,
     );
 

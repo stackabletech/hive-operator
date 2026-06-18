@@ -6,7 +6,6 @@ use stackable_operator::{
     commons::opa::{OpaApiVersion, OpaConfig},
     crd::s3,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::ResourceExt,
     v2::{controller_utils::get_namespace, types::kubernetes::SecretClassName},
 };
 
@@ -64,11 +63,9 @@ impl ResolvedOpaConfig {
             .await
             .context(InvalidOpaConfigSnafu)?;
 
+        let namespace = get_namespace(hive).context(ResolveNamespaceSnafu)?;
         let tls_secret_class = client
-            .get::<ConfigMap>(
-                &opa_config.config_map_name,
-                hive.namespace().as_deref().unwrap_or("default"),
-            )
+            .get::<ConfigMap>(&opa_config.config_map_name, namespace.as_ref())
             .await
             .ok()
             .and_then(|cm| cm.data)

@@ -195,8 +195,7 @@ pub fn validate_cluster(
         groups.insert(role_group_name, validated_rg);
     }
 
-    let mut role_group_configs = BTreeMap::new();
-    role_group_configs.insert(hive_role, groups);
+    let role_group_configs = BTreeMap::from([(hive_role, groups)]);
 
     let metadata_database_connection_details = hive
         .spec

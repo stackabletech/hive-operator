@@ -607,22 +607,15 @@ pub async fn reconcile_hive(
             },
         )?;
 
-        for discovery_cm in discovery::build_discovery_configmaps(
-            &validated_cluster,
-            HiveRole::MetaStore,
-            None,
-            listener,
-        )
-        .await
-        .context(BuildDiscoveryConfigSnafu)?
-        {
-            let discovery_cm = cluster_resources
-                .add(client, discovery_cm)
-                .await
-                .context(ApplyDiscoveryConfigSnafu)?;
-            if let Some(generation) = discovery_cm.metadata.resource_version {
-                discovery_hash.write(generation.as_bytes())
-            }
+        let discovery_cm =
+            discovery::build_discovery_configmap(&validated_cluster, HiveRole::MetaStore, listener)
+                .context(BuildDiscoveryConfigSnafu)?;
+        let discovery_cm = cluster_resources
+            .add(client, discovery_cm)
+            .await
+            .context(ApplyDiscoveryConfigSnafu)?;
+        if let Some(generation) = discovery_cm.metadata.resource_version {
+            discovery_hash.write(generation.as_bytes());
         }
     }
 

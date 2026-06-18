@@ -15,22 +15,19 @@ pub enum Error {
     RoleListenerHasNoAddress { role: String },
     #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
     NoServicePort { port_name: String, role: String },
-    #[snafu(display("chroot path {chroot} was relative (must be absolute)"))]
-    RelativeChroot { chroot: String },
 }
 
 // Builds the connection string with respect to the listener provided objects
 pub fn build_listener_connection_string(
     listener_ref: Listener,
-    role: &String,
-    chroot: Option<&str>,
+    role: &str,
 ) -> Result<String, Error> {
     // We only need the first address corresponding to the role
     let listener_address = listener_ref
         .status
         .and_then(|s| s.ingress_addresses?.into_iter().next())
         .context(RoleListenerHasNoAddressSnafu { role })?;
-    let mut conn_str = format!(
+    let conn_str = format!(
         "thrift://{address}:{port}",
         address = listener_address.address,
         port = listener_address
@@ -42,12 +39,6 @@ pub fn build_listener_connection_string(
                 role
             })?
     );
-    if let Some(chroot) = chroot {
-        if !chroot.starts_with('/') {
-            return RelativeChrootSnafu { chroot }.fail();
-        }
-        conn_str.push_str(chroot);
-    }
     Ok(conn_str)
 }
 
