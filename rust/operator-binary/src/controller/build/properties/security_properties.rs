@@ -31,9 +31,7 @@ pub fn build(overrides: BTreeMap<String, String>) -> BTreeMap<String, String> {
     // 2. No automatic operator-injected values.
     // 3. No merged_config contribution.
     // 4. User overrides (highest precedence).
-    for (k, v) in overrides {
-        props.insert(k, v);
-    }
+    props.extend(overrides);
 
     props
 }

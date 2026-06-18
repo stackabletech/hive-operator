@@ -113,9 +113,7 @@ pub fn build(
     }
 
     // 4. User overrides (highest precedence).
-    for (k, v) in overrides {
-        data.insert(k, v);
-    }
+    data.extend(overrides);
 
     Ok(data)
 }
