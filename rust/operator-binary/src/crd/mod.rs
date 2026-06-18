@@ -35,7 +35,9 @@ use stackable_operator::{
         role_utils::JavaCommonConfig,
         types::{
             common::Port,
-            kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
+            kubernetes::{
+                ConfigMapName, ContainerName, ListenerClassName, SecretClassName, VolumeName,
+            },
         },
     },
     versioned::versioned,
@@ -52,14 +54,16 @@ pub mod security;
 pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
 
-// Directories
+// Directory mount paths
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
-pub const STACKABLE_CONFIG_DIR_NAME: &str = "config";
 pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
-pub const STACKABLE_CONFIG_MOUNT_DIR_NAME: &str = "config-mount";
-pub const STACKABLE_LOG_DIR_NAME: &str = "log";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
-pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
+
+// Volume names for the directories above
+stackable_operator::constant!(pub STACKABLE_CONFIG_DIR_NAME: VolumeName = "config");
+stackable_operator::constant!(pub STACKABLE_CONFIG_MOUNT_DIR_NAME: VolumeName = "config-mount");
+stackable_operator::constant!(pub STACKABLE_LOG_DIR_NAME: VolumeName = "log");
+stackable_operator::constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-mount");
 
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
@@ -282,6 +286,14 @@ impl HiveRole {
 pub enum Container {
     Hive,
     Vector,
+}
+
+impl Container {
+    /// The type-safe container name for this variant (matching its kebab-case serialization).
+    pub fn to_container_name(&self) -> ContainerName {
+        ContainerName::from_str(&self.to_string())
+            .expect("a Container variant name is a valid container name")
+    }
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]

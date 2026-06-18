@@ -40,7 +40,7 @@ use stackable_operator::{
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
-        types::kubernetes::{ContainerName, PersistentVolumeClaimName, VolumeName},
+        types::kubernetes::{PersistentVolumeClaimName, VolumeName},
     },
 };
 
@@ -58,10 +58,10 @@ use crate::{
         },
     },
     crd::{
-        HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME, STACKABLE_CONFIG_DIR,
-        STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
-        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
-        STACKABLE_LOG_DIR_NAME,
+        Container, HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME,
+        STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
+        STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+        STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR_NAME,
     },
 };
 
@@ -110,14 +110,8 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
-
-// The main Hive container's name. Reuses the `APP_NAME` value (`hive`) so the produced
-// Container `name` is unchanged.
-stackable_operator::constant!(HIVE_CONTAINER_NAME: ContainerName = "hive");
-
-// Typed name for the listener-operator PersistentVolumeClaim. Reuses the existing
-// `LISTENER_VOLUME_NAME` string value (`listener`) so the produced PVC name is unchanged.
+// Typed name for the listener-operator PersistentVolumeClaim. The volume mount that exposes the
+// PVC reuses this same name, since a volume mount references its claim by name.
 stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. These reuse the
@@ -126,8 +120,7 @@ stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "li
 stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config-mount");
 stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
-// Listener volumes (consumed by the listener-operator PVC and its volume mount below).
-pub const LISTENER_VOLUME_NAME: &str = "listener";
+// Mount path of the listener volume (consumed by the listener-operator PVC's volume mount below).
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 // Typed name for the HDFS discovery ConfigMap volume, reusing the existing `"hdfs-discovery"`
@@ -157,7 +150,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     let merged_config = &rg.config;
     let hive_opa_config = cluster.cluster_config.hive_opa_config.as_ref();
 
-    let mut container_builder = new_container_builder(&HIVE_CONTAINER_NAME);
+    let mut container_builder = new_container_builder(&Container::Hive.to_container_name());
 
     container_builder
         .add_env_var(
@@ -282,14 +275,17 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             s3_connection,
             hive_opa_config,
         ))
-        .add_volume_mount(STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
+        .add_volume_mount(&*STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(
-            STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
+            &*STACKABLE_CONFIG_MOUNT_DIR_NAME,
+            STACKABLE_CONFIG_MOUNT_DIR,
+        )
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mount(&*STACKABLE_LOG_DIR_NAME, STACKABLE_LOG_DIR)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mount(
+            &*STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
             STACKABLE_LOG_CONFIG_MOUNT_DIR,
         )
         .context(AddVolumeMountSnafu)?
@@ -344,7 +340,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     );
 
     container_builder
-        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .add_volume_mount(&*LISTENER_PVC_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?;
 
     pod_builder
@@ -369,7 +365,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         })
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
-            STACKABLE_LOG_DIR_NAME,
+            &*STACKABLE_LOG_DIR_NAME,
             Some(product_logging::framework::calculate_log_volume_size_limit(
                 &[MAX_HIVE_LOG_FILES_SIZE],
             )),
@@ -413,7 +409,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     // default, is started first and can provide any dependencies that vector expects
     if let Some(vector_log_config) = &rg.config.logging.vector_container {
         pod_builder.add_container(vector_container(
-            &VECTOR_CONTAINER_NAME,
+            &Container::Vector.to_container_name(),
             resolved_product_image,
             vector_log_config,
             &resource_names,
