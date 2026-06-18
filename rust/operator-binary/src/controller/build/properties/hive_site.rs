@@ -4,13 +4,15 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::s3, k8s_openapi::api::core::v1::EnvVar};
 
-use crate::controller::{
-    ValidatedClusterConfig, ValidatedMetaStoreConfig, build::opa::build_opa_hive_site_config,
+use crate::{
+    controller::{
+        ValidatedClusterConfig, ValidatedMetaStoreConfig, build::opa::build_opa_hive_site_config,
+    },
+    crd::HIVE_PORT,
 };
 
 const DEFAULT_WAREHOUSE_DIR: &str = "/stackable/warehouse";
 const HIVE_METASTORE_PORT: &str = "hive.metastore.port";
-const DEFAULT_HIVE_METASTORE_PORT: &str = "9083";
 
 // Metastore property keys.
 const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
@@ -49,10 +51,7 @@ pub fn build(
     let mut data: BTreeMap<String, String> = BTreeMap::new();
 
     // 1. Defaults.
-    data.insert(
-        HIVE_METASTORE_PORT.to_string(),
-        DEFAULT_HIVE_METASTORE_PORT.to_string(),
-    );
+    data.insert(HIVE_METASTORE_PORT.to_string(), HIVE_PORT.to_string());
 
     // 2. Automatic / operator-injected.
     data.insert(

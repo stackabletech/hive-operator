@@ -20,6 +20,7 @@ pub fn build_container_command_args(
 ) -> Vec<String> {
     let log4j2_properties = ConfigFileName::Log4j2;
     let core_site = ConfigFileName::CoreSite;
+    let hive_site = ConfigFileName::HiveSite;
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set s3 access and secret keys
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
@@ -36,7 +37,7 @@ pub fn build_container_command_args(
             "if test -f {STACKABLE_CONFIG_DIR}/{core_site}; then config-utils template {STACKABLE_CONFIG_DIR}/{core_site}; fi"
         ),
         format!(
-            "if test -f {STACKABLE_CONFIG_DIR}/hive-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/hive-site.xml; fi"
+            "if test -f {STACKABLE_CONFIG_DIR}/{hive_site}; then config-utils template {STACKABLE_CONFIG_DIR}/{hive_site}; fi"
         ),
         // Copy system truststore to stackable truststore
         format!(
