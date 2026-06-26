@@ -1,13 +1,12 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::{
-    memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, JvmArgumentOverrides},
-};
+use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
-use crate::crd::{
-    HiveRoleType, JVM_SECURITY_PROPERTIES_FILE, METRICS_PORT, MetaStoreConfig,
-    STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-    v1alpha1::HiveCluster,
+use super::{kerberos::STACKABLE_KERBEROS_DIR, properties::ConfigFileName};
+use crate::{
+    controller::{HiveRoleGroupConfig, ValidatedCluster, ValidatedMetaStoreConfig},
+    crd::{
+        METRICS_PORT, STACKABLE_CONFIG_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
+    },
 };
 
 const JAVA_HEAP_FACTOR: f32 = 0.8;
@@ -21,19 +20,13 @@ pub enum Error {
     InvalidMemoryConfig {
         source: stackable_operator::memory::Error,
     },
-
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
 /// All JVM arguments.
-fn construct_jvm_args(
-    hive: &HiveCluster,
-    role: &HiveRoleType,
-    role_group: &str,
-) -> Result<Vec<String>, Error> {
+fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> Vec<String> {
+    let security_properties = ConfigFileName::Security;
     let mut jvm_args = vec![
-        format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{JVM_SECURITY_PROPERTIES_FILE}"),
+        format!("-Djava.security.properties={STACKABLE_CONFIG_DIR}/{security_properties}"),
         format!(
             "-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml"
         ),
@@ -42,36 +35,33 @@ fn construct_jvm_args(
         format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
     ];
 
-    if hive.has_kerberos_enabled() {
-        jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_owned());
+    if cluster.has_kerberos_enabled() {
+        jvm_args.push(format!(
+            "-Djava.security.krb5.conf={STACKABLE_KERBEROS_DIR}/krb5.conf"
+        ));
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    let merged = role
-        .get_merged_jvm_argument_overrides(role_group, &operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)?;
-    Ok(merged
-        .effective_jvm_config_after_merging()
-        // Sorry for the clone, that's how operator-rs is currently modelled :P
-        .clone())
+    // Apply the already-merged (role + role group) JVM argument overrides on top of the
+    // operator-generated base arguments.
+    rg.product_specific_common_config
+        .jvm_argument_overrides
+        .apply_to(jvm_args)
 }
 
 /// Arguments that go into `HADOOP_OPTS`, so *not* the heap settings (which you can get using
 /// [`construct_hadoop_heapsize_env`]).
-pub fn construct_non_heap_jvm_args(
-    hive: &HiveCluster,
-    role: &HiveRoleType,
-    role_group: &str,
-) -> Result<String, Error> {
-    let mut jvm_args = construct_jvm_args(hive, role, role_group)?;
+pub fn construct_non_heap_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> String {
+    let mut jvm_args = construct_jvm_args(cluster, rg);
     jvm_args.retain(|arg| !is_heap_jvm_argument(arg));
 
-    Ok(jvm_args.join(" "))
+    jvm_args.join(" ")
 }
 
 /// This will be put into `HADOOP_HEAPSIZE`, which is just the heap size in megabytes (*without* the `m`
 /// unit prepended).
-pub fn construct_hadoop_heapsize_env(merged_config: &MetaStoreConfig) -> Result<String, Error> {
+pub fn construct_hadoop_heapsize_env(
+    merged_config: &ValidatedMetaStoreConfig,
+) -> Result<String, Error> {
     let heap_size_in_mb = (MemoryQuantity::try_from(
         merged_config
             .resources
@@ -95,10 +85,24 @@ fn is_heap_jvm_argument(jvm_argument: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::utils::yaml_from_str_singleton_map;
-
     use super::*;
-    use crate::crd::HiveRole;
+    use crate::{
+        controller::test_support::{minimal_hive, validated_cluster},
+        crd::HiveRole,
+    };
+
+    fn metastore_default(
+        hive: &crate::crd::v1alpha1::HiveCluster,
+    ) -> (ValidatedCluster, HiveRoleGroupConfig) {
+        let validated = validated_cluster(hive);
+        let rg = validated
+            .role_group_configs
+            .get(&HiveRole::MetaStore)
+            .and_then(|groups| groups.get(&"default".parse().expect("valid role group name")))
+            .expect("metastore default role group should exist")
+            .clone();
+        (validated, rg)
+    }
 
     #[test]
     fn test_construct_jvm_arguments_defaults() {
@@ -107,6 +111,8 @@ mod tests {
         kind: HiveCluster
         metadata:
           name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 4.2.0
@@ -118,17 +124,20 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
-        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &role, &rolegroup).unwrap();
-        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
+        let hive = minimal_hive(input);
+        let (cluster, rg) = metastore_default(&hive);
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&cluster, &rg);
+        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&rg.config).unwrap();
 
         assert_eq!(
             non_heap_jvm_args,
-            "-Djava.security.properties=/stackable/config/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9084:/stackable/jmx/jmx_hive_config.yaml \
-            -Djavax.net.ssl.trustStore=/stackable/truststore.p12 \
-            -Djavax.net.ssl.trustStorePassword=changeit \
+            format!(
+                "-Djava.security.properties={STACKABLE_CONFIG_DIR}/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml \
+            -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE} \
+            -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD} \
             -Djavax.net.ssl.trustStoreType=pkcs12"
+            )
         );
         assert_eq!(hadoop_heapsize_env, "614");
     }
@@ -140,6 +149,8 @@ mod tests {
         kind: HiveCluster
         metadata:
           name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 4.2.0
@@ -168,35 +179,24 @@ mod tests {
                     - -Xmx40000m
                     - -Dhttps.proxyPort=1234
         "#;
-        let (hive, merged_config, role, rolegroup) = construct_boilerplate(input);
-        let non_heap_jvm_args = construct_non_heap_jvm_args(&hive, &role, &rolegroup).unwrap();
-        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&merged_config).unwrap();
+        let hive = minimal_hive(input);
+        let (cluster, rg) = metastore_default(&hive);
+        let non_heap_jvm_args = construct_non_heap_jvm_args(&cluster, &rg);
+        let hadoop_heapsize_env = construct_hadoop_heapsize_env(&rg.config).unwrap();
 
         assert_eq!(
             non_heap_jvm_args,
-            "-Djava.security.properties=/stackable/config/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9084:/stackable/jmx/jmx_hive_config.yaml \
-            -Djavax.net.ssl.trustStore=/stackable/truststore.p12 \
-            -Djavax.net.ssl.trustStorePassword=changeit \
+            format!(
+                "-Djava.security.properties={STACKABLE_CONFIG_DIR}/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/jmx_hive_config.yaml \
+            -Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE} \
+            -Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD} \
             -Djavax.net.ssl.trustStoreType=pkcs12 \
             -Dhttps.proxyHost=proxy.my.corp \
             -Djava.net.preferIPv4Stack=true \
             -Dhttps.proxyPort=1234"
+            )
         );
         assert_eq!(hadoop_heapsize_env, "34406");
-    }
-
-    fn construct_boilerplate(
-        hive_cluster: &str,
-    ) -> (HiveCluster, MetaStoreConfig, HiveRoleType, String) {
-        let hive: HiveCluster =
-            yaml_from_str_singleton_map(hive_cluster).expect("invalid test input");
-
-        let hive_role = HiveRole::MetaStore;
-        let rolegroup_ref = hive.metastore_rolegroup_ref("default");
-        let merged_config = hive.merged_config(&hive_role, &rolegroup_ref).unwrap();
-        let role = hive.spec.metastore.clone().unwrap();
-
-        (hive, merged_config, role, "default".to_owned())
     }
 }

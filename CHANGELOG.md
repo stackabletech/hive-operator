@@ -20,6 +20,8 @@ All notable changes to this project will be documented in this file.
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#707]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#713]).
 - Deprecated support for `4.0.1` ([#711]).
+- BREAKING: Removed product-config machinery. This is a breaking change in terms of configuration.
+  Users relying on the product-config `properties.yaml` file have to set these properties via the CRD ([#716]).
 
 ### Removed
 
@@ -32,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#707]: https://github.com/stackabletech/hive-operator/pull/707
 [#711]: https://github.com/stackabletech/hive-operator/pull/711
 [#713]: https://github.com/stackabletech/hive-operator/pull/713
+[#716]: https://github.com/stackabletech/hive-operator/pull/716
 
 ## [26.3.0] - 2026-03-16
 

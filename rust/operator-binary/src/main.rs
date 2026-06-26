@@ -37,16 +37,8 @@ use crate::{
     webhooks::conversion::create_webhook_server,
 };
 
-mod command;
-mod config;
 mod controller;
 mod crd;
-mod discovery;
-mod kerberos;
-mod listener;
-mod operations;
-mod product_logging;
-mod service;
 mod webhooks;
 
 mod built_info {
@@ -71,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            product_config,
+            product_config: _,
             maintenance,
             common,
         }) => {
@@ -118,11 +110,6 @@ async fn main() -> anyhow::Result<()> {
                 .run(sigterm_watcher.handle())
                 .map_err(|err| anyhow!(err).context("failed to run webhook server"));
 
-            let product_config = product_config.load(&[
-                "deploy/config-spec/properties.yaml",
-                "/etc/stackable/hive-operator/config-spec/properties.yaml",
-            ])?;
-
             let event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
@@ -167,7 +154,6 @@ async fn main() -> anyhow::Result<()> {
                     Arc::new(controller::Ctx {
                         client: client.clone(),
                         operator_environment,
-                        product_config,
                     }),
                 )
                 // We can let the reporting happen in the background
@@ -210,7 +196,7 @@ fn references_config_map(
     };
 
     match &hive.spec.cluster_config.hdfs {
-        Some(hdfs_connection) => hdfs_connection.config_map == config_map.name_any(),
+        Some(hdfs_connection) => hdfs_connection.config_map.as_ref() == config_map.name_any(),
         None => false,
     }
 }

@@ -30,11 +30,9 @@ mod tests {
             api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
-        utils::yaml_from_str_singleton_map,
     };
 
     use super::*;
-    use crate::crd::v1alpha1;
 
     #[rstest]
     #[case(HiveRole::MetaStore)]
@@ -44,6 +42,8 @@ mod tests {
         kind: HiveCluster
         metadata:
           name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 4.2.0
@@ -55,11 +55,15 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let hive: v1alpha1::HiveCluster =
-            yaml_from_str_singleton_map(input).expect("invalid test input");
-        let merged_config = hive
-            .merged_config(&role, &role.rolegroup_ref(&hive, "default"))
-            .unwrap();
+        let hive = crate::controller::test_support::minimal_hive(input);
+        let validated = crate::controller::test_support::validated_cluster(&hive);
+        let merged_config = validated
+            .role_group_configs
+            .get(&role)
+            .and_then(|groups| groups.get(&"default".parse().expect("valid role group name")))
+            .expect("role group should exist")
+            .config
+            .clone();
 
         assert_eq!(
             merged_config.affinity,

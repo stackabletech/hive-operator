@@ -1,9 +1,14 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::str::FromStr;
 
 use databases::MetadataDatabaseConnection;
+/// Re-export of the shared product-logging spec data types (test-only).
+#[cfg(test)]
+pub use product_logging::spec::{
+    ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
+};
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::Snafu;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -15,28 +20,32 @@ use stackable_operator::{
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
-    config::{
-        fragment::{self, Fragment, ValidationError},
-        merge::Merge,
-    },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
+    config::{fragment::Fragment, merge::Merge},
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
-    product_config_utils::{self, Configuration},
+    kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    utils::cluster_info::KubernetesClusterInfo,
+    v2::{
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::JavaCommonConfig,
+        types::{
+            common::Port,
+            kubernetes::{
+                ConfigMapName, ContainerName, ListenerClassName, SecretClassName, VolumeName,
+            },
+        },
+    },
     versioned::versioned,
 };
-use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use strum::{Display, EnumIter, EnumString};
 use v1alpha1::HiveMetastoreRoleConfig;
 
-use crate::{crd::affinity::get_affinity, listener::metastore_default_listener_class};
+use crate::crd::affinity::get_affinity;
 
 pub mod affinity;
 pub mod databases;
@@ -45,31 +54,35 @@ pub mod security;
 pub const FIELD_MANAGER: &str = "hive-operator";
 pub const APP_NAME: &str = "hive";
 
-// Directories
+// Directory mount paths
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
-pub const STACKABLE_CONFIG_DIR_NAME: &str = "config";
 pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
-pub const STACKABLE_CONFIG_MOUNT_DIR_NAME: &str = "config-mount";
-pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
-pub const STACKABLE_LOG_DIR_NAME: &str = "log";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
-pub const STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: &str = "log-config-mount";
 
-// Config file names
-pub const CORE_SITE_XML: &str = "core-site.xml";
-pub const HIVE_SITE_XML: &str = "hive-site.xml";
-pub const HIVE_METASTORE_LOG4J2_PROPERTIES: &str = "metastore-log4j2.properties";
-pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
+// Volume names for the directories above
+stackable_operator::constant!(pub STACKABLE_CONFIG_DIR_NAME: VolumeName = "config");
+stackable_operator::constant!(pub STACKABLE_CONFIG_MOUNT_DIR_NAME: VolumeName = "config-mount");
+stackable_operator::constant!(pub STACKABLE_LOG_DIR_NAME: VolumeName = "log");
+stackable_operator::constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-mount");
 
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
-pub const HIVE_PORT: u16 = 9083;
+pub const HIVE_PORT: Port = Port(9083);
 pub const METRICS_PORT_NAME: &str = "metrics";
-pub const METRICS_PORT: u16 = 9084;
+pub const METRICS_PORT: Port = Port(9084);
 
 // Certificates and trust stores
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
+
+// Listener defaults
+pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+
+// used by crds to define a default listener_class name
+pub fn metastore_default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str(DEFAULT_LISTENER_CLASS)
+        .expect("the default listener class is a valid listener class name")
+}
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
@@ -85,24 +98,8 @@ pub type HiveRoleGroupType =
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("no metastore role configuration provided"))]
-    MissingMetaStoreRole,
-
-    #[snafu(display("fragment validation failure"))]
-    FragmentValidationFailure { source: ValidationError },
-
     #[snafu(display("the role {role} is not defined"))]
     CannotRetrieveHiveRole { role: String },
-
-    #[snafu(display("the role group {role_group} is not defined"))]
-    CannotRetrieveHiveRoleGroup { role_group: String },
-
-    #[snafu(display("unknown role {role}. Should be one of {roles:?}"))]
-    UnknownHiveRole {
-        source: strum::ParseError,
-        role: String,
-        roles: Vec<String>,
-    },
 }
 
 #[versioned(
@@ -156,9 +153,9 @@ pub mod versioned {
         #[serde(flatten)]
         pub common: GenericRoleConfig,
 
-        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the coordinator.
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the metastore.
         #[serde(default = "metastore_default_listener_class")]
-        pub listener_class: String,
+        pub listener_class: ListenerClassName,
     }
 
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -189,25 +186,17 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveConfigOverrides {
-        #[serde(
-            default,
-            rename = "hive-site.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub hive_site_xml: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "hive-site.xml")]
+        pub hive_site_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -230,85 +219,13 @@ impl HasStatusCondition for v1alpha1::HiveCluster {
 }
 
 impl v1alpha1::HiveCluster {
-    /// Metadata about a metastore rolegroup
-    pub fn metastore_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: HiveRole::MetaStore.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .metastore
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.metastore_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
-    pub fn role(&self, role_variant: &HiveRole) -> Result<&HiveRoleType, Error> {
-        match role_variant {
-            HiveRole::MetaStore => self.spec.metastore.as_ref(),
-        }
-        .with_context(|| CannotRetrieveHiveRoleSnafu {
-            role: role_variant.to_string(),
-        })
-    }
-
-    /// The name of the role-listener provided for a specific role.
-    /// returns a name `<cluster>-<role>`
-    pub fn role_listener_name(&self, hive_role: &HiveRole) -> String {
-        format!("{name}-{role}", name = self.name_any(), role = hive_role)
-    }
-
-    pub fn rolegroup(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<HiveRoleGroupType, Error> {
-        let role_variant =
-            HiveRole::from_str(&rolegroup_ref.role).with_context(|_| UnknownHiveRoleSnafu {
-                role: rolegroup_ref.role.to_owned(),
-                roles: HiveRole::roles(),
-            })?;
-
-        let role = self.role(&role_variant)?;
-        role.role_groups
-            .get(&rolegroup_ref.role_group)
-            .with_context(|| CannotRetrieveHiveRoleGroupSnafu {
-                role_group: rolegroup_ref.role_group.to_owned(),
-            })
-            .cloned()
-    }
-
     pub fn role_config(&self, role: &HiveRole) -> Option<&HiveMetastoreRoleConfig> {
         match role {
             HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
         }
     }
 
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.kerberos_secret_class().is_some()
-    }
-
-    pub fn kerberos_secret_class(&self) -> Option<String> {
+    pub fn kerberos_secret_class(&self) -> Option<SecretClassName> {
         self.spec
             .cluster_config
             .authentication
@@ -324,53 +241,6 @@ impl v1alpha1::HiveCluster {
             .as_ref()
             .and_then(|a| a.opa.as_ref())
     }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(
-        &self,
-        role: &HiveRole,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<MetaStoreConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = MetaStoreConfig::default_config(&self.name_any(), role);
-
-        // Retrieve role resource config
-        let role = self.role(role)?;
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let role_group = self.rolegroup(rolegroup_ref)?;
-        let mut conf_role_group = role_group.config.config;
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_role_group.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_role_group);
-        fragment::validate(conf_role_group).context(FragmentValidationFailureSnafu)
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::HiveConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        match file {
-            HIVE_SITE_XML => self
-                .hive_site_xml
-                .as_ref()
-                .map(KeyValueConfigOverrides::as_product_config_overrides)
-                .unwrap_or_default(),
-            JVM_SECURITY_PROPERTIES_FILE => self
-                .security_properties
-                .as_ref()
-                .map(KeyValueConfigOverrides::as_product_config_overrides)
-                .unwrap_or_default(),
-            _ => BTreeMap::new(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -380,7 +250,7 @@ pub struct HdfsConnection {
     /// providing information about the HDFS cluster.
     /// See also the [Stackable Operator for HDFS](DOCS_BASE_URL_PLACEHOLDER/hdfs/) to learn
     /// more about setting up an HDFS cluster.
-    pub config_map: String,
+    pub config_map: ConfigMapName,
 }
 
 #[derive(Clone, Debug, Display, EnumString, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -391,27 +261,6 @@ pub enum HiveRole {
 }
 
 impl HiveRole {
-    /// Metadata about a rolegroup
-    pub fn rolegroup_ref(
-        &self,
-        hive: &v1alpha1::HiveCluster,
-        group_name: impl Into<String>,
-    ) -> RoleGroupRef<v1alpha1::HiveCluster> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(hive),
-            role: self.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    pub fn roles() -> Vec<String> {
-        let mut roles = vec![];
-        for role in Self::iter() {
-            roles.push(role.to_string())
-        }
-        roles
-    }
-
     /// A Kerberos principal has three parts, with the form username/fully.qualified.domain.name@YOUR-REALM.COM.
     /// We only have one role and will use "hive" everywhere (which e.g. differs from the current hdfs implementation).
     pub fn kerberos_service_name(&self) -> &'static str {
@@ -437,6 +286,14 @@ impl HiveRole {
 pub enum Container {
     Hive,
     Vector,
+}
+
+impl Container {
+    /// The type-safe container name for this variant (matching its kebab-case serialization).
+    pub fn to_container_name(&self) -> ContainerName {
+        ContainerName::from_str(&self.to_string())
+            .expect("a Container variant name is a valid container name")
+    }
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -494,22 +351,7 @@ pub struct MetaStoreConfig {
 }
 
 impl MetaStoreConfig {
-    pub const CONNECTION_DRIVER_NAME: &'static str = "javax.jdo.option.ConnectionDriverName";
-    pub const CONNECTION_PASSWORD: &'static str = "javax.jdo.option.ConnectionPassword";
-    // metastore
-    pub const CONNECTION_URL: &'static str = "javax.jdo.option.ConnectionURL";
-    pub const CONNECTION_USER_NAME: &'static str = "javax.jdo.option.ConnectionUserName";
-    pub const METASTORE_METRICS_ENABLED: &'static str = "hive.metastore.metrics.enabled";
-    pub const METASTORE_WAREHOUSE_DIR: &'static str = "hive.metastore.warehouse.dir";
-    pub const S3_ACCESS_KEY: &'static str = "fs.s3a.access.key";
-    // S3
-    pub const S3_ENDPOINT: &'static str = "fs.s3a.endpoint";
-    pub const S3_PATH_STYLE_ACCESS: &'static str = "fs.s3a.path.style.access";
-    pub const S3_REGION_NAME: &'static str = "fs.s3a.endpoint.region";
-    pub const S3_SECRET_KEY: &'static str = "fs.s3a.secret.key";
-    pub const S3_SSL_ENABLED: &'static str = "fs.s3a.connection.ssl.enabled";
-
-    fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
+    pub(crate) fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
             warehouse_dir: None,
             resources: ResourcesFragment {
@@ -536,51 +378,6 @@ impl MetaStoreConfig {
     }
 }
 
-impl Configuration for MetaStoreConfigFragment {
-    type Configurable = v1alpha1::HiveCluster;
-
-    fn compute_env(
-        &self,
-        _hive: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        // Well product-config strikes again...
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _hive: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _hive: &Self::Configurable,
-        _role_name: &str,
-        file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        let mut result = BTreeMap::new();
-
-        if file == HIVE_SITE_XML {
-            if let Some(warehouse_dir) = &self.warehouse_dir {
-                result.insert(
-                    MetaStoreConfig::METASTORE_WAREHOUSE_DIR.to_string(),
-                    Some(warehouse_dir.to_string()),
-                );
-            }
-            result.insert(
-                MetaStoreConfig::METASTORE_METRICS_ENABLED.to_string(),
-                Some("true".to_string()),
-            );
-        }
-
-        Ok(result)
-    }
-}
-
 #[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterStatus {
@@ -589,30 +386,6 @@ pub struct HiveClusterStatus {
     pub discovery_hash: Option<String>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(display("object has no namespace associated"))]
-pub struct NoNamespaceError;
-
-/// Reference to a single `Pod` that is a component of a [`HiveCluster`]
-/// Used for service discovery.
-pub struct PodRef {
-    pub namespace: String,
-    pub role_group_service_name: String,
-    pub pod_name: String,
-}
-
-impl PodRef {
-    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
-        format!(
-            "{pod_name}.{service_name}.{namespace}.svc.{cluster_domain}",
-            pod_name = self.pod_name,
-            service_name = self.role_group_service_name,
-            namespace = self.namespace,
-            cluster_domain = cluster_info.cluster_domain
-        )
-    }
 }
 
 #[cfg(test)]

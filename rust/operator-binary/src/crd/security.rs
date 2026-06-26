@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 use stackable_operator::{
     commons::opa::OpaConfig,
     schemars::{self, JsonSchema},
+    v2::types::kubernetes::SecretClassName,
 };
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthenticationConfig {
     /// Kerberos configuration.
@@ -19,9 +20,9 @@ pub struct AuthorizationConfig {
     pub opa: Option<OpaConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KerberosConfig {
     /// Name of the SecretClass providing the keytab for the HBase services.
-    pub secret_class: String,
+    pub secret_class: SecretClassName,
 }
