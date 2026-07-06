@@ -328,9 +328,6 @@ impl ValidatedCluster {
     }
 
     /// The name of the per-role [`Listener`] object.
-    ///
-    /// Must stay in sync with [`v1alpha1::HiveCluster::role_listener_name`], which derives the
-    /// same name from the raw cluster (used e.g. by the StatefulSet listener-volume PVC).
     pub fn role_listener_name(&self, hive_role: &HiveRole) -> ListenerName {
         ListenerName::from_str(&format!(
             "{name}-{role}",
@@ -340,7 +337,7 @@ impl ValidatedCluster {
         .expect("the role listener name is a valid Listener name")
     }
 
-    /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, an owner reference back to
+    /// Returns an `ObjectMetaBuilder` pre-filled with the namespace, an owner reference back to
     /// this cluster, and the recommended labels for a resource named `name` in `role_group_name`.
     ///
     /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
