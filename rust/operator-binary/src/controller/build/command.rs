@@ -1,37 +1,43 @@
 use stackable_operator::crd::s3;
 
+use super::{
+    opa::build_opa_tls_ca_cert_mount_path, properties::ConfigFileName,
+    resource::statefulset::HDFS_CONFIG_MOUNT_DIR,
+};
 use crate::{
-    config::opa::HiveOpaConfig,
+    controller::{ValidatedCluster, dereference::ResolvedOpaConfig},
     crd::{
-        HIVE_METASTORE_LOG4J2_PROPERTIES, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR,
-        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
-        v1alpha1,
+        STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR,
+        STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_PASSWORD,
     },
 };
 
 pub fn build_container_command_args(
-    hive: &v1alpha1::HiveCluster,
+    cluster: &ValidatedCluster,
     start_command: String,
     s3_connection_spec: Option<&s3::v1alpha1::ConnectionSpec>,
-    hive_opa_config: Option<&HiveOpaConfig>,
+    hive_opa_config: Option<&ResolvedOpaConfig>,
 ) -> Vec<String> {
+    let log4j2_properties = ConfigFileName::Log4j2;
+    let core_site = ConfigFileName::CoreSite;
+    let hive_site = ConfigFileName::HiveSite;
     let mut args = vec![
         // copy config files to a writeable empty folder in order to set s3 access and secret keys
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
         format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
         // Copy log4j2 properties
         format!(
-            "echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES} to {STACKABLE_CONFIG_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES}"
+            "echo copying {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{log4j2_properties} to {STACKABLE_CONFIG_DIR}/{log4j2_properties}"
         ),
         format!(
-            "cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES} {STACKABLE_CONFIG_DIR}/{HIVE_METASTORE_LOG4J2_PROPERTIES}"
+            "cp -RL {STACKABLE_LOG_CONFIG_MOUNT_DIR}/{log4j2_properties} {STACKABLE_CONFIG_DIR}/{log4j2_properties}"
         ),
         // Template config files
         format!(
-            "if test -f {STACKABLE_CONFIG_DIR}/core-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/core-site.xml; fi"
+            "if test -f {STACKABLE_CONFIG_DIR}/{core_site}; then config-utils template {STACKABLE_CONFIG_DIR}/{core_site}; fi"
         ),
         format!(
-            "if test -f {STACKABLE_CONFIG_DIR}/hive-site.xml; then config-utils template {STACKABLE_CONFIG_DIR}/hive-site.xml; fi"
+            "if test -f {STACKABLE_CONFIG_DIR}/{hive_site}; then config-utils template {STACKABLE_CONFIG_DIR}/{hive_site}; fi"
         ),
         // Copy system truststore to stackable truststore
         format!(
@@ -39,10 +45,10 @@ pub fn build_container_command_args(
         ),
     ];
 
-    if hive.spec.cluster_config.hdfs.is_some() {
+    if cluster.cluster_config.hdfs.is_some() {
         args.extend([
-            format!("echo copying /stackable/mount/hdfs-config to {STACKABLE_CONFIG_DIR}"),
-            format!("cp -RL /stackable/mount/hdfs-config/* {STACKABLE_CONFIG_DIR}"),
+            format!("echo copying {HDFS_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
+            format!("cp -RL {HDFS_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
         ]);
     }
 
@@ -55,7 +61,7 @@ pub fn build_container_command_args(
     }
 
     if let Some(opa) = hive_opa_config
-        && let Some(ca_cert_dir) = opa.tls_ca_cert_mount_path()
+        && let Some(ca_cert_dir) = build_opa_tls_ca_cert_mount_path(opa)
     {
         args.push(format!(
                 "cert-tools generate-pkcs12-truststore --pkcs12 {STACKABLE_TRUST_STORE}:{STACKABLE_TRUST_STORE_PASSWORD} --pem {ca_cert_dir}/ca.crt --out {STACKABLE_TRUST_STORE} --out-password {STACKABLE_TRUST_STORE_PASSWORD}"
