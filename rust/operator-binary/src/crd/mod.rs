@@ -117,6 +117,7 @@ pub mod versioned {
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hive/).
     #[versioned(crd(
+        doc = "A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.",
         group = "hive.stackable.tech",
         plural = "hiveclusters",
         shortname = "hive",
