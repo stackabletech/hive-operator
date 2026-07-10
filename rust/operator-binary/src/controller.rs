@@ -68,7 +68,6 @@ pub struct Ctx {
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(strum::IntoStaticStr))]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("failed to build the Kubernetes resources"))]
     BuildResources { source: build::Error },
