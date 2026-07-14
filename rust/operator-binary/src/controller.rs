@@ -433,7 +433,7 @@ pub struct ValidatedRoleConfig {
 ///
 /// The role-level discovery `ConfigMap` is deliberately absent: it is built from the *applied*
 /// role [`Listener`]'s ingress addresses, so it is assembled in the reconcile step after the
-/// Listener has been applied, not here.
+/// Listener has been applied, not in the build step.
 pub struct KubernetesResources {
     pub stateful_sets: Vec<StatefulSet>,
     pub services: Vec<Service>,
