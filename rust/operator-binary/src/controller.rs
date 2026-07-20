@@ -16,18 +16,18 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         product_image_selection::ResolvedProductImage,
-        rbac::build_rbac_resources,
         resources::{NoRuntimeLimits, Resources},
     },
     crd::{listener::v1alpha1::Listener, s3},
     database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Service},
+        core::v1::{ConfigMap, Service, ServiceAccount},
         policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
     },
     kube::{
-        Resource, ResourceExt,
+        Resource,
         api::ObjectMeta,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
@@ -44,6 +44,7 @@ use stackable_operator::{
         cluster_resources::cluster_resources_new,
         kvp::label::{recommended_labels, role_group_selector},
         role_group_utils::ResourceNames,
+        role_utils,
         types::{
             kubernetes::{ListenerClassName, ListenerName, SecretClassName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
@@ -54,7 +55,7 @@ use strum::EnumDiscriminants;
 
 use crate::{
     OPERATOR_NAME,
-    controller::build::resource::discovery,
+    controller::build::{UNVERSIONED_PRODUCT_VERSION, resource::discovery},
     crd::{APP_NAME, HdfsConnection, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
 };
 
@@ -93,27 +94,6 @@ pub enum Error {
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch service account"))]
-    ApplyServiceAccount {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch role binding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to build RBAC resources"))]
-    BuildRbacResources {
-        source: stackable_operator::commons::rbac::Error,
-    },
-
-    #[snafu(display("failed to get required Labels"))]
-    GetRequiredLabels {
-        source:
-            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display("HiveCluster object is invalid"))]
@@ -253,6 +233,15 @@ impl ValidatedCluster {
             .expect("the metastore role name is a valid role name")
     }
 
+    /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
+    /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
+    pub fn rbac_resource_names(&self) -> role_utils::ResourceNames {
+        role_utils::ResourceNames {
+            cluster_name: self.name.clone(),
+            product_name: product_name(),
+        }
+    }
+
     /// Type-safe names for the resources of a given role group.
     pub(crate) fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
         ResourceNames {
@@ -262,10 +251,31 @@ impl ValidatedCluster {
         }
     }
 
+    /// Recommended labels for a resource that is not tied to a concrete,
+    /// using a free-form role/role-group label value.
+    pub fn recommended_labels_for(
+        &self,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    /// Recommended labels with the constant [`UNVERSIONED_PRODUCT_VERSION`], for PVC templates
+    /// that cannot be modified after deployment (keeps the labels stable across version upgrades).
+    pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
+        self.recommended_labels_with(
+            &UNVERSIONED_PRODUCT_VERSION,
+            &Self::role_name(),
+            role_group_name,
+        )
+    }
+
     /// Recommended labels for a role-group resource, using the given product version.
-    fn recommended_labels_for(
+    fn recommended_labels_with(
         &self,
         product_version: &ProductVersion,
+        role_name: &RoleName,
         role_group_name: &RoleGroupName,
     ) -> Labels {
         recommended_labels(
@@ -274,14 +284,14 @@ impl ValidatedCluster {
             product_version,
             &operator_name(),
             &controller_name(),
-            &Self::role_name(),
+            role_name,
             role_group_name,
         )
     }
 
     /// Recommended labels for a role-group resource.
     pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&self.product_version, role_group_name)
+        self.recommended_labels_for(&Self::role_name(), role_group_name)
     }
 
     /// Selector labels matching the pods of a role group.
@@ -440,6 +450,8 @@ pub struct KubernetesResources {
     pub listeners: Vec<Listener>,
     pub config_maps: Vec<ConfigMap>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
+    pub service_accounts: Vec<ServiceAccount>,
+    pub role_bindings: Vec<RoleBinding>,
 }
 
 pub async fn reconcile_hive(
@@ -476,41 +488,26 @@ pub async fn reconcile_hive(
         &hive.spec.object_overrides,
     );
 
-    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        hive,
-        APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(GetRequiredLabelsSnafu)?,
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    let rbac_sa = cluster_resources
-        .add(client, rbac_sa)
-        .await
-        .context(ApplyServiceAccountSnafu)?;
-
-    cluster_resources
-        .add(client, rbac_rolebinding)
-        .await
-        .context(ApplyRoleBindingSnafu)?;
-
-    // The ServiceAccount name is deterministic on the built object, so the client-free build step
-    // does not depend on the applied ServiceAccount.
-    let service_account_name = rbac_sa.name_any();
-
-    let resources = build::build(
-        &validated_cluster,
-        &client.kubernetes_cluster_info,
-        &service_account_name,
-    )
-    .context(BuildResourcesSnafu)?;
+    let resources = build::build(&validated_cluster, &client.kubernetes_cluster_info)
+        .context(BuildResourcesSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     // Apply order: everything before StatefulSets, StatefulSets last. A StatefulSet must only be
     // applied after all ConfigMaps and Secrets it mounts, to prevent unnecessary Pod restarts.
     // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service_account in resources.service_accounts {
+        cluster_resources
+            .add(client, service_account)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for role_binding in resources.role_bindings {
+        cluster_resources
+            .add(client, role_binding)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
     for service in resources.services {
         cluster_resources
             .add(client, service)

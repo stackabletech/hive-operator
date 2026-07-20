@@ -292,6 +292,88 @@ fn validate_role_group_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::controller::test_support::{DERBY_YAML, minimal_hive};
+
+    /// Runs the real validate step over the given fixture YAML, without unwrapping, so error
+    /// cases can assert the specific [`Error`] variant.
+    fn validate_yaml(yaml: &str) -> Result<ValidatedCluster, Error> {
+        validate_cluster(
+            &minimal_hive(yaml),
+            "oci.example.org",
+            DereferencedObjects {
+                s3_connection_spec: None,
+                hive_opa_config: None,
+            },
+        )
+    }
+
+    /// Unwraps the error of a failed validation ([`ValidatedCluster`] has no `Debug` impl, so
+    /// `expect_err` is unavailable).
+    fn expect_validate_err(yaml: &str) -> Error {
+        match validate_yaml(yaml) {
+            Ok(_) => panic!("expected validation to fail"),
+            Err(error) => error,
+        }
+    }
+
+    /// Locks the values the validate step derives from the minimal fixture — so a validation
+    /// regression fails here, with a validate-shaped message, instead of surfacing as a confusing
+    /// build-test failure downstream.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let cluster = validate_yaml(DERBY_YAML).expect("the minimal fixture validates");
+
+        assert_eq!(cluster.name.to_string(), "simple-hive");
+        assert_eq!(cluster.namespace.to_string(), "default");
+        assert_eq!(
+            cluster.product_version.to_string(),
+            "4.0.0-stackable0.0.0-dev"
+        );
+        let role_group_names: Vec<String> = cluster
+            .role_group_configs
+            .values()
+            .flat_map(|groups| groups.keys().map(ToString::to_string))
+            .collect();
+        assert_eq!(role_group_names, ["default"]);
+    }
+
+    #[test]
+    fn validate_rejects_missing_metastore_role() {
+        let yaml = DERBY_YAML
+            .split("metastore:")
+            .next()
+            .expect("the fixture contains a metastore role");
+
+        let error = expect_validate_err(yaml);
+        assert!(matches!(error, Error::NoMetaStoreRole));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_role_group_name() {
+        let yaml = DERBY_YAML.replace("default:", "Invalid_RG:");
+
+        let error = expect_validate_err(&yaml);
+        assert!(
+            matches!(&error, Error::ParseRoleGroupName { role_group, .. } if role_group == "Invalid_RG"),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_env_var_override_name() {
+        // `EnvVarName` allows any printable ASCII except `=` (the Kubernetes rule), so a leading
+        // digit is fine; an embedded `=` is what gets rejected.
+        let yaml = DERBY_YAML.replace(
+            "                replicas: 1",
+            "                replicas: 1\n                envOverrides:\n                  \"BAD=NAME\": value",
+        );
+
+        let error = expect_validate_err(&yaml);
+        assert!(
+            matches!(&error, Error::ParseEnvVarName { role_group, .. } if role_group.as_ref() == "default"),
+            "unexpected error: {error:?}"
+        );
+    }
 
     #[test]
     fn validate_logging_rejects_invalid_custom_config_map_name() {

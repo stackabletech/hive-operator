@@ -15,6 +15,7 @@ use crate::{
             config_map::build_metastore_rolegroup_config_map,
             listener::build_role_listener,
             pdb::build_pdb,
+            rbac::{build_role_binding, build_service_account},
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
             statefulset::build_metastore_rolegroup_statefulset,
         },
@@ -75,7 +76,6 @@ pub enum Error {
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    service_account_name: &str,
 ) -> Result<KubernetesResources, Error> {
     let mut stateful_sets = vec![];
     let mut services = vec![];
@@ -105,16 +105,10 @@ pub fn build(
                     })?,
             );
             stateful_sets.push(
-                build_metastore_rolegroup_statefulset(
-                    hive_role,
-                    cluster,
-                    role_group_name,
-                    rg,
-                    service_account_name,
-                )
-                .context(StatefulSetSnafu {
-                    role_group: role_group_name.clone(),
-                })?,
+                build_metastore_rolegroup_statefulset(hive_role, cluster, role_group_name, rg)
+                    .context(StatefulSetSnafu {
+                        role_group: role_group_name.clone(),
+                    })?,
             );
         }
     }
@@ -125,12 +119,14 @@ pub fn build(
         listeners,
         config_maps,
         pod_disruption_budgets,
+        service_accounts: vec![build_service_account(cluster)],
+        role_bindings: vec![build_role_binding(cluster)],
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{collections::BTreeMap, str::FromStr};
 
     use stackable_operator::{
         commons::networking::DomainName, kube::Resource, utils::cluster_info::KubernetesClusterInfo,
@@ -159,15 +155,20 @@ mod tests {
         let hive = minimal_hive(DERBY_YAML);
         let cluster = validated_cluster(&hive);
 
-        let resources = build(&cluster, &test_cluster_info(), "simple-hive-serviceaccount")
-            .expect("build succeeds");
+        let resources = build(&cluster, &test_cluster_info()).expect("build succeeds");
 
         assert_eq!(
             sorted_names(&resources.stateful_sets),
             ["simple-hive-metastore-default"]
         );
         // One headless and one metrics Service per role group.
-        assert_eq!(resources.services.len(), 2);
+        assert_eq!(
+            sorted_names(&resources.services),
+            [
+                "simple-hive-metastore-default-headless",
+                "simple-hive-metastore-default-metrics",
+            ]
+        );
         assert_eq!(
             sorted_names(&resources.config_maps),
             ["simple-hive-metastore-default"]
@@ -182,5 +183,55 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["simple-hive-metastore"]
         );
+    }
+
+    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
+    /// accidental drift. The fixture's cluster name deliberately differs from the product name so
+    /// that swapped `name`/`instance` label values cannot pass unnoticed.
+    #[test]
+    fn build_produces_rbac() {
+        let hive = minimal_hive(DERBY_YAML);
+        let cluster = validated_cluster(&hive);
+        let resources = build(&cluster, &test_cluster_info()).expect("build succeeds");
+
+        assert_eq!(
+            sorted_names(&resources.service_accounts),
+            ["simple-hive-serviceaccount"]
+        );
+        assert_eq!(
+            sorted_names(&resources.role_bindings),
+            ["simple-hive-rolebinding"]
+        );
+
+        let expected_labels = BTreeMap::from(
+            [
+                ("app.kubernetes.io/component", "none"),
+                ("app.kubernetes.io/instance", "simple-hive"),
+                (
+                    "app.kubernetes.io/managed-by",
+                    "hive.stackable.tech_hivecluster",
+                ),
+                ("app.kubernetes.io/name", "hive"),
+                ("app.kubernetes.io/role-group", "none"),
+                ("app.kubernetes.io/version", "4.0.0-stackable0.0.0-dev"),
+                ("stackable.tech/vendor", "Stackable"),
+            ]
+            .map(|(key, value)| (key.to_string(), value.to_string())),
+        );
+        let service_account = resources
+            .service_accounts
+            .first()
+            .expect("a ServiceAccount is built");
+        assert_eq!(
+            service_account.metadata.labels,
+            Some(expected_labels.clone())
+        );
+
+        let role_binding = resources
+            .role_bindings
+            .first()
+            .expect("a RoleBinding is built");
+        assert_eq!(role_binding.metadata.labels, Some(expected_labels));
+        assert_eq!(role_binding.role_ref.name, "hive-clusterrole");
     }
 }
