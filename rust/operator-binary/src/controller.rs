@@ -21,6 +21,11 @@ use stackable_operator::{
     },
     crd::{listener::v1alpha1::Listener, s3},
     database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Service},
+        policy::v1::PodDisruptionBudget,
+    },
     kube::{
         Resource, ResourceExt,
         api::ObjectMeta,
@@ -49,12 +54,7 @@ use strum::EnumDiscriminants;
 
 use crate::{
     OPERATOR_NAME,
-    controller::build::resource::{
-        discovery,
-        listener::build_role_listener,
-        pdb::build_pdb,
-        service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
-    },
+    controller::build::resource::discovery,
     crd::{APP_NAME, HdfsConnection, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
 };
 
@@ -68,30 +68,13 @@ pub struct Ctx {
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(strum::IntoStaticStr))]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to apply Service for role group {role_group}"))]
-    ApplyRoleGroupService {
-        source: stackable_operator::cluster_resources::Error,
-        role_group: RoleGroupName,
-    },
+    #[snafu(display("failed to build the Kubernetes resources"))]
+    BuildResources { source: build::Error },
 
-    #[snafu(display("failed to build ConfigMap for role group {role_group}"))]
-    BuildRoleGroupConfigMap {
-        source: build::resource::config_map::Error,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to apply ConfigMap for role group {role_group}"))]
-    ApplyRoleGroupConfig {
+    #[snafu(display("failed to apply Kubernetes resource"))]
+    ApplyResource {
         source: stackable_operator::cluster_resources::Error,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to apply StatefulSet for role group {role_group}"))]
-    ApplyRoleGroupStatefulSet {
-        source: stackable_operator::cluster_resources::Error,
-        role_group: RoleGroupName,
     },
 
     #[snafu(display("failed to build discovery ConfigMap"))]
@@ -127,11 +110,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("failed to apply PodDisruptionBudget"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
         source:
@@ -143,11 +121,6 @@ pub enum Error {
         source: error_boundary::InvalidObject,
     },
 
-    #[snafu(display("failed to apply group listener for {role}"))]
-    ApplyGroupListener {
-        source: stackable_operator::cluster_resources::Error,
-        role: String,
-    },
     #[snafu(display("failed to dereference cluster resources"))]
     Dereference {
         source: crate::controller::dereference::Error,
@@ -155,12 +128,6 @@ pub enum Error {
 
     #[snafu(display("failed to validate cluster configuration"))]
     Validate { source: validate::Error },
-
-    #[snafu(display("failed to build StatefulSet for role group {role_group}"))]
-    BuildRoleGroupStatefulSet {
-        source: build::resource::statefulset::Error,
-        role_group: RoleGroupName,
-    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -462,6 +429,19 @@ pub struct ValidatedRoleConfig {
     pub listener_class: ListenerClassName,
 }
 
+/// Every Kubernetes resource produced by the client-free [`build`](build::build) step.
+///
+/// The role-level discovery `ConfigMap` is deliberately absent: it is built from the *applied*
+/// role [`Listener`]'s ingress addresses, so it is assembled in the reconcile step after the
+/// Listener has been applied, not in the build step.
+pub struct KubernetesResources {
+    pub stateful_sets: Vec<StatefulSet>,
+    pub services: Vec<Service>,
+    pub listeners: Vec<Listener>,
+    pub config_maps: Vec<ConfigMap>,
+    pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
+}
+
 pub async fn reconcile_hive(
     hive: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
     ctx: Arc<Ctx>,
@@ -515,98 +495,79 @@ pub async fn reconcile_hive(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
+    // The ServiceAccount name is deterministic on the built object, so the client-free build step
+    // does not depend on the applied ServiceAccount.
+    let service_account_name = rbac_sa.name_any();
+
+    let resources = build::build(
+        &validated_cluster,
+        &client.kubernetes_cluster_info,
+        &service_account_name,
+    )
+    .context(BuildResourcesSnafu)?;
+
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (hive_role, role_group_configs) in &validated_cluster.role_group_configs {
-        for (role_group_name, rg) in role_group_configs {
-            let rg_metrics_service =
-                build_rolegroup_metrics_service(&validated_cluster, role_group_name);
-
-            let rg_headless_service =
-                build_rolegroup_headless_service(&validated_cluster, role_group_name);
-
-            let rg_configmap = build::resource::config_map::build_metastore_rolegroup_config_map(
-                &validated_cluster,
-                &client.kubernetes_cluster_info,
-                role_group_name,
-                rg,
-            )
-            .with_context(|_| BuildRoleGroupConfigMapSnafu {
-                role_group: role_group_name.clone(),
-            })?;
-
-            let rg_statefulset =
-                build::resource::statefulset::build_metastore_rolegroup_statefulset(
-                    hive_role,
-                    &validated_cluster,
-                    role_group_name,
-                    rg,
-                    &rbac_sa.name_any(),
-                )
-                .with_context(|_| BuildRoleGroupStatefulSetSnafu {
-                    role_group: role_group_name.clone(),
-                })?;
-
-            cluster_resources
-                .add(client, rg_metrics_service)
-                .await
-                .context(ApplyRoleGroupServiceSnafu {
-                    role_group: role_group_name.clone(),
-                })?;
-
-            cluster_resources
-                .add(client, rg_headless_service)
-                .await
-                .context(ApplyRoleGroupServiceSnafu {
-                    role_group: role_group_name.clone(),
-                })?;
-
-            cluster_resources.add(client, rg_configmap).await.context(
-                ApplyRoleGroupConfigSnafu {
-                    role_group: role_group_name.clone(),
-                },
-            )?;
-
-            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it
-            // mounts to prevent unnecessary Pod restarts.
-            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-            ss_cond_builder.add(
-                cluster_resources
-                    .add(client, rg_statefulset)
-                    .await
-                    .context(ApplyRoleGroupStatefulSetSnafu {
-                        role_group: role_group_name.clone(),
-                    })?,
-            );
-        }
+    // Apply order: everything before StatefulSets, StatefulSets last. A StatefulSet must only be
+    // applied after all ConfigMaps and Secrets it mounts, to prevent unnecessary Pod restarts.
+    // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service in resources.services {
+        cluster_resources
+            .add(client, service)
+            .await
+            .context(ApplyResourceSnafu)?;
     }
 
+    // The role Listener is applied before the discovery ConfigMap, which is built below from the
+    // applied Listener's ingress addresses. Hive has a single role Listener, so at most one is
+    // captured here.
+    let mut applied_role_listener: Option<Listener> = None;
+    for listener in resources.listeners {
+        applied_role_listener = Some(
+            cluster_resources
+                .add(client, listener)
+                .await
+                .context(ApplyResourceSnafu)?,
+        );
+    }
+
+    for config_map in resources.config_maps {
+        cluster_resources
+            .add(client, config_map)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+
+    for pdb in resources.pod_disruption_budgets {
+        cluster_resources
+            .add(client, pdb)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+
+    for statefulset in resources.stateful_sets {
+        ss_cond_builder.add(
+            cluster_resources
+                .add(client, statefulset)
+                .await
+                .context(ApplyResourceSnafu)?,
+        );
+    }
+
+    // The discovery ConfigMap is built from the *applied* role Listener's ingress addresses, so it
+    // is assembled here rather than in the client-free build step. Its applied resource version
+    // feeds the status discovery hash.
     // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
     // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
     let mut discovery_hash = FnvHasher::with_key(0);
 
-    if let Some(role_config) = &validated_cluster.role_config {
-        if let Some(pdb) = build_pdb(&role_config.pdb, &validated_cluster, &HiveRole::MetaStore) {
-            cluster_resources
-                .add(client, pdb)
-                .await
-                .context(ApplyPdbSnafu)?;
-        }
-
-        let role_listener: Listener = build_role_listener(
+    if let Some(role_listener) = applied_role_listener {
+        let discovery_cm = discovery::build_discovery_configmap(
             &validated_cluster,
-            &HiveRole::MetaStore,
-            &role_config.listener_class,
-        );
-        let listener = cluster_resources.add(client, role_listener).await.context(
-            ApplyGroupListenerSnafu {
-                role: HiveRole::MetaStore.to_string(),
-            },
-        )?;
-
-        let discovery_cm =
-            discovery::build_discovery_configmap(&validated_cluster, HiveRole::MetaStore, listener)
-                .context(BuildDiscoveryConfigSnafu)?;
+            HiveRole::MetaStore,
+            role_listener,
+        )
+        .context(BuildDiscoveryConfigSnafu)?;
         let discovery_cm = cluster_resources
             .add(client, discovery_cm)
             .await
