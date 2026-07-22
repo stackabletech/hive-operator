@@ -1243,6 +1243,53 @@ rec {
         sha256 = "0w75k89hw39p0mnnhlrwr23q50rza1yjki44qvh2mgrnj065a1qx";
 
       };
+      "combine" = rec {
+        crateName = "combine";
+        version = "4.6.7";
+        edition = "2018";
+        sha256 = "1z8rh8wp59gf8k23ar010phgs0wgf5i8cx4fg01gwcnzfn5k0nms";
+        authors = [
+          "Markus Westerlind <marwes91@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "bytes";
+            packageId = "bytes";
+            optional = true;
+          }
+          {
+            name = "memchr";
+            packageId = "memchr";
+            usesDefaultFeatures = false;
+          }
+        ];
+        devDependencies = [
+          {
+            name = "bytes";
+            packageId = "bytes";
+          }
+        ];
+        features = {
+          "bytes" = [ "dep:bytes" ];
+          "bytes_05" = [ "dep:bytes_05" ];
+          "default" = [ "std" ];
+          "futures-03" = [ "pin-project" "std" "futures-core-03" "futures-io-03" "pin-project-lite" ];
+          "futures-core-03" = [ "dep:futures-core-03" ];
+          "futures-io-03" = [ "dep:futures-io-03" ];
+          "pin-project" = [ "pin-project-lite" ];
+          "pin-project-lite" = [ "dep:pin-project-lite" ];
+          "regex" = [ "dep:regex" ];
+          "std" = [ "memchr/std" "bytes" "alloc" ];
+          "tokio" = [ "tokio-dep" "tokio-util/io" "futures-core-03" "pin-project-lite" ];
+          "tokio-02" = [ "pin-project" "std" "tokio-02-dep" "futures-core-03" "pin-project-lite" "bytes_05" ];
+          "tokio-02-dep" = [ "dep:tokio-02-dep" ];
+          "tokio-03" = [ "pin-project" "std" "tokio-03-dep" "futures-core-03" "pin-project-lite" ];
+          "tokio-03-dep" = [ "dep:tokio-03-dep" ];
+          "tokio-dep" = [ "dep:tokio-dep" ];
+          "tokio-util" = [ "dep:tokio-util" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "bytes" "default" "std" ];
+      };
       "concurrent-queue" = rec {
         crateName = "concurrent-queue";
         version = "2.5.0";
@@ -3400,10 +3447,10 @@ rec {
       };
       "granit-parser" = rec {
         crateName = "granit-parser";
-        version = "0.0.3";
+        version = "0.0.7";
         edition = "2021";
         crateBin = [];
-        sha256 = "14bwwc8swz8h0v8d7qybmmq25czv5aipd1v1vbariq7rchhs62zm";
+        sha256 = "0bdac2as3130i83pvlsl8gdasvfy5kvaj5ylry2hv0rj8ynq2gyh";
         libName = "granit_parser";
         authors = [
           "Ethiraric <ethiraric@gmail.com>"
@@ -4874,6 +4921,134 @@ rec {
         ];
 
       };
+      "jni" = rec {
+        crateName = "jni";
+        version = "0.22.4";
+        edition = "2024";
+        sha256 = "161lza8gz071h22pgyqyx4n91ixd691z2dbb1pq2g97k5i49mzay";
+        authors = [
+          "jni team"
+        ];
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "combine";
+            packageId = "combine";
+          }
+          {
+            name = "jni-macros";
+            packageId = "jni-macros";
+          }
+          {
+            name = "jni-sys";
+            packageId = "jni-sys";
+          }
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "simd_cesu8";
+            packageId = "simd_cesu8";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror 2.0.18";
+          }
+          {
+            name = "windows-link";
+            packageId = "windows-link";
+            target = { target, features }: (target."windows" or false);
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "walkdir";
+            packageId = "walkdir";
+          }
+        ];
+        features = {
+          "invocation" = [ "dep:java-locator" "dep:libloading" ];
+        };
+      };
+      "jni-macros" = rec {
+        crateName = "jni-macros";
+        version = "0.22.4";
+        edition = "2024";
+        sha256 = "18v02mcn5c7mb2yw6r930xg6ynsn7hwkxv8z2kdhn3qprjn0j0d0";
+        procMacro = true;
+        libName = "jni_macros";
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "simd_cesu8";
+            packageId = "simd_cesu8";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.118";
+            features = [ "full" ];
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "rustc_version";
+            packageId = "rustc_version";
+          }
+        ];
+
+      };
+      "jni-sys" = rec {
+        crateName = "jni-sys";
+        version = "0.4.1";
+        edition = "2021";
+        sha256 = "1wlahx6f2zhczdjqyn8mk7kshb8x5vsd927sn3lvw41rrf47ldy6";
+        libName = "jni_sys";
+        authors = [
+          "Steven Fackler <sfackler@gmail.com>"
+          "Robert Bragg <robert@sixbynine.org>"
+        ];
+        dependencies = [
+          {
+            name = "jni-sys-macros";
+            packageId = "jni-sys-macros";
+          }
+        ];
+
+      };
+      "jni-sys-macros" = rec {
+        crateName = "jni-sys-macros";
+        version = "0.4.1";
+        edition = "2021";
+        sha256 = "0r32gbabrak15a7p487765b5wc0jcna2yv88mk6m1zjqyi1bkh1q";
+        procMacro = true;
+        libName = "jni_sys_macros";
+        authors = [
+          "Robert Bragg <robert@sixbynine.org>"
+        ];
+        dependencies = [
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.118";
+            features = [ "full" ];
+          }
+        ];
+
+      };
       "jobserver" = rec {
         crateName = "jobserver";
         version = "0.1.35";
@@ -5107,9 +5282,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "k8s_version";
         authors = [
@@ -5185,9 +5360,9 @@ rec {
       };
       "kube" = rec {
         crateName = "kube";
-        version = "4.0.0";
+        version = "4.2.0";
         edition = "2024";
-        sha256 = "0ip1qc9kvgyp735rmxdjq75dspf737sazvhzs6b70siljn011fab";
+        sha256 = "065z77zh7gbigcbv7mxk7firdf1w6278lal1jjqsnrh073hpz390";
         authors = [
           "clux <sszynrae@gmail.com>"
           "Natalie Klestrup Röijezon <nat@nullable.se>"
@@ -5260,9 +5435,9 @@ rec {
       };
       "kube-client" = rec {
         crateName = "kube-client";
-        version = "4.0.0";
+        version = "4.2.0";
         edition = "2024";
-        sha256 = "0yskaybnf8m2c9rb0kxzlczb9jbx25sxdlqhzqhlq9n2bgh2ixnh";
+        sha256 = "1lqny49zldysk1qr6pp2ifsp2ifqa5wcwplbj73wb9rk62kl1s9i";
         libName = "kube_client";
         authors = [
           "clux <sszynrae@gmail.com>"
@@ -5361,6 +5536,11 @@ rec {
             packageId = "rustls";
             optional = true;
             usesDefaultFeatures = false;
+          }
+          {
+            name = "rustls-platform-verifier";
+            packageId = "rustls-platform-verifier";
+            optional = true;
           }
           {
             name = "secrecy";
@@ -5472,7 +5652,7 @@ rec {
           "pem" = [ "dep:pem" ];
           "ring" = [ "hyper-rustls?/ring" ];
           "rustls" = [ "dep:rustls" ];
-          "rustls-tls" = [ "rustls" "hyper-rustls" ];
+          "rustls-tls" = [ "rustls" "hyper-rustls" "dep:rustls-platform-verifier" ];
           "serde-saphyr" = [ "dep:serde-saphyr" ];
           "socks5" = [ "hyper-util/client-proxy" ];
           "tame-oauth" = [ "dep:tame-oauth" ];
@@ -5489,9 +5669,9 @@ rec {
       };
       "kube-core" = rec {
         crateName = "kube-core";
-        version = "4.0.0";
+        version = "4.2.0";
         edition = "2024";
-        sha256 = "1a7a3n4mwiqywajlld3axii0k7ridizp5mn7b06i81ms6dcjzc61";
+        sha256 = "1d7f2acgydnica3gsva5my87kw8cbfyvbq1f6ln4dwwc24y3blm9";
         libName = "kube_core";
         authors = [
           "clux <sszynrae@gmail.com>"
@@ -5572,9 +5752,9 @@ rec {
       };
       "kube-derive" = rec {
         crateName = "kube-derive";
-        version = "4.0.0";
+        version = "4.2.0";
         edition = "2024";
-        sha256 = "1an7av9xlif02klbk1xsz7nvggpnazpq2kpris0z3bbxf2c1h5zy";
+        sha256 = "1h597lx7xd6x65ili9ccm8lmqdq3dg3384iwcf8vz0zsw4ciq54j";
         procMacro = true;
         libName = "kube_derive";
         authors = [
@@ -5621,9 +5801,9 @@ rec {
       };
       "kube-runtime" = rec {
         crateName = "kube-runtime";
-        version = "4.0.0";
+        version = "4.2.0";
         edition = "2024";
-        sha256 = "08db3c5bg185y2yh6vilbkwqfdm5aykf87xllllwzis0qmkfrpcr";
+        sha256 = "1isw7mh35jmfwi3kx9ibpcgw77lyv9h3ji2ajdgabgn7f7pn9c1y";
         libName = "kube_runtime";
         authors = [
           "clux <sszynrae@gmail.com>"
@@ -8637,6 +8817,139 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "default" "std" ];
       };
+      "rustls-platform-verifier" = rec {
+        crateName = "rustls-platform-verifier";
+        version = "0.7.0";
+        edition = "2021";
+        sha256 = "181v4d0vl53vdh2wq56vghal1zyhdgqvy4xa8r45zwz4di9y5l96";
+        libName = "rustls_platform_verifier";
+        dependencies = [
+          {
+            name = "core-foundation";
+            packageId = "core-foundation";
+            target = { target, features }: (("apple" == target."vendor" or null));
+          }
+          {
+            name = "core-foundation-sys";
+            packageId = "core-foundation-sys";
+            target = { target, features }: (("apple" == target."vendor" or null));
+          }
+          {
+            name = "jni";
+            packageId = "jni";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "jni";
+            packageId = "jni";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("android" == target."os" or null);
+          }
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+            optional = true;
+          }
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+            target = { target, features }: ("android" == target."os" or null);
+          }
+          {
+            name = "rustls";
+            packageId = "rustls";
+            usesDefaultFeatures = false;
+            features = [ "std" ];
+          }
+          {
+            name = "rustls-native-certs";
+            packageId = "rustls-native-certs";
+            target = { target, features }: ((target."unix" or false) && (!("android" == target."os" or null)) && (!("apple" == target."vendor" or null)) && (!("wasm32" == target."arch" or null)));
+          }
+          {
+            name = "rustls-platform-verifier-android";
+            packageId = "rustls-platform-verifier-android";
+            target = { target, features }: ("android" == target."os" or null);
+          }
+          {
+            name = "rustls-webpki";
+            packageId = "rustls-webpki";
+            rename = "webpki";
+            usesDefaultFeatures = false;
+            target = { target, features }: ((target."unix" or false) && (!("android" == target."os" or null)) && (!("apple" == target."vendor" or null)) && (!("wasm32" == target."arch" or null)));
+          }
+          {
+            name = "rustls-webpki";
+            packageId = "rustls-webpki";
+            rename = "webpki";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("wasm32" == target."arch" or null);
+          }
+          {
+            name = "rustls-webpki";
+            packageId = "rustls-webpki";
+            rename = "webpki";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("android" == target."os" or null);
+          }
+          {
+            name = "security-framework";
+            packageId = "security-framework";
+            target = { target, features }: (("apple" == target."vendor" or null));
+          }
+          {
+            name = "security-framework-sys";
+            packageId = "security-framework-sys";
+            target = { target, features }: (("apple" == target."vendor" or null));
+          }
+          {
+            name = "webpki-root-certs";
+            packageId = "webpki-root-certs";
+            target = { target, features }: ("wasm32" == target."arch" or null);
+          }
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
+            usesDefaultFeatures = false;
+            target = { target, features }: (target."windows" or false);
+            features = [ "Win32_Foundation" "Win32_Security_Cryptography" ];
+          }
+        ];
+        devDependencies = [
+          {
+            name = "rustls";
+            packageId = "rustls";
+            usesDefaultFeatures = false;
+            features = [ "ring" ];
+          }
+          {
+            name = "webpki-root-certs";
+            packageId = "webpki-root-certs";
+          }
+        ];
+        features = {
+          "android_logger" = [ "dep:android_logger" ];
+          "base64" = [ "dep:base64" ];
+          "cert-logging" = [ "base64" ];
+          "docsrs" = [ "jni" "once_cell" ];
+          "ffi-testing" = [ "android_logger" "rustls/ring" ];
+          "jni" = [ "dep:jni" ];
+          "once_cell" = [ "dep:once_cell" ];
+        };
+      };
+      "rustls-platform-verifier-android" = rec {
+        crateName = "rustls-platform-verifier-android";
+        version = "0.1.1";
+        edition = "2021";
+        sha256 = "13vq6sxsgz9547xm2zbdxiw8x7ad1g8n8ax6xvxsjqszk7q6awgq";
+        libName = "rustls_platform_verifier_android";
+
+      };
       "rustls-webpki" = rec {
         crateName = "rustls-webpki";
         version = "0.103.13";
@@ -8695,6 +9008,24 @@ rec {
         features = {
           "no-panic" = [ "dep:no-panic" ];
         };
+      };
+      "same-file" = rec {
+        crateName = "same-file";
+        version = "1.0.6";
+        edition = "2018";
+        sha256 = "00h5j1w87dmhnvbv9l8bic3y7xxsnjmssvifw2ayvgx9mb1ivz4k";
+        libName = "same_file";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "winapi-util";
+            packageId = "winapi-util";
+            target = { target, features }: (target."windows" or false);
+          }
+        ];
+
       };
       "schannel" = rec {
         crateName = "schannel";
@@ -8993,6 +9324,7 @@ rec {
         features = {
           "default" = [ "OSX_10_13" ];
         };
+        resolvedDefaultFeatures = [ "OSX_10_13" "default" ];
       };
       "semver" = rec {
         crateName = "semver";
@@ -9043,10 +9375,10 @@ rec {
       };
       "serde-saphyr" = rec {
         crateName = "serde-saphyr";
-        version = "0.0.27";
+        version = "0.0.29";
         edition = "2024";
         crateBin = [];
-        sha256 = "1crx4kmmm88y4dbaramdsn0w8fqzchaz12b6vdgx7bddzb1v95sq";
+        sha256 = "196f2kjh4c9zayliykx9s5jyr2zir1rz15fsxdnwmq0xj60jglkv";
         libName = "serde_saphyr";
         dependencies = [
           {
@@ -9091,9 +9423,8 @@ rec {
             optional = true;
           }
           {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
+            name = "serde_core";
+            packageId = "serde_core";
           }
           {
             name = "smallvec";
@@ -9106,16 +9437,9 @@ rec {
             optional = true;
           }
         ];
-        devDependencies = [
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" "rc" ];
-          }
-        ];
         features = {
           "default" = [ "serialize" "deserialize" ];
-          "deserialize" = [ "dep:base64" "dep:num-traits" "dep:annotate-snippets" "dep:granit-parser" "dep:smallvec" "dep:encoding_rs_io" "dep:ahash" ];
+          "deserialize" = [ "dep:num-traits" "dep:annotate-snippets" "dep:granit-parser" "dep:smallvec" "dep:encoding_rs_io" "dep:ahash" ];
           "figment" = [ "dep:figment" "deserialize" ];
           "figment2" = [ "dep:figment2" "deserialize" ];
           "garde" = [ "dep:garde" "deserialize" ];
@@ -9124,6 +9448,7 @@ rec {
           "miette" = [ "dep:miette" "deserialize" ];
           "properties" = [ "deserialize" ];
           "robotics" = [ "deserialize" ];
+          "serde_derived_types" = [ "dep:serde" ];
           "serialize" = [ "dep:base64" "dep:num-traits" "dep:zmij" "dep:nohash-hasher" ];
           "validator" = [ "dep:validator" "deserialize" ];
         };
@@ -9567,6 +9892,46 @@ rec {
           "default" = [ "std" "const-generics" ];
         };
       };
+      "simd_cesu8" = rec {
+        crateName = "simd_cesu8";
+        version = "1.2.0";
+        edition = "2021";
+        sha256 = "0865mv3nmd35f1dccjcfj7dncjmmvvdij3j61z4131mz38jiw0qi";
+        authors = [
+          "Sean C. Roach <me@seancroach.dev>"
+        ];
+        dependencies = [
+          {
+            name = "simdutf8";
+            packageId = "simdutf8";
+            usesDefaultFeatures = false;
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "rustc_version";
+            packageId = "rustc_version";
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "std" = [ "simdutf8/std" ];
+        };
+        resolvedDefaultFeatures = [ "default" "std" ];
+      };
+      "simdutf8" = rec {
+        crateName = "simdutf8";
+        version = "0.1.5";
+        edition = "2018";
+        sha256 = "0vmpf7xaa0dnaikib5jlx6y4dxd3hxqz6l830qb079g7wcsgxag3";
+        authors = [
+          "Hans Kratz <hans@appfour.com>"
+        ];
+        features = {
+          "default" = [ "std" ];
+        };
+        resolvedDefaultFeatures = [ "std" ];
+      };
       "slab" = rec {
         crateName = "slab";
         version = "0.4.12";
@@ -9891,9 +10256,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "stackable_certs";
         authors = [
@@ -10091,13 +10456,13 @@ rec {
       };
       "stackable-operator" = rec {
         crateName = "stackable-operator";
-        version = "0.113.3";
+        version = "0.113.4";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "stackable_operator";
         authors = [
@@ -10294,9 +10659,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         procMacro = true;
         libName = "stackable_operator_derive";
@@ -10329,9 +10694,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "stackable_shared";
         authors = [
@@ -10410,9 +10775,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "stackable_telemetry";
         authors = [
@@ -10520,9 +10885,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "stackable_versioned";
         authors = [
@@ -10570,9 +10935,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         procMacro = true;
         libName = "stackable_versioned_macros";
@@ -10638,9 +11003,9 @@ rec {
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
+          url = "https://github.com/stackabletech//operator-rs.git";
+          rev = "0e5442574027eff876b6763df930dc6924d7bfdd";
+          sha256 = "1la3w84zi2w2hqfm95prpyrzqzmy95p5n4dcwsw02m6hfpxqv1mn";
         };
         libName = "stackable_webhook";
         authors = [
@@ -12887,6 +13252,27 @@ rec {
         ];
 
       };
+      "walkdir" = rec {
+        crateName = "walkdir";
+        version = "2.5.0";
+        edition = "2018";
+        sha256 = "0jsy7a710qv8gld5957ybrnc07gavppp963gs32xk4ag8130jy99";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "same-file";
+            packageId = "same-file";
+          }
+          {
+            name = "winapi-util";
+            packageId = "winapi-util";
+            target = { target, features }: (target."windows" or false);
+          }
+        ];
+
+      };
       "want" = rec {
         crateName = "want";
         version = "0.3.1";
@@ -13615,6 +14001,41 @@ rec {
         features = {
           "serde" = [ "dep:serde" ];
         };
+      };
+      "webpki-root-certs" = rec {
+        crateName = "webpki-root-certs";
+        version = "1.0.9";
+        edition = "2021";
+        sha256 = "16qw59hxn1lln1615kb9rjy16pfxd1x8m9f9w6vwv36c5am58rdr";
+        libName = "webpki_root_certs";
+        dependencies = [
+          {
+            name = "rustls-pki-types";
+            packageId = "rustls-pki-types";
+            rename = "pki-types";
+            usesDefaultFeatures = false;
+          }
+        ];
+
+      };
+      "winapi-util" = rec {
+        crateName = "winapi-util";
+        version = "0.1.11";
+        edition = "2021";
+        sha256 = "08hdl7mkll7pz8whg869h58c1r9y7in0w0pk8fm24qc77k0b39y2";
+        libName = "winapi_util";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
+            target = { target, features }: (target."windows" or false);
+            features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
+          }
+        ];
+
       };
       "windows-core" = rec {
         crateName = "windows-core";
