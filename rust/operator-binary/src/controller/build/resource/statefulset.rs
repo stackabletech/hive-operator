@@ -141,7 +141,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
 ) -> Result<StatefulSet, Error> {
-    let resource_names = cluster.resource_names(role_group_name);
+    let resource_names = cluster.role_group_resource_names(role_group_name);
     let resolved_product_image = &cluster.image;
     let database_connection_details = &cluster.cluster_config.metadata_database_connection_details;
     let s3_connection = cluster.cluster_config.s3_connection_spec.as_ref();
@@ -371,7 +371,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         .affinity(&merged_config.affinity)
         .service_account_name(
             cluster
-                .rbac_resource_names()
+                .cluster_resource_names()
                 .service_account_name()
                 .to_string(),
         )
