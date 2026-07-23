@@ -8,8 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
   assembles all relevant Kubernetes resources before anything is applied ([#726]).
+- Bump stackable-operator to 0.114.0 ([#735]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
+[#735]: https://github.com/stackabletech/hive-operator/pull/735
 
 ## [26.7.0] - 2026-07-21
 
