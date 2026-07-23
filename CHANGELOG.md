@@ -11,8 +11,11 @@ All notable changes to this project will be documented in this file.
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#731]).
 
+- Bump stackable-operator to 0.114.0 ([#735]).
+
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
+[#735]: https://github.com/stackabletech/hive-operator/pull/735
 
 ## [26.7.0] - 2026-07-21
 
