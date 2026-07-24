@@ -70,9 +70,6 @@ pub enum Error {
 ///
 /// `cluster_info` carries the Kubernetes cluster domain (needed by the Kerberos config); it is
 /// static cluster metadata, not a live client, so the build step stays client-free.
-///
-/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under
-/// (RBAC resources are built and applied separately, in the reconcile step).
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,

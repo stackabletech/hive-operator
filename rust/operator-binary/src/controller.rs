@@ -228,11 +228,6 @@ impl ValidatedCluster {
     }
 
     /// The single Hive role name (`metastore`).
-    pub fn role_name() -> RoleName {
-        RoleName::from_str(&HiveRole::MetaStore.to_string())
-            .expect("the metastore role name is a valid role name")
-    }
-
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
     /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
@@ -249,7 +244,7 @@ impl ValidatedCluster {
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: Self::role_name(),
+            role_name: HiveRole::MetaStore.into(),
             role_group_name: role_group_name.clone(),
         }
     }
@@ -269,7 +264,7 @@ impl ValidatedCluster {
     pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
         self.recommended_labels_with(
             &UNVERSIONED_PRODUCT_VERSION,
-            &Self::role_name(),
+            &HiveRole::MetaStore.into(),
             role_group_name,
         )
     }
@@ -294,12 +289,17 @@ impl ValidatedCluster {
 
     /// Recommended labels for a role-group resource.
     pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&Self::role_name(), role_group_name)
+        self.recommended_labels_for(&HiveRole::MetaStore.into(), role_group_name)
     }
 
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
-        role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
+        role_group_selector(
+            self,
+            &product_name(),
+            &HiveRole::MetaStore.into(),
+            role_group_name,
+        )
     }
 
     /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
@@ -663,7 +663,21 @@ pub(crate) mod test_support {
 mod tests {
     use std::str::FromStr;
 
+    use stackable_operator::v2::types::operator::RoleName;
+    use strum::IntoEnumIterator;
+
     use super::{RoleGroupName, test_support::*};
+    use crate::crd::HiveRole;
+
+    /// Locks the invariant behind the `expect` in the `From<HiveRole> for RoleName` impls:
+    /// every `HiveRole` variant (present and future) must serialise to a valid `RoleName`.
+    #[test]
+    fn every_hive_role_serialises_to_a_valid_role_name() {
+        for role in HiveRole::iter() {
+            let _: RoleName = (&role).into();
+            let _: RoleName = role.into();
+        }
+    }
 
     #[test]
     fn object_meta_sets_namespace_owner_and_recommended_labels() {

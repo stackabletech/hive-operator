@@ -38,6 +38,7 @@ use stackable_operator::{
             kubernetes::{
                 ConfigMapName, ContainerName, ListenerClassName, SecretClassName, VolumeName,
             },
+            operator::RoleName,
         },
     },
     versioned::versioned,
@@ -259,6 +260,18 @@ pub struct HdfsConnection {
 pub enum HiveRole {
     #[strum(serialize = "metastore")]
     MetaStore,
+}
+
+impl From<HiveRole> for RoleName {
+    fn from(value: HiveRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a HiveRole is a valid role name")
+    }
+}
+
+impl From<&HiveRole> for RoleName {
+    fn from(value: &HiveRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a HiveRole is a valid role name")
+    }
 }
 
 impl HiveRole {
