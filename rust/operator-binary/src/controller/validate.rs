@@ -380,9 +380,28 @@ mod tests {
 
     #[test]
     fn validate_rejects_invalid_role_group_name() {
-        let yaml = DERBY_YAML.replace("default:", "Invalid_RG:");
+        // A copy of `DERBY_YAML` whose role-group name violates the RFC 1123 label rules
+        // (uppercase and underscore).
+        let yaml = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              Invalid_RG:
+                replicas: 1
+        "#;
 
-        let error = expect_validate_err(&yaml);
+        let error = expect_validate_err(yaml);
         assert!(
             matches!(&error, Error::ParseRoleGroupName { role_group, .. } if role_group == "Invalid_RG"),
             "unexpected error: {error:?}"
