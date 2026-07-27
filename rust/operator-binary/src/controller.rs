@@ -248,7 +248,7 @@ impl ValidatedCluster {
         }
     }
 
-    /// Recommended labels for a resource that is not tied to a concrete,
+    /// Recommended labels for a resource that is not tied to a concrete role,
     /// using a free-form role/role-group label value.
     pub fn recommended_labels_for(
         &self,
