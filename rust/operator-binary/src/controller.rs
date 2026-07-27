@@ -227,7 +227,6 @@ impl ValidatedCluster {
         }
     }
 
-    /// The single Hive role name (`metastore`).
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
     /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
