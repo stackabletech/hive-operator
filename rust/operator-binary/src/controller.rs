@@ -607,7 +607,9 @@ pub(crate) mod test_support {
 
     /// Minimal Derby-backed `HiveCluster` fixture shared across the crate's tests.
     ///
-    /// Includes a `uid` so owner references can be derived from it.
+    /// Includes a `uid` so owner references can be derived from it. The cluster name
+    /// (`simple-hive`) deliberately differs from the product name (`hive`), so tests asserting
+    /// recommended labels catch swapped `name`/`instance` values.
     pub const DERBY_YAML: &str = r#"
         apiVersion: hive.stackable.tech/v1alpha1
         kind: HiveCluster

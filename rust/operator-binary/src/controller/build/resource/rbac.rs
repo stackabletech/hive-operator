@@ -50,8 +50,7 @@ mod tests {
         DERBY_YAML, app_version_label, minimal_hive, validated_cluster,
     };
 
-    // The fixture's cluster name (`simple-hive`) deliberately differs from the product name
-    // (`hive`), so swapped `name`/`instance` label values cannot pass unnoticed.
+    // `simple-hive` vs `hive`: see the swap-guard note on `DERBY_YAML`.
 
     #[test]
     fn test_service_account() {
