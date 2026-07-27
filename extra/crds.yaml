@@ -6,7 +6,6 @@ metadata:
 spec:
   group: hive.stackable.tech
   names:
-    categories: []
     kind: HiveCluster
     plural: hiveclusters
     shortNames:
@@ -14,8 +13,7 @@ spec:
     singular: hivecluster
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
@@ -466,7 +464,6 @@ spec:
                   at role level, the `roleConfig`.
                   You can learn more about this in the
                   [Roles and role group concept documentation](https://docs.stackable.tech/home/nightly/concepts/roles-and-role-groups).
-                nullable: true
                 properties:
                   cliOverrides:
                     additionalProperties:
@@ -1365,6 +1362,7 @@ spec:
             required:
             - clusterConfig
             - image
+            - metastore
             type: object
           status:
             nullable: true

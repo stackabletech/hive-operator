@@ -5,7 +5,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{ValidatedCluster, build::PLACEHOLDER_LISTENER_ROLE_GROUP},
+    controller::{
+        ValidatedCluster,
+        build::{PLACEHOLDER_LISTENER_ROLE_GROUP, object_meta},
+    },
     crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole},
 };
 
@@ -51,12 +54,12 @@ pub fn build_role_listener(
 ) -> Listener {
     // The role listener is a role-level (not role-group-level) object, so there is no real
     // role-group name; "none" is used as a placeholder for the recommended labels.
-    let metadata = cluster
-        .object_meta(
-            cluster.role_listener_name(hive_role),
-            &PLACEHOLDER_LISTENER_ROLE_GROUP,
-        )
-        .build();
+    let metadata = object_meta(
+        cluster,
+        cluster.role_listener_name(hive_role),
+        &PLACEHOLDER_LISTENER_ROLE_GROUP,
+    )
+    .build();
 
     let spec = ListenerSpec {
         class_name: Some(listener_class.to_string()),

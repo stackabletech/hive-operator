@@ -8,9 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
   assembles all relevant Kubernetes resources before anything is applied ([#726]).
+- The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
+  functions and carry the full set of recommended labels ([#731]).
+- BREAKING: The `metastore` role is now required by the CRD; a HiveCluster without it was
+  previously accepted by the API server but failed reconciliation ([#731]).
 - Bump stackable-operator to 0.114.0 ([#735]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
+[#731]: https://github.com/stackabletech/hive-operator/pull/731
 [#735]: https://github.com/stackabletech/hive-operator/pull/735
 
 ## [26.7.0] - 2026-07-21

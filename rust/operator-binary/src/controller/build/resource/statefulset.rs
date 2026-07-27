@@ -48,11 +48,11 @@ use crate::{
     controller::{
         HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
         build::{
-            UNVERSIONED_PRODUCT_VERSION,
             command::build_container_command_args,
             graceful_shutdown::add_graceful_shutdown_config,
             jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
             kerberos::{add_kerberos_pod_config, kerberos_container_start_commands},
+            object_meta,
             opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
         },
@@ -141,9 +141,8 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
-    sa_name: &str,
 ) -> Result<StatefulSet, Error> {
-    let resource_names = cluster.resource_names(role_group_name);
+    let resource_names = cluster.role_group_resource_names(role_group_name);
     let resolved_product_image = &cluster.image;
     let database_connection_details = &cluster.cluster_config.metadata_database_connection_details;
     let s3_connection = cluster.cluster_config.s3_connection_spec.as_ref();
@@ -325,8 +324,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     let recommended_object_labels = cluster.recommended_labels(role_group_name);
     // Used for PVC templates that cannot be modified once they are deployed. A version value is
     // required, so a constant "none" is used to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels =
-        cluster.recommended_labels_for(&UNVERSIONED_PRODUCT_VERSION, role_group_name);
+    let unversioned_recommended_labels = cluster.unversioned_recommended_labels(role_group_name);
 
     let metadata = ObjectMetaBuilder::new()
         .with_labels(recommended_object_labels)
@@ -372,7 +370,12 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         )
         .context(AddVolumeSnafu)?
         .affinity(&merged_config.affinity)
-        .service_account_name(sa_name)
+        .service_account_name(
+            cluster
+                .cluster_resource_names()
+                .service_account_name()
+                .to_string(),
+        )
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     // The Hive container's log config ConfigMap: either the operator-generated one (the rolegroup
@@ -424,13 +427,13 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: cluster
-            .object_meta(
-                resource_names.stateful_set_name().to_string(),
-                role_group_name,
-            )
-            .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
-            .build(),
+        metadata: object_meta(
+            cluster,
+            resource_names.stateful_set_name().to_string(),
+            role_group_name,
+        )
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
+        .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             // `None` (no replica count specified) leaves `.spec.replicas` unset so a

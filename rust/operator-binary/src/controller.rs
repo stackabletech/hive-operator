@@ -16,18 +16,18 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         product_image_selection::ResolvedProductImage,
-        rbac::build_rbac_resources,
         resources::{NoRuntimeLimits, Resources},
     },
     crd::{listener::v1alpha1::Listener, s3},
     database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Service},
+        core::v1::{ConfigMap, Service, ServiceAccount},
         policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
     },
     kube::{
-        Resource, ResourceExt,
+        Resource,
         api::ObjectMeta,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
@@ -44,6 +44,7 @@ use stackable_operator::{
         cluster_resources::cluster_resources_new,
         kvp::label::{recommended_labels, role_group_selector},
         role_group_utils::ResourceNames,
+        role_utils,
         types::{
             kubernetes::{ListenerClassName, ListenerName, SecretClassName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
@@ -54,7 +55,7 @@ use strum::EnumDiscriminants;
 
 use crate::{
     OPERATOR_NAME,
-    controller::build::resource::discovery,
+    controller::build::{UNVERSIONED_PRODUCT_VERSION, resource::discovery},
     crd::{APP_NAME, HdfsConnection, HiveClusterStatus, HiveRole, MetaStoreConfig, v1alpha1},
 };
 
@@ -93,27 +94,6 @@ pub enum Error {
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch service account"))]
-    ApplyServiceAccount {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch role binding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to build RBAC resources"))]
-    BuildRbacResources {
-        source: stackable_operator::commons::rbac::Error,
-    },
-
-    #[snafu(display("failed to get required Labels"))]
-    GetRequiredLabels {
-        source:
-            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display("HiveCluster object is invalid"))]
@@ -210,7 +190,7 @@ pub struct ValidatedCluster {
     /// The product version as a valid label value, used for the recommended `app.kubernetes.io/version`
     /// label. Derived from the resolved image's app version label value.
     pub product_version: ProductVersion,
-    pub role_config: Option<ValidatedRoleConfig>,
+    pub role_config: ValidatedRoleConfig,
     pub cluster_config: ValidatedClusterConfig,
     pub role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
 }
@@ -221,7 +201,7 @@ impl ValidatedCluster {
         namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
         uid: stackable_operator::v2::types::kubernetes::Uid,
         image: ResolvedProductImage,
-        role_config: Option<ValidatedRoleConfig>,
+        role_config: ValidatedRoleConfig,
         cluster_config: ValidatedClusterConfig,
         role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
     ) -> Self {
@@ -247,25 +227,52 @@ impl ValidatedCluster {
         }
     }
 
-    /// The single Hive role name (`metastore`).
-    pub fn role_name() -> RoleName {
-        RoleName::from_str(&HiveRole::MetaStore.to_string())
-            .expect("the metastore role name is a valid role name")
+    /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
+    /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
+    pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
+        role_utils::ResourceNames {
+            cluster_name: self.name.clone(),
+            product_name: product_name(),
+        }
     }
 
     /// Type-safe names for the resources of a given role group.
-    pub(crate) fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
+    pub(crate) fn role_group_resource_names(
+        &self,
+        role_group_name: &RoleGroupName,
+    ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: Self::role_name(),
+            role_name: HiveRole::MetaStore.into(),
             role_group_name: role_group_name.clone(),
         }
     }
 
+    /// Recommended labels for a resource that is not tied to a concrete role,
+    /// using a free-form role/role-group label value.
+    pub fn recommended_labels_for(
+        &self,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    /// Recommended labels with the constant [`UNVERSIONED_PRODUCT_VERSION`], for PVC templates
+    /// that cannot be modified after deployment (keeps the labels stable across version upgrades).
+    pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
+        self.recommended_labels_with(
+            &UNVERSIONED_PRODUCT_VERSION,
+            &HiveRole::MetaStore.into(),
+            role_group_name,
+        )
+    }
+
     /// Recommended labels for a role-group resource, using the given product version.
-    fn recommended_labels_for(
+    fn recommended_labels_with(
         &self,
         product_version: &ProductVersion,
+        role_name: &RoleName,
         role_group_name: &RoleGroupName,
     ) -> Labels {
         recommended_labels(
@@ -274,19 +281,24 @@ impl ValidatedCluster {
             product_version,
             &operator_name(),
             &controller_name(),
-            &Self::role_name(),
+            role_name,
             role_group_name,
         )
     }
 
     /// Recommended labels for a role-group resource.
     pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&self.product_version, role_group_name)
+        self.recommended_labels_for(&HiveRole::MetaStore.into(), role_group_name)
     }
 
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
-        role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
+        role_group_selector(
+            self,
+            &product_name(),
+            &HiveRole::MetaStore.into(),
+            role_group_name,
+        )
     }
 
     /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
@@ -302,31 +314,6 @@ impl ValidatedCluster {
             role = hive_role
         ))
         .expect("the role listener name is a valid Listener name")
-    }
-
-    /// Returns an `ObjectMetaBuilder` pre-filled with the namespace, an owner reference back to
-    /// this cluster, and the recommended labels for a resource named `name` in `role_group_name`.
-    ///
-    /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
-    /// need extra labels/annotations chain them onto the returned builder.
-    pub(crate) fn object_meta(
-        &self,
-        name: impl Into<String>,
-        role_group_name: &RoleGroupName,
-    ) -> stackable_operator::builder::meta::ObjectMetaBuilder {
-        let mut builder = stackable_operator::builder::meta::ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(
-                stackable_operator::v2::builder::meta::ownerreference_from_resource(
-                    self,
-                    None,
-                    Some(true),
-                ),
-            )
-            .with_labels(self.recommended_labels(role_group_name));
-        builder
     }
 }
 
@@ -440,6 +427,8 @@ pub struct KubernetesResources {
     pub listeners: Vec<Listener>,
     pub config_maps: Vec<ConfigMap>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
+    pub service_accounts: Vec<ServiceAccount>,
+    pub role_bindings: Vec<RoleBinding>,
 }
 
 pub async fn reconcile_hive(
@@ -476,41 +465,26 @@ pub async fn reconcile_hive(
         &hive.spec.object_overrides,
     );
 
-    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        hive,
-        APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(GetRequiredLabelsSnafu)?,
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    let rbac_sa = cluster_resources
-        .add(client, rbac_sa)
-        .await
-        .context(ApplyServiceAccountSnafu)?;
-
-    cluster_resources
-        .add(client, rbac_rolebinding)
-        .await
-        .context(ApplyRoleBindingSnafu)?;
-
-    // The ServiceAccount name is deterministic on the built object, so the client-free build step
-    // does not depend on the applied ServiceAccount.
-    let service_account_name = rbac_sa.name_any();
-
-    let resources = build::build(
-        &validated_cluster,
-        &client.kubernetes_cluster_info,
-        &service_account_name,
-    )
-    .context(BuildResourcesSnafu)?;
+    let resources = build::build(&validated_cluster, &client.kubernetes_cluster_info)
+        .context(BuildResourcesSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     // Apply order: everything before StatefulSets, StatefulSets last. A StatefulSet must only be
     // applied after all ConfigMaps and Secrets it mounts, to prevent unnecessary Pod restarts.
     // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service_account in resources.service_accounts {
+        cluster_resources
+            .add(client, service_account)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for role_binding in resources.role_bindings {
+        cluster_resources
+            .add(client, role_binding)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
     for service in resources.services {
         cluster_resources
             .add(client, service)
@@ -619,9 +593,23 @@ pub(crate) mod test_support {
     use super::{ValidatedCluster, dereference::DereferencedObjects, validate::validate_cluster};
     use crate::crd::v1alpha1;
 
+    /// The expected `app.kubernetes.io/version` label value for the given product version.
+    ///
+    /// The `-stackable` suffix carries the operator's own version, which is `0.0.0-dev` on main
+    /// but rewritten by the release process — so tests must derive it rather than hardcode it,
+    /// or they fail on release branches.
+    pub fn app_version_label(product_version: &str) -> String {
+        format!(
+            "{product_version}-stackable{}",
+            crate::built_info::PKG_VERSION
+        )
+    }
+
     /// Minimal Derby-backed `HiveCluster` fixture shared across the crate's tests.
     ///
-    /// Includes a `uid` so owner references can be derived from it.
+    /// Includes a `uid` so owner references can be derived from it. The cluster name
+    /// (`simple-hive`) deliberately differs from the product name (`hive`), so tests asserting
+    /// recommended labels catch swapped `name`/`instance` values.
     pub const DERBY_YAML: &str = r#"
         apiVersion: hive.stackable.tech/v1alpha1
         kind: HiveCluster
@@ -661,21 +649,18 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use stackable_operator::v2::types::operator::RoleName;
+    use strum::IntoEnumIterator;
 
-    use super::{RoleGroupName, test_support::*};
+    use crate::crd::HiveRole;
 
+    /// Locks the invariant behind the `expect` in the `From<HiveRole> for RoleName` impls:
+    /// every `HiveRole` variant (present and future) must serialise to a valid `RoleName`.
     #[test]
-    fn object_meta_sets_namespace_owner_and_recommended_labels() {
-        let hive = minimal_hive(DERBY_YAML);
-        let cluster = validated_cluster(&hive);
-        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
-
-        let meta = cluster.object_meta("test-name", &role_group_name).build();
-
-        assert_eq!(meta.name.as_deref(), Some("test-name"));
-        assert_eq!(meta.namespace.as_deref(), Some(cluster.namespace.as_ref()));
-        assert!(meta.owner_references.is_some());
-        assert!(meta.labels.is_some());
+    fn every_hive_role_serialises_to_a_valid_role_name() {
+        for role in HiveRole::iter() {
+            let _: RoleName = (&role).into();
+            let _: RoleName = role.into();
+        }
     }
 }

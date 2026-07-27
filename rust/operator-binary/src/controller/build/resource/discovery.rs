@@ -8,7 +8,8 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            PLACEHOLDER_DISCOVERY_ROLE_GROUP, resource::listener::build_listener_connection_string,
+            PLACEHOLDER_DISCOVERY_ROLE_GROUP, object_meta,
+            resource::listener::build_listener_connection_string,
         },
     },
     crd::{HiveRole, v1alpha1},
@@ -46,12 +47,15 @@ pub fn build_discovery_configmap(
     let mut discovery_configmap = ConfigMapBuilder::new();
 
     discovery_configmap.metadata(
-        cluster
-            // Discovery is a role-level object; the cluster name is used as the resource name
-            // (matching `name_and_namespace`) and "discovery" as a placeholder role-group name
-            // for the recommended labels.
-            .object_meta(cluster.name.to_string(), &PLACEHOLDER_DISCOVERY_ROLE_GROUP)
-            .build(),
+        // Discovery is a role-level object; the cluster name is used as the resource name
+        // (matching `name_and_namespace`) and "discovery" as a placeholder role-group name
+        // for the recommended labels.
+        object_meta(
+            cluster,
+            cluster.name.to_string(),
+            &PLACEHOLDER_DISCOVERY_ROLE_GROUP,
+        )
+        .build(),
     );
 
     discovery_configmap.add_data(

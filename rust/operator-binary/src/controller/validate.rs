@@ -39,9 +39,6 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("object defines no metastore role"))]
-    NoMetaStoreRole,
-
     #[snafu(display("failed to resolve cluster name"))]
     ResolveClusterName {
         source: stackable_operator::v2::controller_utils::Error,
@@ -152,21 +149,17 @@ pub fn validate_cluster(
         .context(ResolveProductImageSnafu)?;
 
     let hive_role = HiveRole::MetaStore;
-    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
+    let role = &hive.spec.metastore;
 
-    let role_config = if let Some(HiveMetastoreRoleConfig {
+    let HiveMetastoreRoleConfig {
         common: GenericRoleConfig {
             pod_disruption_budget: pdb,
         },
         listener_class,
-    }) = hive.role_config(&hive_role)
-    {
-        Some(ValidatedRoleConfig {
-            pdb: pdb.clone(),
-            listener_class: listener_class.clone(),
-        })
-    } else {
-        None
+    } = hive.role_config(&hive_role);
+    let role_config = ValidatedRoleConfig {
+        pdb: pdb.clone(),
+        listener_class: listener_class.clone(),
     };
 
     let default_config = MetaStoreConfig::default_config(name.as_ref(), &hive_role);
@@ -292,6 +285,161 @@ fn validate_role_group_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::controller::test_support::{DERBY_YAML, app_version_label, minimal_hive};
+
+    /// Runs the real validate step over the given fixture YAML, without unwrapping, so error
+    /// cases can assert the specific [`Error`] variant.
+    fn validate_yaml(yaml: &str) -> Result<ValidatedCluster, Error> {
+        validate_cluster(
+            &minimal_hive(yaml),
+            "oci.example.org",
+            DereferencedObjects {
+                s3_connection_spec: None,
+                hive_opa_config: None,
+            },
+        )
+    }
+
+    /// Unwraps the error of a failed validation ([`ValidatedCluster`] has no `Debug` impl, so
+    /// `expect_err` is unavailable).
+    fn expect_validate_err(yaml: &str) -> Error {
+        match validate_yaml(yaml) {
+            Ok(_) => panic!("expected validation to fail"),
+            Err(error) => error,
+        }
+    }
+
+    /// Locks every value the validate step itself derives from the minimal fixture — so a
+    /// validation regression fails here, with a validate-shaped message, instead of surfacing as
+    /// a confusing build-test failure downstream.
+    ///
+    /// The merged per-role-group config (resources, affinity, logging defaults, …) is produced by
+    /// `with_validated_config` and the config defaults, whose contracts are tested in operator-rs
+    /// and the properties tests; only the values this module derives on top are re-asserted here.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let cluster = validate_yaml(DERBY_YAML).expect("the minimal fixture validates");
+
+        assert_eq!(cluster.name.to_string(), "simple-hive");
+        assert_eq!(cluster.namespace.to_string(), "default");
+        assert_eq!(
+            cluster.uid.to_string(),
+            "12345678-1234-1234-1234-123456789012"
+        );
+        assert_eq!(
+            cluster.image.image,
+            format!("oci.example.org/hive:{}", app_version_label("4.0.0"))
+        );
+        assert_eq!(cluster.image.product_version, "4.0.0");
+        assert_eq!(
+            cluster.product_version.to_string(),
+            app_version_label("4.0.0")
+        );
+
+        // The role config falls back to its defaults: PDBs enabled, cluster-internal listener.
+        assert!(cluster.role_config.pdb.enabled);
+        assert_eq!(cluster.role_config.pdb.max_unavailable, None);
+        assert_eq!(
+            cluster.role_config.listener_class.to_string(),
+            "cluster-internal"
+        );
+
+        // The Derby metadata database: embedded driver (per product version), default on-disk
+        // location, no credentials.
+        let cluster_config = &cluster.cluster_config;
+        assert_eq!(
+            cluster_config.connection_driver,
+            "org.apache.derby.jdbc.EmbeddedDriver"
+        );
+        assert_eq!(cluster_config.db_type, "derby");
+        let details = &cluster_config.metadata_database_connection_details;
+        assert_eq!(
+            details.connection_url.to_string(),
+            "jdbc:derby:/tmp/derby/METADATA/derby.db;create=true"
+        );
+        assert_eq!(details.username_env, None);
+        assert_eq!(details.password_env, None);
+
+        // The minimal fixture configures no HDFS, S3, OPA or Kerberos.
+        assert_eq!(cluster_config.hdfs, None);
+        assert_eq!(cluster_config.s3_connection_spec, None);
+        assert!(cluster_config.hive_opa_config.is_none());
+        assert_eq!(cluster_config.kerberos_secret_class, None);
+
+        // A single metastore role with the single `default` role group.
+        assert_eq!(cluster.role_group_configs.len(), 1);
+        let role_groups = &cluster.role_group_configs[&HiveRole::MetaStore];
+        let role_group_names: Vec<String> = role_groups.keys().map(ToString::to_string).collect();
+        assert_eq!(role_group_names, ["default"]);
+        let role_group = &role_groups[&RoleGroupName::from_str("default").expect("valid name")];
+        assert_eq!(role_group.replicas, Some(1));
+        assert_eq!(role_group.env_overrides, EnvVarSet::new());
+        assert!(!role_group.config.logging.enable_vector_agent);
+        assert_eq!(role_group.config.logging.vector_container, None);
+    }
+
+    #[test]
+    fn validate_rejects_invalid_role_group_name() {
+        // A copy of `DERBY_YAML` whose role-group name violates the RFC 1123 label rules
+        // (uppercase and underscore).
+        let yaml = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              Invalid_RG:
+                replicas: 1
+        "#;
+
+        let error = expect_validate_err(yaml);
+        assert!(
+            matches!(&error, Error::ParseRoleGroupName { role_group, .. } if role_group == "Invalid_RG"),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_env_var_override_name() {
+        // A copy of `DERBY_YAML` with an invalid `envOverrides` name: `EnvVarName` allows any
+        // printable ASCII except `=` (the Kubernetes rule), so a leading digit is fine; the
+        // embedded `=` is what gets rejected.
+        let yaml = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+                envOverrides:
+                  "BAD=NAME": value
+        "#;
+
+        let error = expect_validate_err(yaml);
+        assert!(
+            matches!(&error, Error::ParseEnvVarName { role_group, .. } if role_group.as_ref() == "default"),
+            "unexpected error: {error:?}"
+        );
+    }
 
     #[test]
     fn validate_logging_rejects_invalid_custom_config_map_name() {
