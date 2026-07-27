@@ -316,31 +316,6 @@ impl ValidatedCluster {
         ))
         .expect("the role listener name is a valid Listener name")
     }
-
-    /// Returns an `ObjectMetaBuilder` pre-filled with the namespace, an owner reference back to
-    /// this cluster, and the recommended labels for a resource named `name` in `role_group_name`.
-    ///
-    /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
-    /// need extra labels/annotations chain them onto the returned builder.
-    pub(crate) fn object_meta(
-        &self,
-        name: impl Into<String>,
-        role_group_name: &RoleGroupName,
-    ) -> stackable_operator::builder::meta::ObjectMetaBuilder {
-        let mut builder = stackable_operator::builder::meta::ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(
-                stackable_operator::v2::builder::meta::ownerreference_from_resource(
-                    self,
-                    None,
-                    Some(true),
-                ),
-            )
-            .with_labels(self.recommended_labels(role_group_name));
-        builder
-    }
 }
 
 /// Lets [`ValidatedCluster`] stand in for the raw [`v1alpha1::HiveCluster`] when building owner
@@ -673,12 +648,9 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use stackable_operator::v2::types::operator::RoleName;
     use strum::IntoEnumIterator;
 
-    use super::{RoleGroupName, test_support::*};
     use crate::crd::HiveRole;
 
     /// Locks the invariant behind the `expect` in the `From<HiveRole> for RoleName` impls:
@@ -689,19 +661,5 @@ mod tests {
             let _: RoleName = (&role).into();
             let _: RoleName = role.into();
         }
-    }
-
-    #[test]
-    fn object_meta_sets_namespace_owner_and_recommended_labels() {
-        let hive = minimal_hive(DERBY_YAML);
-        let cluster = validated_cluster(&hive);
-        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
-
-        let meta = cluster.object_meta("test-name", &role_group_name).build();
-
-        assert_eq!(meta.name.as_deref(), Some("test-name"));
-        assert_eq!(meta.namespace.as_deref(), Some(cluster.namespace.as_ref()));
-        assert!(meta.owner_references.is_some());
-        assert!(meta.labels.is_some());
     }
 }

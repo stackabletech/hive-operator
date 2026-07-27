@@ -13,6 +13,7 @@ use crate::controller::{
     HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
     build::{
         kerberos::kerberos_config_properties,
+        object_meta,
         properties::{ConfigFileName, core_site, hive_site, product_logging, security_properties},
     },
 };
@@ -72,15 +73,15 @@ pub fn build_metastore_rolegroup_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
     cm_builder
         .metadata(
-            cluster
-                .object_meta(
-                    cluster
-                        .role_group_resource_names(role_group_name)
-                        .role_group_config_map()
-                        .to_string(),
-                    role_group_name,
-                )
-                .build(),
+            object_meta(
+                cluster,
+                cluster
+                    .role_group_resource_names(role_group_name)
+                    .role_group_config_map()
+                    .to_string(),
+                role_group_name,
+            )
+            .build(),
         )
         .add_data(
             ConfigFileName::HiveSite.to_string(),

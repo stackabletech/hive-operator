@@ -52,6 +52,7 @@ use crate::{
             graceful_shutdown::add_graceful_shutdown_config,
             jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
             kerberos::{add_kerberos_pod_config, kerberos_container_start_commands},
+            object_meta,
             opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
         },
@@ -426,13 +427,13 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: cluster
-            .object_meta(
-                resource_names.stateful_set_name().to_string(),
-                role_group_name,
-            )
-            .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
-            .build(),
+        metadata: object_meta(
+            cluster,
+            resource_names.stateful_set_name().to_string(),
+            role_group_name,
+        )
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
+        .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             // `None` (no replica count specified) leaves `.spec.replicas` unset so a
