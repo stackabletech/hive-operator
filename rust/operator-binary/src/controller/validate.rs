@@ -410,14 +410,31 @@ mod tests {
 
     #[test]
     fn validate_rejects_invalid_env_var_override_name() {
-        // `EnvVarName` allows any printable ASCII except `=` (the Kubernetes rule), so a leading
-        // digit is fine; an embedded `=` is what gets rejected.
-        let yaml = DERBY_YAML.replace(
-            "                replicas: 1",
-            "                replicas: 1\n                envOverrides:\n                  \"BAD=NAME\": value",
-        );
+        // A copy of `DERBY_YAML` with an invalid `envOverrides` name: `EnvVarName` allows any
+        // printable ASCII except `=` (the Kubernetes rule), so a leading digit is fine; the
+        // embedded `=` is what gets rejected.
+        let yaml = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+                envOverrides:
+                  "BAD=NAME": value
+        "#;
 
-        let error = expect_validate_err(&yaml);
+        let error = expect_validate_err(yaml);
         assert!(
             matches!(&error, Error::ParseEnvVarName { role_group, .. } if role_group.as_ref() == "default"),
             "unexpected error: {error:?}"
