@@ -40,3 +40,101 @@ pub fn build_role_binding(cluster: &ValidatedCluster) -> RoleBinding {
 fn rbac_labels(cluster: &ValidatedCluster) -> Labels {
     cluster.recommended_labels_for(&NONE_ROLE_NAME, &NONE_ROLE_GROUP_NAME)
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::controller::test_support::{
+        DERBY_YAML, app_version_label, minimal_hive, validated_cluster,
+    };
+
+    // The fixture's cluster name (`simple-hive`) deliberately differs from the product name
+    // (`hive`), so swapped `name`/`instance` label values cannot pass unnoticed.
+
+    #[test]
+    fn test_service_account() {
+        let hive = minimal_hive(DERBY_YAML);
+        let service_account = build_service_account(&validated_cluster(&hive));
+
+        assert_eq!(
+            json!({
+                "apiVersion": "v1",
+                "kind": "ServiceAccount",
+                "metadata": {
+                    // The RBAC resources are cluster-shared, so role and role group are `none`.
+                    "labels": {
+                        "app.kubernetes.io/component": "none",
+                        "app.kubernetes.io/instance": "simple-hive",
+                        "app.kubernetes.io/managed-by": "hive.stackable.tech_hivecluster",
+                        "app.kubernetes.io/name": "hive",
+                        "app.kubernetes.io/role-group": "none",
+                        "app.kubernetes.io/version": app_version_label("4.0.0"),
+                        "stackable.tech/vendor": "Stackable"
+                    },
+                    "name": "simple-hive-serviceaccount",
+                    "namespace": "default",
+                    "ownerReferences": [
+                        {
+                            "apiVersion": "hive.stackable.tech/v1alpha1",
+                            "controller": true,
+                            "kind": "HiveCluster",
+                            "name": "simple-hive",
+                            "uid": "12345678-1234-1234-1234-123456789012"
+                        }
+                    ]
+                }
+            }),
+            serde_json::to_value(service_account).expect("must be serializable")
+        );
+    }
+
+    #[test]
+    fn test_role_binding() {
+        let hive = minimal_hive(DERBY_YAML);
+        let role_binding = build_role_binding(&validated_cluster(&hive));
+
+        assert_eq!(
+            json!({
+                "apiVersion": "rbac.authorization.k8s.io/v1",
+                "kind": "RoleBinding",
+                "metadata": {
+                    "labels": {
+                        "app.kubernetes.io/component": "none",
+                        "app.kubernetes.io/instance": "simple-hive",
+                        "app.kubernetes.io/managed-by": "hive.stackable.tech_hivecluster",
+                        "app.kubernetes.io/name": "hive",
+                        "app.kubernetes.io/role-group": "none",
+                        "app.kubernetes.io/version": app_version_label("4.0.0"),
+                        "stackable.tech/vendor": "Stackable"
+                    },
+                    "name": "simple-hive-rolebinding",
+                    "namespace": "default",
+                    "ownerReferences": [
+                        {
+                            "apiVersion": "hive.stackable.tech/v1alpha1",
+                            "controller": true,
+                            "kind": "HiveCluster",
+                            "name": "simple-hive",
+                            "uid": "12345678-1234-1234-1234-123456789012"
+                        }
+                    ]
+                },
+                "roleRef": {
+                    "apiGroup": "rbac.authorization.k8s.io",
+                    "kind": "ClusterRole",
+                    "name": "hive-clusterrole"
+                },
+                "subjects": [
+                    {
+                        "kind": "ServiceAccount",
+                        "name": "simple-hive-serviceaccount",
+                        "namespace": "default"
+                    }
+                ]
+            }),
+            serde_json::to_value(role_binding).expect("must be serializable")
+        );
+    }
+}

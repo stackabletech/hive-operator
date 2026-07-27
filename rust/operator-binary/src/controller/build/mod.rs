@@ -123,7 +123,7 @@ pub fn build(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, str::FromStr};
+    use std::str::FromStr;
 
     use stackable_operator::{
         commons::networking::DomainName, kube::Resource, utils::cluster_info::KubernetesClusterInfo,
@@ -180,17 +180,7 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["simple-hive-metastore"]
         );
-    }
-
-    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
-    /// accidental drift. The fixture's cluster name deliberately differs from the product name so
-    /// that swapped `name`/`instance` label values cannot pass unnoticed.
-    #[test]
-    fn build_produces_rbac() {
-        let hive = minimal_hive(DERBY_YAML);
-        let cluster = validated_cluster(&hive);
-        let resources = build(&cluster, &test_cluster_info()).expect("build succeeds");
-
+        // The cluster-shared RBAC pair.
         assert_eq!(
             sorted_names(&resources.service_accounts),
             ["simple-hive-serviceaccount"]
@@ -199,36 +189,5 @@ mod tests {
             sorted_names(&resources.role_bindings),
             ["simple-hive-rolebinding"]
         );
-
-        let expected_labels = BTreeMap::from(
-            [
-                ("app.kubernetes.io/component", "none"),
-                ("app.kubernetes.io/instance", "simple-hive"),
-                (
-                    "app.kubernetes.io/managed-by",
-                    "hive.stackable.tech_hivecluster",
-                ),
-                ("app.kubernetes.io/name", "hive"),
-                ("app.kubernetes.io/role-group", "none"),
-                ("app.kubernetes.io/version", "4.0.0-stackable0.0.0-dev"),
-                ("stackable.tech/vendor", "Stackable"),
-            ]
-            .map(|(key, value)| (key.to_string(), value.to_string())),
-        );
-        let service_account = resources
-            .service_accounts
-            .first()
-            .expect("a ServiceAccount is built");
-        assert_eq!(
-            service_account.metadata.labels,
-            Some(expected_labels.clone())
-        );
-
-        let role_binding = resources
-            .role_bindings
-            .first()
-            .expect("a RoleBinding is built");
-        assert_eq!(role_binding.metadata.labels, Some(expected_labels));
-        assert_eq!(role_binding.role_ref.name, "hive-clusterrole");
     }
 }
