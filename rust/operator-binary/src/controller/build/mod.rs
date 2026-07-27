@@ -86,14 +86,13 @@ pub fn build(
 
     // Role-level resources. Hive has the single `metastore` role; its PDB and Listener are built
     // here, but the discovery ConfigMap (which needs the applied Listener) is built in reconcile.
-    if let Some(role_config) = &cluster.role_config {
-        pod_disruption_budgets.extend(build_pdb(&role_config.pdb, cluster, &HiveRole::MetaStore));
-        listeners.push(build_role_listener(
-            cluster,
-            &HiveRole::MetaStore,
-            &role_config.listener_class,
-        ));
-    }
+    let role_config = &cluster.role_config;
+    pod_disruption_budgets.extend(build_pdb(&role_config.pdb, cluster, &HiveRole::MetaStore));
+    listeners.push(build_role_listener(
+        cluster,
+        &HiveRole::MetaStore,
+        &role_config.listener_class,
+    ));
 
     for (hive_role, role_group_configs) in &cluster.role_group_configs {
         for (role_group_name, rg) in role_group_configs {

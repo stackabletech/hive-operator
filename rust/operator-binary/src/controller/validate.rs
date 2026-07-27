@@ -39,9 +39,6 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("object defines no metastore role"))]
-    NoMetaStoreRole,
-
     #[snafu(display("failed to resolve cluster name"))]
     ResolveClusterName {
         source: stackable_operator::v2::controller_utils::Error,
@@ -152,21 +149,17 @@ pub fn validate_cluster(
         .context(ResolveProductImageSnafu)?;
 
     let hive_role = HiveRole::MetaStore;
-    let role = hive.spec.metastore.as_ref().context(NoMetaStoreRoleSnafu)?;
+    let role = &hive.spec.metastore;
 
-    let role_config = if let Some(HiveMetastoreRoleConfig {
+    let HiveMetastoreRoleConfig {
         common: GenericRoleConfig {
             pod_disruption_budget: pdb,
         },
         listener_class,
-    }) = hive.role_config(&hive_role)
-    {
-        Some(ValidatedRoleConfig {
-            pdb: pdb.clone(),
-            listener_class: listener_class.clone(),
-        })
-    } else {
-        None
+    } = hive.role_config(&hive_role);
+    let role_config = ValidatedRoleConfig {
+        pdb: pdb.clone(),
+        listener_class: listener_class.clone(),
     };
 
     let default_config = MetaStoreConfig::default_config(name.as_ref(), &hive_role);
@@ -335,17 +328,6 @@ mod tests {
             .flat_map(|groups| groups.keys().map(ToString::to_string))
             .collect();
         assert_eq!(role_group_names, ["default"]);
-    }
-
-    #[test]
-    fn validate_rejects_missing_metastore_role() {
-        let yaml = DERBY_YAML
-            .split("metastore:")
-            .next()
-            .expect("the fixture contains a metastore role");
-
-        let error = expect_validate_err(yaml);
-        assert!(matches!(error, Error::NoMetaStoreRole));
     }
 
     #[test]

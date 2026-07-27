@@ -190,7 +190,7 @@ pub struct ValidatedCluster {
     /// The product version as a valid label value, used for the recommended `app.kubernetes.io/version`
     /// label. Derived from the resolved image's app version label value.
     pub product_version: ProductVersion,
-    pub role_config: Option<ValidatedRoleConfig>,
+    pub role_config: ValidatedRoleConfig,
     pub cluster_config: ValidatedClusterConfig,
     pub role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
 }
@@ -201,7 +201,7 @@ impl ValidatedCluster {
         namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
         uid: stackable_operator::v2::types::kubernetes::Uid,
         image: ResolvedProductImage,
-        role_config: Option<ValidatedRoleConfig>,
+        role_config: ValidatedRoleConfig,
         cluster_config: ValidatedClusterConfig,
         role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
     ) -> Self {

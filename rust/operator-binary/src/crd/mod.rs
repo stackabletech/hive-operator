@@ -144,8 +144,7 @@ pub mod versioned {
         pub image: ProductImage,
 
         // no doc - docs in Role struct.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub metastore: Option<HiveRoleType>,
+        pub metastore: HiveRoleType,
     }
 
     // TODO: move generic version to op-rs?
@@ -221,9 +220,9 @@ impl HasStatusCondition for v1alpha1::HiveCluster {
 }
 
 impl v1alpha1::HiveCluster {
-    pub fn role_config(&self, role: &HiveRole) -> Option<&HiveMetastoreRoleConfig> {
+    pub fn role_config(&self, role: &HiveRole) -> &HiveMetastoreRoleConfig {
         match role {
-            HiveRole::MetaStore => self.spec.metastore.as_ref().map(|m| &m.role_config),
+            HiveRole::MetaStore => &self.spec.metastore.role_config,
         }
     }
 
