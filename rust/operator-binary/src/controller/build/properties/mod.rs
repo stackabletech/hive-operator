@@ -39,6 +39,8 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_support {
+    use stackable_operator::crd::s3;
+
     use crate::{
         controller::{ValidatedClusterConfig, test_support::DERBY_YAML},
         crd::{
@@ -76,6 +78,22 @@ pub(crate) mod test_support {
             s3_connection_spec: None,
             hive_opa_config: None,
             kerberos_secret_class: None,
+        }
+    }
+
+    /// Build a Derby-backed [`ValidatedClusterConfig`] with an S3 connection for builder tests.
+    pub fn s3_cluster_config() -> ValidatedClusterConfig {
+        let s3_connection_spec: s3::v1alpha1::ConnectionSpec =
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+                host: minio
+                port: 9000
+                accessStyle: Path
+            "#})
+            .expect("valid S3 ConnectionSpec YAML");
+
+        ValidatedClusterConfig {
+            s3_connection_spec: Some(s3_connection_spec),
+            ..derby_cluster_config()
         }
     }
 }
