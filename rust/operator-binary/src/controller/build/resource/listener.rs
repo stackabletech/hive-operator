@@ -22,13 +22,14 @@ pub enum Error {
 
 // Builds the connection string with respect to the listener provided objects
 pub fn build_listener_connection_string(
-    listener_ref: Listener,
+    listener_ref: &Listener,
     role: &str,
 ) -> Result<String, Error> {
     // We only need the first address corresponding to the role
     let listener_address = listener_ref
         .status
-        .and_then(|s| s.ingress_addresses?.into_iter().next())
+        .as_ref()
+        .and_then(|status| status.ingress_addresses.as_ref()?.first())
         .context(RoleListenerHasNoAddressSnafu { role })?;
     let conn_str = format!(
         "thrift://{address}:{port}",

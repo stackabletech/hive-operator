@@ -42,7 +42,7 @@ fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveClu
 pub fn build_discovery_configmap(
     cluster: &ValidatedCluster,
     hive_role: HiveRole,
-    listener: Listener,
+    listener: &Listener,
 ) -> Result<ConfigMap, Error> {
     let mut discovery_configmap = ConfigMapBuilder::new();
 
