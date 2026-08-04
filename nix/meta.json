@@ -1,1 +1,1 @@
-{"operator": {"name": "hive-operator", "pretty_string": "Apache Hive", "product_string": "hive", "url": "stackabletech/hive-operator.git"}}
+{"operator": {"name": "hive-operator", "pretty_string": "Apache Hive", "product_string": "hive", "url": "stackabletech/hive-operator.git", "chart_description": "Kubernetes operator for Apache Hive. Deploy and run the Hive Metastore with the Stackable Data Platform (SDP).", "keywords": ["apache-hive", "hive", "hive-metastore", "metastore", "kubernetes", "operator", "big-data"]}}
