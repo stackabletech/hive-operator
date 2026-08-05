@@ -13,10 +13,13 @@ All notable changes to this project will be documented in this file.
 - BREAKING: The `metastore` role is now required by the CRD; a HiveCluster without it was
   previously accepted by the API server but failed reconciliation ([#731]).
 - Bump stackable-operator to 0.114.0 ([#735]).
+- The reconciler now applies resources and derives the cluster status in discrete
+  apply and update_status steps ([#737]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
 [#735]: https://github.com/stackabletech/hive-operator/pull/735
+[#737]: https://github.com/stackabletech/hive-operator/pull/737
 
 ## [26.7.0] - 2026-07-21
 

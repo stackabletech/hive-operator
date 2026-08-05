@@ -134,8 +134,9 @@ rules:
       - get
       - list
       - watch
-  # Listener created per role group for external access. Applied via SSA and tracked for orphan
-  # cleanup.
+  # Listener created per role for external access. Applied via SSA and tracked for orphan
+  # cleanup. Watched by the controller, so a reconciliation is triggered once the
+  # listener-operator writes the ingress address (needed for the discovery ConfigMap).
   - apiGroups:
       - listeners.stackable.tech
     resources:
@@ -146,3 +147,4 @@ rules:
       - get
       - list
       - patch
+      - watch

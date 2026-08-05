@@ -17,6 +17,7 @@ use crate::{
         KubernetesResources, Prepared, ValidatedCluster,
         build::resource::{
             config_map::build_metastore_rolegroup_config_map,
+            discovery::build_discovery_configmap,
             listener::build_role_listener,
             pdb::build_pdb,
             rbac::{build_role_binding, build_service_account},
@@ -60,6 +61,9 @@ pub enum Error {
         source: resource::statefulset::Error,
         role_group: RoleGroupName,
     },
+
+    #[snafu(display("failed to build the discovery ConfigMap"))]
+    DiscoveryConfigMap { source: resource::discovery::Error },
 }
 
 /// Builds every Kubernetes resource for the given validated cluster.
@@ -67,10 +71,6 @@ pub enum Error {
 /// Does not need a Kubernetes client: every reference to another Kubernetes resource is already
 /// dereferenced and validated by this point. Cluster configuration is likewise already validated,
 /// so the errors returned here are resource-assembly failures only.
-///
-/// The role-level discovery `ConfigMap` is *not* built here: it depends on the *applied* role
-/// [`Listener`](stackable_operator::crd::listener::v1alpha1::Listener)'s ingress addresses and is
-/// therefore assembled in the reconcile step after the Listener has been applied.
 ///
 /// `cluster_info` carries the Kubernetes cluster domain (needed by the Kerberos config); it is
 /// static cluster metadata, not a live client, so the build step stays client-free.
@@ -84,8 +84,8 @@ pub fn build(
     let mut config_maps = vec![];
     let mut pod_disruption_budgets = vec![];
 
-    // Role-level resources. Hive has the single `metastore` role; its PDB and Listener are built
-    // here, but the discovery ConfigMap (which needs the applied Listener) is built in reconcile.
+    // Role-level resources. Hive has the single `metastore` role; its PDB and Listener are
+    // built here. The discovery ConfigMap is built below, from the dereferenced Listener.
     let role_config = &cluster.role_config;
     pod_disruption_budgets.extend(build_pdb(&role_config.pdb, cluster, &HiveRole::MetaStore));
     listeners.push(build_role_listener(
@@ -111,6 +111,30 @@ pub fn build(
                     })?,
             );
         }
+    }
+
+    // The discovery ConfigMap needs the role Listener's ingress address, which only the
+    // listener-operator writes. Around the first reconcile runs the dereferenced Listener is
+    // absent or still address-less; the ConfigMap is skipped then instead of failing the whole
+    // run -- the Listener watch triggers a new run once the address is set. In that window an
+    // already existing discovery ConfigMap is deleted as an orphan (only reachable when the
+    // Listener is deleted and re-created) and re-created by the next run.
+    if let Some(role_listener) = &cluster.role_listener
+        && role_listener
+            .status
+            .as_ref()
+            .and_then(|status| status.ingress_addresses.as_ref()?.first())
+            .is_some()
+    {
+        config_maps.push(
+            build_discovery_configmap(cluster, HiveRole::MetaStore, role_listener)
+                .context(DiscoveryConfigMapSnafu)?,
+        );
+    } else {
+        tracing::debug!(
+            "the metastore role Listener has no ingress address yet, skipping the discovery \
+             ConfigMap"
+        );
     }
 
     Ok(KubernetesResources {
@@ -146,14 +170,21 @@ pub(crate) fn object_meta(
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{collections::BTreeMap, str::FromStr};
 
     use stackable_operator::{
-        commons::networking::DomainName, kube::Resource, utils::cluster_info::KubernetesClusterInfo,
+        commons::networking::DomainName,
+        crd::listener::{self, v1alpha1::Listener},
+        k8s_openapi::api::core::v1::ConfigMap,
+        kube::{Resource, api::ObjectMeta},
+        utils::cluster_info::KubernetesClusterInfo,
     };
 
-    use super::{RoleGroupName, build, object_meta};
-    use crate::controller::test_support::{DERBY_YAML, minimal_hive, validated_cluster};
+    use super::{KubernetesResources, Prepared, RoleGroupName, build, object_meta};
+    use crate::{
+        controller::test_support::{DERBY_YAML, minimal_hive, validated_cluster},
+        crd::HIVE_PORT_NAME,
+    };
 
     fn test_cluster_info() -> KubernetesClusterInfo {
         KubernetesClusterInfo {
@@ -212,6 +243,78 @@ mod tests {
             sorted_names(&resources.role_bindings),
             ["simple-hive-rolebinding"]
         );
+    }
+
+    /// A metastore role Listener whose status carries an ingress address, as the
+    /// listener-operator eventually writes it.
+    fn role_listener_with_address() -> Listener {
+        Listener {
+            metadata: ObjectMeta::default(),
+            spec: listener::v1alpha1::ListenerSpec::default(),
+            status: Some(listener::v1alpha1::ListenerStatus {
+                service_name: None,
+                ingress_addresses: Some(vec![listener::v1alpha1::ListenerIngress {
+                    address: "hive.example.com".to_string(),
+                    address_type: listener::v1alpha1::AddressType::Hostname,
+                    ports: BTreeMap::from([(HIVE_PORT_NAME.to_string(), 9083)]),
+                }]),
+                node_ports: None,
+            }),
+        }
+    }
+
+    /// The built discovery ConfigMap (named after the cluster itself), if any.
+    fn discovery_config_map(resources: &KubernetesResources<Prepared>) -> Option<&ConfigMap> {
+        resources
+            .config_maps
+            .iter()
+            .find(|config_map| config_map.metadata.name.as_deref() == Some("simple-hive"))
+    }
+
+    #[test]
+    fn build_adds_the_discovery_config_map_once_the_role_listener_has_an_address() {
+        let hive = minimal_hive(DERBY_YAML);
+        let mut cluster = validated_cluster(&hive);
+        cluster.role_listener = Some(role_listener_with_address());
+
+        let resources = build(&cluster, &test_cluster_info()).expect("build succeeds");
+
+        let data = discovery_config_map(&resources)
+            .expect("the discovery ConfigMap is built")
+            .data
+            .as_ref()
+            .expect("the discovery ConfigMap carries data");
+        assert_eq!(
+            data.get("HIVE").map(String::as_str),
+            Some("thrift://hive.example.com:9083")
+        );
+    }
+
+    /// While the Listener carries no ingress address (the listener-operator has not reconciled
+    /// it yet), the discovery ConfigMap is skipped, *without* failing the build: the Listener
+    /// watch triggers a new reconcile run once the address is set.
+    #[test]
+    fn build_skips_the_discovery_config_map_while_the_role_listener_has_no_address() {
+        let hive = minimal_hive(DERBY_YAML);
+        let mut cluster = validated_cluster(&hive);
+
+        let no_status = None;
+        let no_addresses = Some(listener::v1alpha1::ListenerStatus {
+            service_name: None,
+            ingress_addresses: Some(vec![]),
+            node_ports: None,
+        });
+        for status in [no_status, no_addresses] {
+            cluster.role_listener = Some(Listener {
+                status,
+                ..role_listener_with_address()
+            });
+
+            let resources =
+                build(&cluster, &test_cluster_info()).expect("build succeeds without an address");
+
+            assert!(discovery_config_map(&resources).is_none());
+        }
     }
 
     #[test]

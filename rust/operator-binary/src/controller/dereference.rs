@@ -4,12 +4,18 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
     commons::opa::{OpaApiVersion, OpaConfig},
-    crd::s3,
+    crd::{listener::v1alpha1::Listener, s3},
     k8s_openapi::api::core::v1::ConfigMap,
-    v2::{controller_utils::get_namespace, types::kubernetes::SecretClassName},
+    v2::{
+        controller_utils::{get_cluster_name, get_namespace},
+        types::kubernetes::SecretClassName,
+    },
 };
 
-use crate::crd::v1alpha1;
+use crate::{
+    controller::build::resource::listener::role_listener_name,
+    crd::{HiveRole, v1alpha1},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -32,12 +38,29 @@ pub enum Error {
     ParseOpaTlsSecretClassName {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
+
+    #[snafu(display("failed to determine the cluster's name"))]
+    ResolveClusterName {
+        source: stackable_operator::v2::controller_utils::Error,
+    },
+
+    #[snafu(display("failed to get the metastore role Listener {listener_name}"))]
+    GetRoleListener {
+        source: stackable_operator::client::Error,
+        listener_name: String,
+    },
 }
 
 /// External references resolved during the dereference step.
 pub struct DereferencedObjects {
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<ResolvedOpaConfig>,
+    /// The metastore role [`Listener`] as currently stored in the cluster, fetched because the
+    /// discovery `ConfigMap` is built from its ingress address. Unlike the other fields it is not
+    /// referenced from the spec but created by this operator itself: `None` on the first
+    /// reconcile run (the apply step has not created it yet), and its status is only populated
+    /// asynchronously by the listener-operator, so it can still be address-less here.
+    pub role_listener: Option<Listener>,
 }
 
 /// OPA settings resolved from the cluster's OPA reference during the dereference step.
@@ -105,8 +128,19 @@ pub async fn dereference(
         None => None,
     };
 
+    let cluster_name = get_cluster_name(hive).context(ResolveClusterNameSnafu)?;
+    let namespace = get_namespace(hive).context(ResolveNamespaceSnafu)?;
+    let listener_name = role_listener_name(&cluster_name, &HiveRole::MetaStore);
+    let role_listener = client
+        .get_opt::<Listener>(listener_name.as_ref(), namespace.as_ref())
+        .await
+        .context(GetRoleListenerSnafu {
+            listener_name: listener_name.as_ref(),
+        })?;
+
     Ok(DereferencedObjects {
         s3_connection_spec,
         hive_opa_config,
+        role_listener,
     })
 }

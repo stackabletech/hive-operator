@@ -6,10 +6,9 @@ mod dereference;
 mod update_status;
 mod validate;
 
-use std::{collections::BTreeMap, hash::Hasher, marker::PhantomData, str::FromStr, sync::Arc};
+use std::{collections::BTreeMap, marker::PhantomData, str::FromStr, sync::Arc};
 
 use const_format::concatcp;
-use fnv::FnvHasher;
 use snafu::{ResultExt, Snafu};
 pub use stackable_operator::v2::types::operator::RoleGroupName;
 use stackable_operator::{
@@ -43,7 +42,7 @@ use stackable_operator::{
         role_group_utils::ResourceNames,
         role_utils,
         types::{
-            kubernetes::{ListenerClassName, ListenerName, SecretClassName},
+            kubernetes::{ListenerClassName, SecretClassName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
         },
     },
@@ -53,9 +52,7 @@ use strum::EnumDiscriminants;
 use crate::{
     OPERATOR_NAME,
     controller::{
-        apply::Applier,
-        build::{UNVERSIONED_PRODUCT_VERSION, resource::discovery},
-        update_status::update_status,
+        apply::Applier, build::UNVERSIONED_PRODUCT_VERSION, update_status::update_status,
     },
     crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha1},
 };
@@ -79,15 +76,6 @@ pub enum Error {
 
     #[snafu(display("failed to build the Kubernetes resources"))]
     BuildResources { source: build::Error },
-
-    #[snafu(display("failed to build discovery ConfigMap"))]
-    BuildDiscoveryConfig { source: discovery::Error },
-
-    #[snafu(display("failed to apply discovery ConfigMap"))]
-    ApplyDiscoveryConfig { source: apply::Error },
-
-    #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources { source: apply::Error },
 
     #[snafu(display("HiveCluster object is invalid"))]
     InvalidHiveCluster {
@@ -186,9 +174,15 @@ pub struct ValidatedCluster {
     pub role_config: ValidatedRoleConfig,
     pub cluster_config: ValidatedClusterConfig,
     pub role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
+    /// The metastore role [`Listener`] as currently stored in the cluster (fetched in the
+    /// dereference step), from which the discovery `ConfigMap` is built. `None` on the first
+    /// reconcile run, and possibly still address-less until the listener-operator has
+    /// reconciled it.
+    pub role_listener: Option<Listener>,
 }
 
 impl ValidatedCluster {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: stackable_operator::v2::types::operator::ClusterName,
         namespace: stackable_operator::v2::types::kubernetes::NamespaceName,
@@ -197,6 +191,7 @@ impl ValidatedCluster {
         role_config: ValidatedRoleConfig,
         cluster_config: ValidatedClusterConfig,
         role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
+        role_listener: Option<Listener>,
     ) -> Self {
         // `app_version_label_value` is constructed to be a valid label value, so it is also a
         // valid `ProductVersion`.
@@ -217,6 +212,7 @@ impl ValidatedCluster {
             role_config,
             cluster_config,
             role_group_configs,
+            role_listener,
         }
     }
 
@@ -297,16 +293,6 @@ impl ValidatedCluster {
     /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
     pub fn has_kerberos_enabled(&self) -> bool {
         self.cluster_config.kerberos_secret_class.is_some()
-    }
-
-    /// The name of the per-role [`Listener`] object.
-    pub fn role_listener_name(&self, hive_role: &HiveRole) -> ListenerName {
-        ListenerName::from_str(&format!(
-            "{name}-{role}",
-            name = self.name,
-            role = hive_role
-        ))
-        .expect("the role listener name is a valid Listener name")
     }
 }
 
@@ -417,10 +403,6 @@ pub struct Applied;
 
 /// Every Kubernetes resource produced by the client-free [`build`](build::build) step.
 ///
-/// The role-level discovery `ConfigMap` is deliberately absent: it is built from the *applied*
-/// role [`Listener`]'s ingress addresses, so it is assembled in the reconcile step after the
-/// Listener has been applied, not in the build step.
-///
 /// `T` is a marker that indicates if these resources are only [`Prepared`] or already [`Applied`].
 /// The marker is useful e.g. to ensure that the cluster status is updated based on the applied
 /// resources.
@@ -433,20 +415,6 @@ pub struct KubernetesResources<T> {
     pub service_accounts: Vec<ServiceAccount>,
     pub role_bindings: Vec<RoleBinding>,
     pub status: PhantomData<T>,
-}
-
-impl KubernetesResources<Applied> {
-    /// The applied role [`Listener`] of the given role, if it was built and applied.
-    pub fn role_listener(
-        &self,
-        cluster: &ValidatedCluster,
-        hive_role: &HiveRole,
-    ) -> Option<&Listener> {
-        let listener_name = cluster.role_listener_name(hive_role);
-        self.listeners
-            .iter()
-            .find(|listener| listener.metadata.name.as_deref() == Some(listener_name.as_ref()))
-    }
 }
 
 pub async fn reconcile_hive(
@@ -475,7 +443,7 @@ pub async fn reconcile_hive(
     let resources = build::build(&validated_cluster, &client.kubernetes_cluster_info)
         .context(BuildResourcesSnafu)?;
 
-    let mut applier = Applier::new(
+    let applier = Applier::new(
         client,
         &validated_cluster,
         ClusterResourceApplyStrategy::from(&hive.spec.cluster_operation),
@@ -487,38 +455,7 @@ pub async fn reconcile_hive(
         .await
         .context(ApplyResourcesSnafu)?;
 
-    // Second apply phase: the discovery ConfigMap is built from the *applied* role Listener's
-    // ingress addresses, which are only known after the Listener has been applied. It goes
-    // through the same Applier, so that the orphan deletion in `finish` sees it. Its applied
-    // resource version feeds the status discovery hash.
-    // std's SipHasher is deprecated, and DefaultHasher is unstable across Rust releases.
-    // We don't /need/ stability, but it's still nice to avoid spurious changes where possible.
-    let mut discovery_hash = FnvHasher::with_key(0);
-
-    if let Some(role_listener) = applied.role_listener(&validated_cluster, &HiveRole::MetaStore) {
-        let discovery_cm = discovery::build_discovery_configmap(
-            &validated_cluster,
-            HiveRole::MetaStore,
-            role_listener,
-        )
-        .context(BuildDiscoveryConfigSnafu)?;
-        let applied_discovery_cms = applier
-            .apply_config_maps(vec![discovery_cm])
-            .await
-            .context(ApplyDiscoveryConfigSnafu)?;
-        for discovery_cm in &applied_discovery_cms {
-            if let Some(resource_version) = &discovery_cm.metadata.resource_version {
-                discovery_hash.write(resource_version.as_bytes());
-            }
-        }
-    }
-
-    applier
-        .finish()
-        .await
-        .context(DeleteOrphanedResourcesSnafu)?;
-
-    update_status(client, hive, &applied, discovery_hash.finish())
+    update_status(client, hive, &applied)
         .await
         .context(UpdateStatusSnafu)?;
 
@@ -592,6 +529,7 @@ pub(crate) mod test_support {
             DereferencedObjects {
                 s3_connection_spec: None,
                 hive_opa_config: None,
+                role_listener: None,
             },
         )
         .expect("validate should succeed for the test fixture")

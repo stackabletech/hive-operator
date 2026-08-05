@@ -233,6 +233,7 @@ pub fn validate_cluster(
             kerberos_secret_class,
         },
         role_group_configs,
+        dereferenced_objects.role_listener,
     ))
 }
 
@@ -296,6 +297,7 @@ mod tests {
             DereferencedObjects {
                 s3_connection_spec: None,
                 hive_opa_config: None,
+                role_listener: None,
             },
         )
     }
