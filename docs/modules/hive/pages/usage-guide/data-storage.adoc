@@ -4,10 +4,10 @@
 You can operate the Hive metastore service (HMS) without S3 or HDFS.
 Its whole purpose is to store metadata such as "Table foo has columns a, b and c and is stored as parquet in local://tmp/hive/foo".
 
-However, as soon as you start storing metadata in the HMS that refers to a `s3a://` or `hdfs://` locations, HMS will actually do some operations on the filesystem. This can be e.g. checking if the table location exists, creating it in case it is missing.
+However, as soon as you start storing metadata in the HMS that refers to `s3://`, `s3a://` or `hdfs://` locations, HMS will actually do some operations on the filesystem. This can be e.g. checking if the table location exists, creating it in case it is missing.
 
 So if you are storing tables in S3 (or HDFS for that matter), you need to give the HMS access to that filesystem as well.
-The Stackable Operator currently supports S3 and HFS.
+The Stackable Operator currently supports S3 and HDFS.
 
 [s3]
 == S3 support
@@ -28,6 +28,10 @@ clusterConfig:
       credentials:
         secretClass: simple-hive-s3-secret-class
 ----
+
+Table and schema locations can use either the `s3a://` or the `s3://` scheme.
+Both are served by the same filesystem implementation and read the connection details configured above, so no additional configuration is needed for either.
+The `s3://` scheme matters for clients that address data with `s3://` URIs, such as the Apache Iceberg connector of xref:trino:index.adoc[Trino].
 
 [hdfs]
 == Apache HDFS support

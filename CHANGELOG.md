@@ -14,9 +14,15 @@ All notable changes to this project will be documented in this file.
   previously accepted by the API server but failed reconciliation ([#731]).
 - Bump stackable-operator to 0.114.0 ([#735]).
 
+### Fixed
+
+- HMS now also handles table and schema locations using the `s3://` scheme, not just `s3a://`,
+  when an S3 connection is configured ([#736]).
+
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
 [#735]: https://github.com/stackabletech/hive-operator/pull/735
+[#736]: https://github.com/stackabletech/hive-operator/pull/736
 
 ## [26.7.0] - 2026-07-21
 
