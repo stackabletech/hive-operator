@@ -39,6 +39,30 @@ def table(db_name, table_name, location):
     return test_table
 
 
+def check_table(hive_client, db_name, table_name, location, label):
+    """Create the table if it does not exist yet and assert the metastore returns the
+    expected schema for it.
+
+    Returns the table metadata so callers can make additional assertions.
+    """
+    try:
+        hive_client.create_table(table(db_name, table_name, location))
+    except AlreadyExistsException:
+        print(f"[INFO]: Table {table_name} already existed")
+
+    schema = hive_client.get_schema(db_name=db_name, table_name=table_name)
+    expected = [FieldSchema(name="id", type="string", comment="col comment")]
+    if schema != expected:
+        print(
+            f"[ERROR]: Received {label} schema {schema} - expected schema: {expected}"
+        )
+        exit(-1)
+
+    # Positional arguments on purpose: get_table takes `dbname`/`tbl_name`, unlike
+    # get_schema above, which takes `db_name`/`table_name`.
+    return hive_client.get_table(db_name, table_name)
+
+
 if __name__ == "__main__":
     all_args = argparse.ArgumentParser(description="Test hive metastore.")
     all_args.add_argument("-p", "--port", help="Metastore server port", default="9083")
@@ -55,6 +79,7 @@ if __name__ == "__main__":
     host = args["metastore"]
     local_test_table_name = "one_column_table"
     s3_test_table_name = "s3_one_column_table"
+    s3_scheme_test_table_name = "s3_scheme_one_column_table"
     s3_test_table_name_wrong_bucket = "s3_one_column_table_wrong_buckets"
     # Creating database object using builder
     database = DatabaseBuilder(database_name).build()
@@ -63,48 +88,42 @@ if __name__ == "__main__":
         hive_client.create_database_if_not_exists(database)
 
         # Local access
-        try:
-            hive_client.create_table(
-                table(
-                    database_name,
-                    local_test_table_name,
-                    f"/stackable/warehouse/location_{database_name}_{local_test_table_name}",
-                )
-            )
-        except AlreadyExistsException:
-            print(f"[INFO]: Table {local_test_table_name} already existed")
-        schema = hive_client.get_schema(
-            db_name=database_name, table_name=local_test_table_name
+        check_table(
+            hive_client,
+            database_name,
+            local_test_table_name,
+            f"/stackable/warehouse/location_{database_name}_{local_test_table_name}",
+            "local",
         )
-        expected = [FieldSchema(name="id", type="string", comment="col comment")]
-        if schema != expected:
-            print(
-                "[ERROR]: Received local schema "
-                + str(schema)
-                + " - expected schema: "
-                + expected
-            )
-            exit(-1)
 
         # S3 access
-        try:
-            hive_client.create_table(
-                table(
-                    database_name, s3_test_table_name, "s3a://hive/s3_one_column_table/"
-                )
-            )
-        except AlreadyExistsException:
-            print(f"[INFO]: Table {s3_test_table_name} already existed")
-        schema = hive_client.get_schema(
-            db_name=database_name, table_name=s3_test_table_name
+        check_table(
+            hive_client,
+            database_name,
+            s3_test_table_name,
+            "s3a://hive/s3_one_column_table/",
+            "s3",
         )
-        expected = [FieldSchema(name="id", type="string", comment="col comment")]
-        if schema != expected:
+
+        # S3 access via the s3:// scheme. Clients such as Trino's native S3 Iceberg connector
+        # address data with s3:// instead of s3a:// URIs. Creating the table makes the metastore
+        # create the table directory itself, which fails unless the s3:// scheme is registered.
+        s3_scheme_table = check_table(
+            hive_client,
+            database_name,
+            s3_scheme_test_table_name,
+            "s3://hive/s3_scheme_one_column_table/",
+            "s3 scheme",
+        )
+
+        # The scheme must survive the round-trip. The metastore rewrites the stored location
+        # using the scheme of the filesystem it resolved, and clients read that location back to
+        # address the data. A location normalised to s3a:// would defeat registering the scheme.
+        s3_scheme_location = s3_scheme_table.sd.location
+        if not s3_scheme_location.startswith("s3://"):
             print(
-                "[ERROR]: Received s3 schema "
-                + str(schema)
-                + " - expected schema: "
-                + expected
+                f"[ERROR]: Expected the stored location to keep the s3:// scheme, "
+                f"got {s3_scheme_location}"
             )
             exit(-1)
 

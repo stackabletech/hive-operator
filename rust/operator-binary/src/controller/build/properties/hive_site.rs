@@ -30,6 +30,10 @@ const S3_REGION_NAME: &str = "fs.s3a.endpoint.region";
 const S3_SECRET_KEY: &str = "fs.s3a.secret.key";
 const S3_SSL_ENABLED: &str = "fs.s3a.connection.ssl.enabled";
 
+// Maps the `s3://` scheme onto the s3a filesystem implementation.
+const S3_SCHEME_IMPL: &str = "fs.s3.impl";
+const S3A_FILE_SYSTEM: &str = "org.apache.hadoop.fs.s3a.S3AFileSystem";
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("failed to configure S3 connection"))]
@@ -98,6 +102,19 @@ pub fn build(
             S3_PATH_STYLE_ACCESS.to_string(),
             (s3.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string(),
         );
+
+        // The bundled Hadoop only registers the `s3a://` scheme, so HMS has no filesystem for
+        // `s3://` locations. Clients that address data with `s3://` URIs, such as Trino's native
+        // S3 Iceberg connector, therefore fail once HMS itself touches the filesystem, e.g. when
+        // it creates the schema/table directory. Map the scheme onto the same implementation the
+        // `fs.s3a.*` settings above configure; `S3AFileSystem` reads those regardless of the scheme
+        // it is mounted under, so `s3a://` locations keep working unchanged.
+        //
+        // Only the `FileSystem` API is mapped, not `fs.AbstractFileSystem.s3.impl`: HMS resolves
+        // filesystems through `FileSystem.get`, and the `FileContext` adapter
+        // `org.apache.hadoop.fs.s3a.S3A` hardcoded `s3a` as its only supported scheme before
+        // Hadoop 3.3.6, so mapping it would fail on older bundled Hadoop versions.
+        data.insert(S3_SCHEME_IMPL.to_string(), S3A_FILE_SYSTEM.to_string());
     }
 
     // Kerberos entries (empty when Kerberos is disabled).
@@ -122,7 +139,8 @@ pub fn build(
 mod tests {
     use super::*;
     use crate::{
-        controller::build::properties::test_support::derby_cluster_config, crd::MetaStoreConfig,
+        controller::build::properties::test_support::{derby_cluster_config, s3_cluster_config},
+        crd::MetaStoreConfig,
     };
 
     #[test]
@@ -174,6 +192,71 @@ mod tests {
             data.get("hive.metastore.warehouse.dir"),
             Some(&"/custom/warehouse".to_string())
         );
+    }
+
+    #[test]
+    fn s3_connection_emits_s3a_settings() {
+        let cluster_config = s3_cluster_config();
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+
+        let data = build(
+            &cluster_config,
+            "4.0.0",
+            &merged,
+            BTreeMap::new(),
+            BTreeMap::new(),
+        )
+        .expect("build hive-site");
+
+        assert_eq!(
+            data.get("fs.s3a.endpoint"),
+            Some(&"http://minio:9000/".to_string())
+        );
+        assert_eq!(
+            data.get("fs.s3a.path.style.access"),
+            Some(&"true".to_string())
+        );
+        assert_eq!(
+            data.get("fs.s3a.connection.ssl.enabled"),
+            Some(&"false".to_string())
+        );
+    }
+
+    #[test]
+    fn s3_connection_registers_the_s3_scheme() {
+        let cluster_config = s3_cluster_config();
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+
+        let data = build(
+            &cluster_config,
+            "4.0.0",
+            &merged,
+            BTreeMap::new(),
+            BTreeMap::new(),
+        )
+        .expect("build hive-site");
+
+        assert_eq!(
+            data.get("fs.s3.impl"),
+            Some(&"org.apache.hadoop.fs.s3a.S3AFileSystem".to_string())
+        );
+    }
+
+    #[test]
+    fn no_s3_connection_leaves_the_s3_scheme_unregistered() {
+        let cluster_config = derby_cluster_config();
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+
+        let data = build(
+            &cluster_config,
+            "4.0.0",
+            &merged,
+            BTreeMap::new(),
+            BTreeMap::new(),
+        )
+        .expect("build hive-site");
+
+        assert!(!data.contains_key("fs.s3.impl"));
     }
 
     #[test]
