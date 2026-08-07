@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: The `metastore` role is now required by the CRD; a HiveCluster without it was
   previously accepted by the API server but failed reconciliation ([#731]).
 - Bump stackable-operator to 0.114.0 ([#735]).
-- All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#XXX]).
+- All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
 
 ### Fixed
 
@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
   when an S3 connection is configured ([#736]).
 - Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
   which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
-  See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#XXX]).
+  See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#741]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
