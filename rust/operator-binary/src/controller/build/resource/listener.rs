@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use snafu::{OptionExt, Snafu};
 use stackable_operator::{
-    crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
+    crd::listener::v1alpha1::{Listener, ListenerIngress, ListenerPort, ListenerSpec},
     v2::types::{
         kubernetes::{ListenerClassName, ListenerName},
         operator::ClusterName,
@@ -19,23 +19,15 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("{role} listener has no address"))]
-    RoleListenerHasNoAddress { role: String },
     #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
     NoServicePort { port_name: String, role: String },
 }
 
 // Builds the connection string with respect to the listener provided objects
 pub fn build_listener_connection_string(
-    listener_ref: &Listener,
+    listener_address: &ListenerIngress,
     role: &str,
 ) -> Result<String, Error> {
-    // We only need the first address corresponding to the role
-    let listener_address = listener_ref
-        .status
-        .as_ref()
-        .and_then(|status| status.ingress_addresses.as_ref()?.first())
-        .context(RoleListenerHasNoAddressSnafu { role })?;
     let conn_str = format!(
         "thrift://{address}:{port}",
         address = listener_address.address,

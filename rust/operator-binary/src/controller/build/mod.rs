@@ -113,28 +113,10 @@ pub fn build(
         }
     }
 
-    // The discovery ConfigMap needs the role Listener's ingress address, which only the
-    // listener-operator writes. Around the first reconcile runs the dereferenced Listener is
-    // absent or still address-less; the ConfigMap is skipped then instead of failing the whole
-    // run -- the Listener watch triggers a new run once the address is set. In that window an
-    // already existing discovery ConfigMap is deleted as an orphan (only reachable when the
-    // Listener is deleted and re-created) and re-created by the next run.
-    if let Some(role_listener) = &cluster.role_listener
-        && role_listener
-            .status
-            .as_ref()
-            .and_then(|status| status.ingress_addresses.as_ref()?.first())
-            .is_some()
+    if let Some(discovery_config_map) =
+        build_discovery_configmap(cluster, HiveRole::MetaStore).context(DiscoveryConfigMapSnafu)?
     {
-        config_maps.push(
-            build_discovery_configmap(cluster, HiveRole::MetaStore, role_listener)
-                .context(DiscoveryConfigMapSnafu)?,
-        );
-    } else {
-        tracing::debug!(
-            "the metastore role Listener has no ingress address yet, skipping the discovery \
-             ConfigMap"
-        );
+        config_maps.push(discovery_config_map);
     }
 
     Ok(KubernetesResources {
@@ -272,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn build_adds_the_discovery_config_map_once_the_role_listener_has_an_address() {
+    fn builds_discovery_config_map_with_listener_address() {
         let hive = minimal_hive(DERBY_YAML);
         let mut cluster = validated_cluster(&hive);
         cluster.role_listener = Some(role_listener_with_address());
@@ -290,28 +272,33 @@ mod tests {
         );
     }
 
-    /// While the Listener carries no ingress address (the listener-operator has not reconciled
-    /// it yet), the discovery ConfigMap is skipped, *without* failing the build: the Listener
-    /// watch triggers a new reconcile run once the address is set.
+    /// While the Listener is absent (the apply step has not created it yet) or carries no
+    /// ingress address (the listener-operator has not reconciled it yet), the discovery
+    /// ConfigMap is skipped, *without* failing the build: the Listener watch triggers a new
+    /// reconcile run once the address is set.
     #[test]
-    fn build_skips_the_discovery_config_map_while_the_role_listener_has_no_address() {
+    fn skips_discovery_config_map_without_listener_address() {
         let hive = minimal_hive(DERBY_YAML);
         let mut cluster = validated_cluster(&hive);
 
-        let no_status = None;
-        let no_addresses = Some(listener::v1alpha1::ListenerStatus {
-            service_name: None,
-            ingress_addresses: Some(vec![]),
-            node_ports: None,
+        let no_listener = None;
+        let no_status = Some(Listener {
+            status: None,
+            ..role_listener_with_address()
         });
-        for status in [no_status, no_addresses] {
-            cluster.role_listener = Some(Listener {
-                status,
-                ..role_listener_with_address()
-            });
+        let no_addresses = Some(Listener {
+            status: Some(listener::v1alpha1::ListenerStatus {
+                service_name: None,
+                ingress_addresses: Some(vec![]),
+                node_ports: None,
+            }),
+            ..role_listener_with_address()
+        });
+        for role_listener in [no_listener, no_status, no_addresses] {
+            cluster.role_listener = role_listener;
 
-            let resources =
-                build(&cluster, &test_cluster_info()).expect("build succeeds without an address");
+            let resources = build(&cluster, &test_cluster_info())
+                .expect("build succeeds without a listener address");
 
             assert!(discovery_config_map(&resources).is_none());
         }

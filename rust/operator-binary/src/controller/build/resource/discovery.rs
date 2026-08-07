@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder, crd::listener::v1alpha1::Listener,
-    k8s_openapi::api::core::v1::ConfigMap, kube::runtime::reflector::ObjectRef,
+    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
+    kube::runtime::reflector::ObjectRef,
 };
 
 use crate::{
@@ -35,15 +35,33 @@ fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveClu
     ObjectRef::new(cluster.name.as_ref()).within(cluster.namespace.as_ref())
 }
 
-/// Build a discovery [`ConfigMap`] containing information about how to connect to a certain
-/// [`v1alpha1::HiveCluster`].
+/// Builds the discovery [`ConfigMap`] containing information about how to connect to a certain
+/// [`v1alpha1::HiveCluster`], or `None` while the metastore role Listener is absent or has no
+/// ingress address.
 ///
-/// Data is coming from the [`Listener`] objects. Connection string is only built by [`build_listener_connection_string`].
+/// The ConfigMap needs the role Listener's ingress address, which only the listener-operator
+/// writes. Around the first reconcile runs the dereferenced Listener is absent or still
+/// address-less; the ConfigMap is skipped then instead of failing the whole run -- the Listener
+/// watch triggers a new run once the address is set. In that window an already existing
+/// discovery ConfigMap is deleted as an orphan (only reachable when the Listener is deleted and
+/// re-created) and re-created by the next run.
 pub fn build_discovery_configmap(
     cluster: &ValidatedCluster,
     hive_role: HiveRole,
-    listener: &Listener,
-) -> Result<ConfigMap, Error> {
+) -> Result<Option<ConfigMap>, Error> {
+    let Some(listener_address) = cluster
+        .role_listener
+        .as_ref()
+        .and_then(|listener| listener.status.as_ref())
+        .and_then(|status| status.ingress_addresses.as_ref()?.first())
+    else {
+        tracing::debug!(
+            "the metastore role Listener has no ingress address yet, \
+               skipping the discovery ConfigMap"
+        );
+        return Ok(None);
+    };
+
     let mut discovery_configmap = ConfigMapBuilder::new();
 
     discovery_configmap.metadata(
@@ -60,13 +78,15 @@ pub fn build_discovery_configmap(
 
     discovery_configmap.add_data(
         "HIVE".to_string(),
-        build_listener_connection_string(listener, &hive_role.to_string())
+        build_listener_connection_string(listener_address, &hive_role.to_string())
             .context(ListenerConfigurationSnafu)?,
     );
 
-    discovery_configmap
+    let config_map = discovery_configmap
         .build()
         .with_context(|_| DiscoveryConfigMapSnafu {
             obj_ref: cluster_object_ref(cluster),
-        })
+        })?;
+
+    Ok(Some(config_map))
 }
