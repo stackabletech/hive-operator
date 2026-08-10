@@ -1,7 +1,12 @@
+use std::str::FromStr;
+
 use snafu::{OptionExt, Snafu};
 use stackable_operator::{
-    crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
-    v2::types::kubernetes::ListenerClassName,
+    crd::listener::v1alpha1::{Listener, ListenerIngress, ListenerPort, ListenerSpec},
+    v2::types::{
+        kubernetes::{ListenerClassName, ListenerName},
+        operator::ClusterName,
+    },
 };
 
 use crate::{
@@ -14,22 +19,15 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("{role} listener has no address"))]
-    RoleListenerHasNoAddress { role: String },
     #[snafu(display("could not find port [{port_name}] for rolegroup listener {role}"))]
     NoServicePort { port_name: String, role: String },
 }
 
 // Builds the connection string with respect to the listener provided objects
 pub fn build_listener_connection_string(
-    listener_ref: Listener,
+    listener_address: &ListenerIngress,
     role: &str,
 ) -> Result<String, Error> {
-    // We only need the first address corresponding to the role
-    let listener_address = listener_ref
-        .status
-        .and_then(|s| s.ingress_addresses?.into_iter().next())
-        .context(RoleListenerHasNoAddressSnafu { role })?;
     let conn_str = format!(
         "thrift://{address}:{port}",
         address = listener_address.address,
@@ -45,6 +43,15 @@ pub fn build_listener_connection_string(
     Ok(conn_str)
 }
 
+/// The name of the per-role [`Listener`] object.
+///
+/// Takes the bare cluster name (not [`ValidatedCluster`]) so the dereference step, which runs
+/// before validation, can derive the same name.
+pub fn role_listener_name(cluster_name: &ClusterName, hive_role: &HiveRole) -> ListenerName {
+    ListenerName::from_str(&format!("{cluster_name}-{hive_role}"))
+        .expect("the role listener name is a valid Listener name")
+}
+
 // Designed to build a listener per role
 // In case of Hive we expect only one role: Metastore
 pub fn build_role_listener(
@@ -56,7 +63,7 @@ pub fn build_role_listener(
     // role-group name; "none" is used as a placeholder for the recommended labels.
     let metadata = object_meta(
         cluster,
-        cluster.role_listener_name(hive_role),
+        role_listener_name(&cluster.name, hive_role),
         &PLACEHOLDER_LISTENER_ROLE_GROUP,
     )
     .build();

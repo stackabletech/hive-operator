@@ -10,6 +10,7 @@ use futures::{FutureExt, StreamExt, TryFutureExt};
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
+    crd::listener::v1alpha1::Listener,
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -133,6 +134,14 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .owns(
                     watch_namespace.get_api::<ConfigMap>(&client),
+                    watcher::Config::default(),
+                )
+                // The role Listener is created by this operator, but its ingress address (from
+                // which the discovery ConfigMap is built) is only written asynchronously by the
+                // listener-operator -- this watch triggers the reconcile run that builds the
+                // discovery ConfigMap once the address is set.
+                .owns(
+                    watch_namespace.get_api::<Listener>(&client),
                     watcher::Config::default(),
                 )
                 .watches(

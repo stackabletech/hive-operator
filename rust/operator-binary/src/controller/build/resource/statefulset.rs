@@ -55,6 +55,7 @@ use crate::{
             object_meta,
             opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
+            resource::listener::role_listener_name,
         },
     },
     crd::{
@@ -330,7 +331,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         .with_labels(recommended_object_labels)
         .build();
 
-    let listener_name = cluster.role_listener_name(hive_role);
+    let listener_name = role_listener_name(&cluster.name, hive_role);
     let pvc = listener_operator_volume_source_builder_build_pvc(
         &ListenerReference::Listener(listener_name),
         &unversioned_recommended_labels,
