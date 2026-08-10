@@ -376,7 +376,11 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
                 .service_account_name()
                 .to_string(),
         )
-        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
     // The Hive container's log config ConfigMap: either the operator-generated one (the rolegroup
     // ConfigMap, which carries the automatic `log4j2.properties`) or a user-provided custom
