@@ -10,6 +10,7 @@ from hive_metastore_client.builders import (
 from thrift_files.libraries.thrift_hive_metastore_client.ttypes import (
     FieldSchema,
     AlreadyExistsException,
+    GetTableRequest,
 )
 import argparse
 
@@ -58,9 +59,9 @@ def check_table(hive_client, db_name, table_name, location, label):
         )
         exit(-1)
 
-    # Positional arguments on purpose: get_table takes `dbname`/`tbl_name`, unlike
-    # get_schema above, which takes `db_name`/`table_name`.
-    return hive_client.get_table(db_name, table_name)
+    return hive_client.get_table_req(
+        GetTableRequest(dbName=db_name, tblName=table_name)
+    ).table
 
 
 if __name__ == "__main__":
