@@ -13,7 +13,9 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::build::resource::listener::role_listener_name,
+    controller::build::resource::{
+        discovery::discovery_config_map_name, listener::role_listener_name,
+    },
     crd::{HiveRole, v1alpha1},
 };
 
@@ -68,9 +70,10 @@ pub struct DereferencedObjects {
     /// asynchronously by the listener-operator, so it can still be address-less here.
     pub role_listener: Option<Listener>,
 
-    /// The discovery `ConfigMap` as currently stored in the cluster (named after the cluster
-    /// itself), fetched so that the build step can re-emit it while the role Listener yields no
-    /// ingress address to build a fresh one from. `None` before the first successful build.
+    /// The discovery `ConfigMap` as currently stored in the cluster (named by
+    /// [`discovery_config_map_name`]), fetched so that the build step can re-emit it while the
+    /// role Listener yields no ingress address to build a fresh one from. `None` before the
+    /// first successful build.
     pub existing_discovery_config_map: Option<ConfigMap>,
 }
 
@@ -149,12 +152,12 @@ pub async fn dereference(
             listener_name: listener_name.as_ref(),
         })?;
 
-    // The discovery ConfigMap is named after the cluster itself.
+    let discovery_config_map_name = discovery_config_map_name(&cluster_name);
     let existing_discovery_config_map = client
-        .get_opt::<ConfigMap>(cluster_name.as_ref(), namespace.as_ref())
+        .get_opt::<ConfigMap>(discovery_config_map_name.as_ref(), namespace.as_ref())
         .await
         .context(GetExistingDiscoveryConfigMapSnafu {
-            config_map_name: cluster_name.as_ref(),
+            config_map_name: discovery_config_map_name.as_ref(),
         })?;
 
     Ok(DereferencedObjects {

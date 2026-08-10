@@ -1,8 +1,11 @@
+use std::str::FromStr;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::{api::ObjectMeta, runtime::reflector::ObjectRef},
+    v2::types::{kubernetes::ConfigMapName, operator::ClusterName},
 };
 
 use crate::{
@@ -34,6 +37,15 @@ pub enum Error {
 /// cluster identity for use in error messages.
 fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveCluster> {
     ObjectRef::new(cluster.name.as_ref()).within(cluster.namespace.as_ref())
+}
+
+/// The name of the discovery [`ConfigMap`] -- the cluster name itself.
+///
+/// Takes the bare cluster name (not [`ValidatedCluster`]) so the dereference step, which runs
+/// before validation, can derive the same name.
+pub fn discovery_config_map_name(cluster_name: &ClusterName) -> ConfigMapName {
+    ConfigMapName::from_str(cluster_name.as_ref())
+        .expect("a valid cluster name is a valid ConfigMap name")
 }
 
 /// Builds the discovery [`ConfigMap`] containing information about how to connect to a certain
@@ -95,13 +107,13 @@ pub fn build_discovery_configmap(
 
 /// Metadata shared by the freshly built and the re-emitted discovery [`ConfigMap`].
 ///
-/// Discovery is a role-level object; the cluster name is used as the resource name (matching
-/// `name_and_namespace`) and "discovery" as a placeholder role-group name for the recommended
-/// labels.
+/// Discovery is a role-level object; the resource name comes from
+/// [`discovery_config_map_name`] and "discovery" is a placeholder role-group name for the
+/// recommended labels.
 fn discovery_config_map_meta(cluster: &ValidatedCluster) -> ObjectMeta {
     object_meta(
         cluster,
-        cluster.name.to_string(),
+        discovery_config_map_name(&cluster.name),
         &PLACEHOLDER_DISCOVERY_ROLE_GROUP,
     )
     .build()
