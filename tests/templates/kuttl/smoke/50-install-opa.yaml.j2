@@ -85,14 +85,14 @@ data:
       input.identity.username == stackable_user
       input.resources.table.dbName == db_name
       input.privileges.writeRequiredPriv[0].priv == "CREATE"
-      input.resources.table.tableName in ["s3_one_column_table", "one_column_table"]
+      input.resources.table.tableName in ["s3_one_column_table", "one_column_table", "s3_scheme_one_column_table"]
     }
 
     table_allow if {
       input.identity.username == stackable_user
       input.resources.table.dbName == db_name
       input.privileges.readRequiredPriv[0].priv == "SELECT"
-      input.resources.table.tableName in ["s3_one_column_table", "one_column_table"]
+      input.resources.table.tableName in ["s3_one_column_table", "one_column_table", "s3_scheme_one_column_table"]
     }
 
     column_allow if {
