@@ -15,17 +15,22 @@ All notable changes to this project will be documented in this file.
 - Bump stackable-operator to 0.114.0 ([#735]).
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps ([#737]).
+- All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
 
 ### Fixed
 
 - HMS now also handles table and schema locations using the `s3://` scheme, not just `s3a://`,
   when an S3 connection is configured ([#736]).
+- Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
+  which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
+  See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#741]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
 [#735]: https://github.com/stackabletech/hive-operator/pull/735
 [#736]: https://github.com/stackabletech/hive-operator/pull/736
 [#737]: https://github.com/stackabletech/hive-operator/pull/737
+[#741]: https://github.com/stackabletech/hive-operator/pull/741
 
 ## [26.7.0] - 2026-07-21
 
