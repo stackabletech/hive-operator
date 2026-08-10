@@ -272,10 +272,59 @@ mod tests {
         );
     }
 
+    /// The discovery ConfigMap as previously stored in the cluster, as the dereference step
+    /// fetches it: carrying data from an earlier reconcile run and server-populated metadata
+    /// (`resourceVersion`, `uid`) that must not be echoed back into an apply patch.
+    fn stored_discovery_config_map() -> ConfigMap {
+        ConfigMap {
+            metadata: ObjectMeta {
+                name: Some("simple-hive".to_string()),
+                namespace: Some("default".to_string()),
+                resource_version: Some("12345".to_string()),
+                uid: Some("87654321-4321-4321-4321-210987654321".to_string()),
+                ..ObjectMeta::default()
+            },
+            data: Some(BTreeMap::from([(
+                "HIVE".to_string(),
+                "thrift://old-address.example.com:9083".to_string(),
+            )])),
+            ..ConfigMap::default()
+        }
+    }
+
+    /// While the role Listener yields no ingress address but a discovery ConfigMap was already
+    /// stored by an earlier reconcile run, that ConfigMap is re-emitted unchanged instead of
+    /// being skipped -- a skip would let `delete_orphaned_resources` delete the stored one,
+    /// breaking Pods that mount it.
+    #[test]
+    fn reemits_stored_discovery_config_map_without_listener_address() {
+        let hive = minimal_hive(DERBY_YAML);
+        let mut cluster = validated_cluster(&hive);
+        cluster.role_listener = None;
+        cluster.existing_discovery_config_map = Some(stored_discovery_config_map());
+
+        let resources = build(&cluster, &test_cluster_info()).expect("build succeeds");
+
+        let config_map =
+            discovery_config_map(&resources).expect("the stored discovery ConfigMap is re-emitted");
+        assert_eq!(
+            config_map.data,
+            stored_discovery_config_map().data,
+            "the stored data must be carried over unchanged"
+        );
+        // The metadata must be rebuilt fresh: server-populated fields of the fetched object
+        // must not go into a server-side apply patch.
+        assert_eq!(config_map.metadata.resource_version, None);
+        assert_eq!(config_map.metadata.uid, None);
+        assert!(config_map.metadata.owner_references.is_some());
+        assert!(config_map.metadata.labels.is_some());
+    }
+
     /// While the Listener is absent (the apply step has not created it yet) or carries no
-    /// ingress address (the listener-operator has not reconciled it yet), the discovery
-    /// ConfigMap is skipped, *without* failing the build: the Listener watch triggers a new
-    /// reconcile run once the address is set.
+    /// ingress address (the listener-operator has not reconciled it yet), and no discovery
+    /// ConfigMap has ever been stored (initial deploy), the ConfigMap is skipped *without*
+    /// failing the build: the Listener watch triggers a new reconcile run once the address
+    /// is set.
     #[test]
     fn skips_discovery_config_map_without_listener_address() {
         let hive = minimal_hive(DERBY_YAML);

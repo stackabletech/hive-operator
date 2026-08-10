@@ -49,6 +49,12 @@ pub enum Error {
         source: stackable_operator::client::Error,
         listener_name: String,
     },
+
+    #[snafu(display("failed to get the existing discovery ConfigMap {config_map_name}"))]
+    GetExistingDiscoveryConfigMap {
+        source: stackable_operator::client::Error,
+        config_map_name: String,
+    },
 }
 
 /// External references resolved during the dereference step.
@@ -61,6 +67,11 @@ pub struct DereferencedObjects {
     /// reconcile run (the apply step has not created it yet), and its status is only populated
     /// asynchronously by the listener-operator, so it can still be address-less here.
     pub role_listener: Option<Listener>,
+
+    /// The discovery `ConfigMap` as currently stored in the cluster (named after the cluster
+    /// itself), fetched so that the build step can re-emit it while the role Listener yields no
+    /// ingress address to build a fresh one from. `None` before the first successful build.
+    pub existing_discovery_config_map: Option<ConfigMap>,
 }
 
 /// OPA settings resolved from the cluster's OPA reference during the dereference step.
@@ -138,9 +149,18 @@ pub async fn dereference(
             listener_name: listener_name.as_ref(),
         })?;
 
+    // The discovery ConfigMap is named after the cluster itself.
+    let existing_discovery_config_map = client
+        .get_opt::<ConfigMap>(cluster_name.as_ref(), namespace.as_ref())
+        .await
+        .context(GetExistingDiscoveryConfigMapSnafu {
+            config_map_name: cluster_name.as_ref(),
+        })?;
+
     Ok(DereferencedObjects {
         s3_connection_spec,
         hive_opa_config,
         role_listener,
+        existing_discovery_config_map,
     })
 }

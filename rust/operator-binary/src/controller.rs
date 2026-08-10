@@ -179,6 +179,10 @@ pub struct ValidatedCluster {
     /// reconcile run, and possibly still address-less until the listener-operator has
     /// reconciled it.
     pub role_listener: Option<Listener>,
+    /// The discovery `ConfigMap` as currently stored in the cluster (fetched in the dereference
+    /// step), re-emitted by the build step while the role Listener yields no ingress address to
+    /// build a fresh one from. `None` before the first successful build.
+    pub existing_discovery_config_map: Option<ConfigMap>,
 }
 
 impl ValidatedCluster {
@@ -192,6 +196,7 @@ impl ValidatedCluster {
         cluster_config: ValidatedClusterConfig,
         role_group_configs: BTreeMap<HiveRole, BTreeMap<RoleGroupName, HiveRoleGroupConfig>>,
         role_listener: Option<Listener>,
+        existing_discovery_config_map: Option<ConfigMap>,
     ) -> Self {
         // `app_version_label_value` is constructed to be a valid label value, so it is also a
         // valid `ProductVersion`.
@@ -213,6 +218,7 @@ impl ValidatedCluster {
             cluster_config,
             role_group_configs,
             role_listener,
+            existing_discovery_config_map,
         }
     }
 
@@ -530,6 +536,7 @@ pub(crate) mod test_support {
                 s3_connection_spec: None,
                 hive_opa_config: None,
                 role_listener: None,
+                existing_discovery_config_map: None,
             },
         )
         .expect("validate should succeed for the test fixture")

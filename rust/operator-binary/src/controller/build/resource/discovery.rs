@@ -1,7 +1,8 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
-    kube::runtime::reflector::ObjectRef,
+    builder::configmap::ConfigMapBuilder,
+    k8s_openapi::api::core::v1::ConfigMap,
+    kube::{api::ObjectMeta, runtime::reflector::ObjectRef},
 };
 
 use crate::{
@@ -36,15 +37,15 @@ fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveClu
 }
 
 /// Builds the discovery [`ConfigMap`] containing information about how to connect to a certain
-/// [`v1alpha1::HiveCluster`], or `None` while the metastore role Listener is absent or has no
-/// ingress address.
+/// [`v1alpha1::HiveCluster`].
 ///
 /// The ConfigMap needs the role Listener's ingress address, which only the listener-operator
-/// writes. Around the first reconcile runs the dereferenced Listener is absent or still
-/// address-less; the ConfigMap is skipped then instead of failing the whole run -- the Listener
-/// watch triggers a new run once the address is set. In that window an already existing
-/// discovery ConfigMap is deleted as an orphan (only reachable when the Listener is deleted and
-/// re-created) and re-created by the next run.
+/// writes. While the dereferenced Listener is absent or still address-less (around the first
+/// reconcile runs), no fresh ConfigMap can be built; the previously stored one is then
+/// re-emitted unchanged so that it stays tracked by the apply step instead of being deleted as
+/// an orphan. `None` is only returned before a discovery ConfigMap has ever been stored
+/// (initial deploy) -- the run is not failed, since the Listener watch triggers a new run once
+/// the address is set.
 pub fn build_discovery_configmap(
     cluster: &ValidatedCluster,
     hive_role: HiveRole,
@@ -55,26 +56,27 @@ pub fn build_discovery_configmap(
         .and_then(|listener| listener.status.as_ref())
         .and_then(|status| status.ingress_addresses.as_ref()?.first())
     else {
-        tracing::debug!(
-            "the metastore role Listener has no ingress address yet, \
-               skipping the discovery ConfigMap"
-        );
-        return Ok(None);
+        return Ok(match &cluster.existing_discovery_config_map {
+            Some(existing) => {
+                tracing::debug!(
+                    "the metastore role Listener has no ingress address, \
+                       re-emitting the stored discovery ConfigMap"
+                );
+                Some(reemit_discovery_configmap(cluster, existing))
+            }
+            None => {
+                tracing::debug!(
+                    "the metastore role Listener has no ingress address yet and no \
+                       discovery ConfigMap is stored, skipping it"
+                );
+                None
+            }
+        });
     };
 
     let mut discovery_configmap = ConfigMapBuilder::new();
 
-    discovery_configmap.metadata(
-        // Discovery is a role-level object; the cluster name is used as the resource name
-        // (matching `name_and_namespace`) and "discovery" as a placeholder role-group name
-        // for the recommended labels.
-        object_meta(
-            cluster,
-            cluster.name.to_string(),
-            &PLACEHOLDER_DISCOVERY_ROLE_GROUP,
-        )
-        .build(),
-    );
+    discovery_configmap.metadata(discovery_config_map_meta(cluster));
 
     discovery_configmap.add_data(
         "HIVE".to_string(),
@@ -89,4 +91,34 @@ pub fn build_discovery_configmap(
         })?;
 
     Ok(Some(config_map))
+}
+
+/// Metadata shared by the freshly built and the re-emitted discovery [`ConfigMap`].
+///
+/// Discovery is a role-level object; the cluster name is used as the resource name (matching
+/// `name_and_namespace`) and "discovery" as a placeholder role-group name for the recommended
+/// labels.
+fn discovery_config_map_meta(cluster: &ValidatedCluster) -> ObjectMeta {
+    object_meta(
+        cluster,
+        cluster.name.to_string(),
+        &PLACEHOLDER_DISCOVERY_ROLE_GROUP,
+    )
+    .build()
+}
+
+/// Re-emits the discovery [`ConfigMap`] as previously stored in the cluster, so that the apply
+/// step keeps tracking it in `ClusterResources` while no fresh one can be built -- an untracked
+/// ConfigMap would be deleted as an orphan, breaking Pods that mount it.
+///
+/// The fetched `data` is carried over unchanged; applying identical content via server-side
+/// apply changes nothing on the server. The metadata is built fresh instead of echoing the
+/// fetched metadata: a fetched object carries server-populated fields (`resourceVersion`,
+/// `uid`, `managedFields`) that must not appear in an apply patch.
+fn reemit_discovery_configmap(cluster: &ValidatedCluster, existing: &ConfigMap) -> ConfigMap {
+    ConfigMap {
+        metadata: discovery_config_map_meta(cluster),
+        data: existing.data.clone(),
+        ..ConfigMap::default()
+    }
 }
