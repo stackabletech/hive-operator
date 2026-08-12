@@ -65,9 +65,9 @@ Create the name of the service account to use
 */}}
 {{- define "operator.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (printf "%s-serviceaccount" (include "operator.fullname" .)) .Values.serviceAccount.name }}
+{{- default (include "operator.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
-{{- required "serviceAccount.name is required when serviceAccount.create is false, because the chart then does not create a ServiceAccount for the operator to run as." .Values.serviceAccount.name }}
+{{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
 
