@@ -165,7 +165,6 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     database_connection_details.add_to_container(&mut container_builder);
 
     // Environment variable overrides (highest precedence), merged from role and role group.
-    // Names are validated during cluster validation, so they can be applied directly here.
     container_builder.add_env_vars(rg.env_overrides.clone());
 
     let mut pod_builder = PodBuilder::new();

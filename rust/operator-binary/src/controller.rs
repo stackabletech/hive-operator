@@ -38,7 +38,7 @@ use stackable_operator::{
     shared::time::Duration,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        kvp::label::{recommended_labels, role_group_selector},
+        kvp::label::{recommended_labels_for_role_group_resources, role_group_selector},
         role_group_utils::ResourceNames,
         role_utils,
         types::{
@@ -270,8 +270,8 @@ impl ValidatedCluster {
         role_name: &RoleName,
         role_group_name: &RoleGroupName,
     ) -> Labels {
-        recommended_labels(
-            self,
+        recommended_labels_for_role_group_resources(
+            &self.name,
             &product_name(),
             product_version,
             &operator_name(),
@@ -289,7 +289,7 @@ impl ValidatedCluster {
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
         role_group_selector(
-            self,
+            &self.name,
             &product_name(),
             &HiveRole::MetaStore.into(),
             role_group_name,
