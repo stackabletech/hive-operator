@@ -12,7 +12,7 @@ use stackable_operator::{
 use crate::{
     controller::{
         ValidatedCluster,
-        build::{PLACEHOLDER_LISTENER_ROLE_GROUP, object_meta},
+        build::{object_meta, recommended_labels_for_role_resources},
     },
     crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole},
 };
@@ -48,8 +48,11 @@ pub fn build_listener_connection_string(
 /// Takes the bare cluster name (not [`ValidatedCluster`]) so the dereference step, which runs
 /// before validation, can derive the same name.
 pub fn role_listener_name(cluster_name: &ClusterName, hive_role: &HiveRole) -> ListenerName {
-    ListenerName::from_str(&format!("{cluster_name}-{hive_role}"))
-        .expect("the role listener name is a valid Listener name")
+    ListenerName::from_str(&format!(
+        "{cluster_name}-{hive_role}",
+        hive_role = hive_role.to_string()
+    ))
+    .expect("the role listener name is a valid Listener name")
 }
 
 // Designed to build a listener per role
@@ -64,7 +67,7 @@ pub fn build_role_listener(
     let metadata = object_meta(
         cluster,
         role_listener_name(&cluster.name, hive_role),
-        &PLACEHOLDER_LISTENER_ROLE_GROUP,
+        recommended_labels_for_role_resources(cluster, hive_role),
     )
     .build();
 

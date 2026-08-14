@@ -55,7 +55,10 @@ use crate::{
             object_meta,
             opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
+            recommended_labels_for_role_group_resources,
+            recommended_labels_for_unversioned_role_group_resources,
             resource::listener::role_listener_name,
+            role_group_selector,
         },
     },
     crd::{
@@ -321,13 +324,18 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         );
     }
 
-    let recommended_object_labels = cluster.recommended_labels(role_group_name);
+    let recommended_object_labels =
+        recommended_labels_for_role_group_resources(cluster, &HiveRole::MetaStore, role_group_name);
     // Used for PVC templates that cannot be modified once they are deployed. A version value is
     // required, so a constant "none" is used to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.unversioned_recommended_labels(role_group_name);
+    let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
+        cluster,
+        &HiveRole::MetaStore,
+        role_group_name,
+    );
 
     let metadata = ObjectMetaBuilder::new()
-        .with_labels(recommended_object_labels)
+        .with_labels(recommended_object_labels.clone())
         .build();
 
     let listener_name = role_listener_name(&cluster.name, hive_role);
@@ -434,7 +442,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         metadata: object_meta(
             cluster,
             resource_names.stateful_set_name().to_string(),
-            role_group_name,
+            recommended_object_labels,
         )
         .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),
@@ -444,7 +452,9 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             // HorizontalPodAutoscaler can manage it.
             replicas: rg.replicas.map(i32::from),
             selector: LabelSelector {
-                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
+                match_labels: Some(
+                    role_group_selector(cluster, &HiveRole::MetaStore, role_group_name).into(),
+                ),
                 ..LabelSelector::default()
             },
             service_name: Some(resource_names.headless_service_name().to_string()),

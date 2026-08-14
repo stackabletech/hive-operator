@@ -12,7 +12,7 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            PLACEHOLDER_DISCOVERY_ROLE_GROUP, object_meta,
+            object_meta, recommended_labels_for_role_resources,
             resource::listener::build_listener_connection_string,
         },
     },
@@ -114,7 +114,7 @@ fn discovery_config_map_meta(cluster: &ValidatedCluster) -> ObjectMeta {
     object_meta(
         cluster,
         discovery_config_map_name(&cluster.name),
-        &PLACEHOLDER_DISCOVERY_ROLE_GROUP,
+        recommended_labels_for_role_resources(cluster, &HiveRole::MetaStore),
     )
     .build()
 }
