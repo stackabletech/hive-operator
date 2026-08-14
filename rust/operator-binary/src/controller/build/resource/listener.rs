@@ -50,7 +50,7 @@ pub fn build_listener_connection_string(
 pub fn role_listener_name(cluster_name: &ClusterName, hive_role: &HiveRole) -> ListenerName {
     ListenerName::from_str(&format!(
         "{cluster_name}-{hive_role}",
-        hive_role = hive_role.to_string()
+        hive_role = **hive_role
     ))
     .expect("the role listener name is a valid Listener name")
 }
