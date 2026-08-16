@@ -77,7 +77,7 @@
           "title": "Create the service account",
           "type": "boolean",
           "default": true,
-          "description": "Whether the chart creates the ServiceAccount and the ClusterRoleBinding that grants it the operator's ClusterRole. Set to false when your cluster does not allow a chart to create cluster-scoped RBAC. The ClusterRoles themselves are always created by the chart, so in that case you only have to create the ServiceAccount and a ClusterRoleBinding from it to <release>-hive-operator-clusterrole, then set serviceAccount.name to the name you gave it."
+          "description": "Whether the chart creates the ServiceAccount the operator runs as. Set to false to bring your own, then name it in serviceAccount.name. The ClusterRole and the ClusterRoleBinding that grants it are created by the chart either way, so an existing ServiceAccount still receives the operator's permissions."
         },
         "annotations": {
           "title": "Service account annotations",
@@ -87,7 +87,7 @@
         },
         "name": {
           "title": "Service account name",
-          "description": "Name of the ServiceAccount the operator pod runs as. Leave empty to use the generated name, <release>-hive-operator-serviceaccount. Required when serviceAccount.create is false, where it tells the Deployment which existing ServiceAccount to use.",
+          "description": "Name of the ServiceAccount the operator pod runs as. Leave empty to use the generated name, <release>-hive-operator-serviceaccount. Required when serviceAccount.create is false, where it tells the chart which existing ServiceAccount the Deployment should run as and the ClusterRoleBinding should grant.",
           "type": "string",
           "default": ""
         }
