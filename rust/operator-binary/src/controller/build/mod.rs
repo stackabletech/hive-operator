@@ -87,13 +87,27 @@ pub fn build(
 
     for (hive_role, role_group_configs) in &cluster.role_group_configs {
         for (role_group_name, rg) in role_group_configs {
-            services.push(build_rolegroup_headless_service(cluster, role_group_name));
-            services.push(build_rolegroup_metrics_service(cluster, role_group_name));
+            services.push(build_rolegroup_headless_service(
+                cluster,
+                hive_role,
+                role_group_name,
+            ));
+            services.push(build_rolegroup_metrics_service(
+                cluster,
+                hive_role,
+                role_group_name,
+            ));
             config_maps.push(
-                build_metastore_rolegroup_config_map(cluster, cluster_info, role_group_name, rg)
-                    .context(ConfigMapSnafu {
-                        role_group: role_group_name.clone(),
-                    })?,
+                build_metastore_rolegroup_config_map(
+                    cluster,
+                    cluster_info,
+                    hive_role,
+                    role_group_name,
+                    rg,
+                )
+                .context(ConfigMapSnafu {
+                    role_group: role_group_name.clone(),
+                })?,
             );
             stateful_sets.push(
                 build_metastore_rolegroup_statefulset(hive_role, cluster, role_group_name, rg)
@@ -105,7 +119,7 @@ pub fn build(
     }
 
     if let Some(discovery_config_map) =
-        build_discovery_configmap(cluster, HiveRole::MetaStore).context(DiscoveryConfigMapSnafu)?
+        build_discovery_configmap(cluster, &HiveRole::MetaStore).context(DiscoveryConfigMapSnafu)?
     {
         config_maps.push(discovery_config_map);
     }
@@ -123,7 +137,8 @@ pub fn build(
 }
 
 /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, an owner reference back to
-/// the cluster, and the recommended labels for a resource named `name` in `role_group_name`.
+/// the cluster, the given `name`, and the given `labels` (usually one of the recommended label
+/// sets built by the functions below).
 ///
 /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
 /// need extra labels/annotations chain them onto the returned builder.

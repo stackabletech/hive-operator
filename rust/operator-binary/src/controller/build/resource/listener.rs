@@ -62,8 +62,6 @@ pub fn build_role_listener(
     hive_role: &HiveRole,
     listener_class: &ListenerClassName,
 ) -> Listener {
-    // The role listener is a role-level (not role-group-level) object, so there is no real
-    // role-group name; "none" is used as a placeholder for the recommended labels.
     let metadata = object_meta(
         cluster,
         role_listener_name(&cluster.name, hive_role),

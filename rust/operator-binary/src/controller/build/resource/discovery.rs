@@ -60,7 +60,7 @@ pub fn discovery_config_map_name(cluster_name: &ClusterName) -> ConfigMapName {
 /// the address is set.
 pub fn build_discovery_configmap(
     cluster: &ValidatedCluster,
-    hive_role: HiveRole,
+    hive_role: &HiveRole,
 ) -> Result<Option<ConfigMap>, Error> {
     let Some(listener_address) = cluster
         .role_listener
@@ -74,7 +74,7 @@ pub fn build_discovery_configmap(
                     "the metastore role Listener has no ingress address, \
                        re-emitting the stored discovery ConfigMap"
                 );
-                Some(reemit_discovery_configmap(cluster, existing))
+                Some(reemit_discovery_configmap(cluster, hive_role, existing))
             }
             None => {
                 tracing::debug!(
@@ -88,7 +88,7 @@ pub fn build_discovery_configmap(
 
     let mut discovery_configmap = ConfigMapBuilder::new();
 
-    discovery_configmap.metadata(discovery_config_map_meta(cluster));
+    discovery_configmap.metadata(discovery_config_map_meta(cluster, hive_role));
 
     discovery_configmap.add_data(
         "HIVE".to_string(),
@@ -108,13 +108,12 @@ pub fn build_discovery_configmap(
 /// Metadata shared by the freshly built and the re-emitted discovery [`ConfigMap`].
 ///
 /// Discovery is a role-level object; the resource name comes from
-/// [`discovery_config_map_name`] and "discovery" is a placeholder role-group name for the
-/// recommended labels.
-fn discovery_config_map_meta(cluster: &ValidatedCluster) -> ObjectMeta {
+/// [`discovery_config_map_name`] and the labels are the role-level recommended labels.
+fn discovery_config_map_meta(cluster: &ValidatedCluster, hive_role: &HiveRole) -> ObjectMeta {
     object_meta(
         cluster,
         discovery_config_map_name(&cluster.name),
-        recommended_labels_for_role_resources(cluster, &HiveRole::MetaStore),
+        recommended_labels_for_role_resources(cluster, hive_role),
     )
     .build()
 }
@@ -127,9 +126,13 @@ fn discovery_config_map_meta(cluster: &ValidatedCluster) -> ObjectMeta {
 /// apply changes nothing on the server. The metadata is built fresh instead of echoing the
 /// fetched metadata: a fetched object carries server-populated fields (`resourceVersion`,
 /// `uid`, `managedFields`) that must not appear in an apply patch.
-fn reemit_discovery_configmap(cluster: &ValidatedCluster, existing: &ConfigMap) -> ConfigMap {
+fn reemit_discovery_configmap(
+    cluster: &ValidatedCluster,
+    hive_role: &HiveRole,
+    existing: &ConfigMap,
+) -> ConfigMap {
     ConfigMap {
-        metadata: discovery_config_map_meta(cluster),
+        metadata: discovery_config_map_meta(cluster, hive_role),
         data: existing.data.clone(),
         ..ConfigMap::default()
     }

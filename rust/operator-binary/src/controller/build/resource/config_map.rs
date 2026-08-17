@@ -46,6 +46,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
+    hive_role: &HiveRole,
     role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
 ) -> Result<ConfigMap> {
@@ -85,11 +86,7 @@ pub fn build_metastore_rolegroup_config_map(
                     .role_group_resource_names(role_group_name)
                     .role_group_config_map()
                     .to_string(),
-                recommended_labels_for_role_group_resources(
-                    cluster,
-                    &HiveRole::MetaStore,
-                    role_group_name,
-                ),
+                recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name),
             )
             .build(),
         )

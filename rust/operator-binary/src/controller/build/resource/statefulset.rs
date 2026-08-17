@@ -326,12 +326,12 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     }
 
     let recommended_object_labels =
-        recommended_labels_for_role_group_resources(cluster, &HiveRole::MetaStore, role_group_name);
-    // Used for PVC templates that cannot be modified once they are deployed. A version value is
-    // required, so a constant "none" is used to keep the labels stable across version upgrades.
+        recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name);
+    // Used for PVC templates, which cannot be modified once they are deployed. The version label
+    // is omitted so the labels stay stable across version upgrades.
     let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
         cluster,
-        &HiveRole::MetaStore,
+        hive_role,
         role_group_name,
     );
 
@@ -453,9 +453,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             // HorizontalPodAutoscaler can manage it.
             replicas: rg.replicas.map(i32::from),
             selector: LabelSelector {
-                match_labels: Some(
-                    role_group_selector(cluster, &HiveRole::MetaStore, role_group_name).into(),
-                ),
+                match_labels: Some(role_group_selector(cluster, hive_role, role_group_name).into()),
                 ..LabelSelector::default()
             },
             service_name: Some(resource_names.headless_service_name().to_string()),

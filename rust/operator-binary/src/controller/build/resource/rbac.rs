@@ -47,7 +47,8 @@ mod tests {
                 "apiVersion": "v1",
                 "kind": "ServiceAccount",
                 "metadata": {
-                    // The RBAC resources are cluster-shared, so role and role group are `none`.
+                    // The RBAC resources are cluster-shared, so they carry no component or
+                    // role-group label.
                     "labels": {
                         "app.kubernetes.io/instance": "simple-hive",
                         "app.kubernetes.io/managed-by": "hive.stackable.tech_hivecluster",
