@@ -49,16 +49,17 @@ use stackable_operator::{
 use strum::EnumDiscriminants;
 
 use crate::{
+    HIVE_OPERATOR_NAME,
     controller::{apply::Applier, update_status::update_status},
     crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha1},
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
 pub const HIVE_FULL_CONTROLLER_NAME: &str =
-    concatcp!(HIVE_CONTROLLER_NAME, '.', crate::OPERATOR_NAME);
+    concatcp!(HIVE_CONTROLLER_NAME, '.', HIVE_OPERATOR_NAME);
 
 constant!(PRODUCT_NAME: ProductName = APP_NAME);
-constant!(OPERATOR_NAME: OperatorName = crate::OPERATOR_NAME);
+constant!(OPERATOR_NAME: OperatorName = HIVE_OPERATOR_NAME);
 constant!(CONTROLLER_NAME: ControllerName = HIVE_CONTROLLER_NAME);
 
 pub struct Ctx {

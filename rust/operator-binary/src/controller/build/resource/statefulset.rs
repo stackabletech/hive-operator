@@ -14,6 +14,7 @@ use stackable_operator::{
         },
     },
     commons::secret_class::SecretClassVolumeProvisionParts,
+    constant,
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     k8s_openapi::{
         DeepMerge,
@@ -116,20 +117,20 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Typed name for the listener-operator PersistentVolumeClaim. The volume mount that exposes the
 // PVC reuses this same name, since a volume mount references its claim by name.
-stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
+constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. These reuse the
 // existing volume-name string values (`config-mount`/`log`) so the produced volume mounts are
 // unchanged.
-stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config-mount");
-stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
+constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config-mount");
+constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
 // Mount path of the listener volume (consumed by the listener-operator PVC's volume mount below).
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 // Typed name for the HDFS discovery ConfigMap volume, reusing the existing `"hdfs-discovery"`
 // string value so the produced volume/mount name is unchanged.
-stackable_operator::constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
+constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
 
 /// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
 /// [`build_container_command_args`] when copying the

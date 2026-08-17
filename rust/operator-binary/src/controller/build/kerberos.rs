@@ -15,6 +15,7 @@ use stackable_operator::{
         },
     },
     commons::secret_class::SecretClassVolumeProvisionParts,
+    constant,
     utils::cluster_info::KubernetesClusterInfo,
     v2::types::kubernetes::VolumeName,
 };
@@ -27,7 +28,7 @@ use crate::{
 
 // Typed name for the Kerberos secret-operator volume, reusing the existing `"kerberos"` string
 // value so the produced volume/mount name is unchanged.
-stackable_operator::constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
+constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
 
 /// The directory the Kerberos secret-operator volume is mounted at. `krb5.conf` and `keytab`
 /// sub-paths are derived from this.

@@ -62,10 +62,10 @@ pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
 
 // Volume names for the directories above
-stackable_operator::constant!(pub STACKABLE_CONFIG_DIR_NAME: VolumeName = "config");
-stackable_operator::constant!(pub STACKABLE_CONFIG_MOUNT_DIR_NAME: VolumeName = "config-mount");
-stackable_operator::constant!(pub STACKABLE_LOG_DIR_NAME: VolumeName = "log");
-stackable_operator::constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-mount");
+constant!(pub STACKABLE_CONFIG_DIR_NAME: VolumeName = "config");
+constant!(pub STACKABLE_CONFIG_MOUNT_DIR_NAME: VolumeName = "config-mount");
+constant!(pub STACKABLE_LOG_DIR_NAME: VolumeName = "log");
+constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-mount");
 
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
