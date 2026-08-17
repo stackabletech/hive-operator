@@ -257,7 +257,7 @@ pub struct HdfsConnection {
     pub config_map: ConfigMapName,
 }
 
-#[derive(Clone, Debug, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum HiveRole {
     MetaStore,
 }
