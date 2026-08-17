@@ -1,20 +1,23 @@
 //! Builders that turn a `ValidatedCluster` into Kubernetes resources.
 
-use std::{marker::PhantomData, str::FromStr};
+use std::marker::PhantomData;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
+    kvp::Labels,
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::meta::ownerreference_from_resource,
-        types::operator::{ProductVersion, RoleGroupName},
+        kvp::label,
+        types::operator::{RoleGroupName, RoleName},
     },
 };
 
 use crate::{
     controller::{
-        KubernetesResources, Prepared, ValidatedCluster,
+        CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
+        ValidatedCluster,
         build::resource::{
             config_map::build_metastore_rolegroup_config_map,
             discovery::build_discovery_configmap,
@@ -27,18 +30,6 @@ use crate::{
     },
     crd::HiveRole,
 };
-
-// Placeholder role-group name used for the recommended labels of the role-level discovery
-// `ConfigMap` (which is not tied to a single role group).
-stackable_operator::constant!(pub(crate) PLACEHOLDER_DISCOVERY_ROLE_GROUP: RoleGroupName = "discovery");
-
-// Placeholder role-group name used for the recommended labels of the role-level `Listener`
-// (which is not tied to a single role group).
-stackable_operator::constant!(pub(crate) PLACEHOLDER_LISTENER_ROLE_GROUP: RoleGroupName = "none");
-
-// Placeholder product version used for labels on PVC templates, which cannot be modified once
-// deployed. A constant value keeps the labels stable across version upgrades.
-stackable_operator::constant!(pub(crate) UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
 pub mod command;
 pub mod graceful_shutdown;
@@ -96,13 +87,27 @@ pub fn build(
 
     for (hive_role, role_group_configs) in &cluster.role_group_configs {
         for (role_group_name, rg) in role_group_configs {
-            services.push(build_rolegroup_headless_service(cluster, role_group_name));
-            services.push(build_rolegroup_metrics_service(cluster, role_group_name));
+            services.push(build_rolegroup_headless_service(
+                cluster,
+                hive_role,
+                role_group_name,
+            ));
+            services.push(build_rolegroup_metrics_service(
+                cluster,
+                hive_role,
+                role_group_name,
+            ));
             config_maps.push(
-                build_metastore_rolegroup_config_map(cluster, cluster_info, role_group_name, rg)
-                    .context(ConfigMapSnafu {
-                        role_group: role_group_name.clone(),
-                    })?,
+                build_metastore_rolegroup_config_map(
+                    cluster,
+                    cluster_info,
+                    hive_role,
+                    role_group_name,
+                    rg,
+                )
+                .context(ConfigMapSnafu {
+                    role_group: role_group_name.clone(),
+                })?,
             );
             stateful_sets.push(
                 build_metastore_rolegroup_statefulset(hive_role, cluster, role_group_name, rg)
@@ -114,7 +119,7 @@ pub fn build(
     }
 
     if let Some(discovery_config_map) =
-        build_discovery_configmap(cluster, HiveRole::MetaStore).context(DiscoveryConfigMapSnafu)?
+        build_discovery_configmap(cluster, &HiveRole::MetaStore).context(DiscoveryConfigMapSnafu)?
     {
         config_maps.push(discovery_config_map);
     }
@@ -132,22 +137,87 @@ pub fn build(
 }
 
 /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, an owner reference back to
-/// the cluster, and the recommended labels for a resource named `name` in `role_group_name`.
+/// the cluster, the given `name`, and the given `labels` (usually one of the recommended label
+/// sets built by the functions below).
 ///
 /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
 /// need extra labels/annotations chain them onto the returned builder.
 pub(crate) fn object_meta(
     cluster: &ValidatedCluster,
     name: impl Into<String>,
-    role_group_name: &RoleGroupName,
+    labels: Labels,
 ) -> ObjectMetaBuilder {
     let mut builder = ObjectMetaBuilder::new();
     builder
         .name_and_namespace(cluster)
         .name(name)
         .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_labels(cluster.recommended_labels(role_group_name));
+        .with_labels(labels);
     builder
+}
+
+pub(crate) fn recommended_labels_for_cluster_resources(cluster: &ValidatedCluster) -> Labels {
+    label::recommended_labels_for_cluster_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+    )
+}
+
+pub(crate) fn recommended_labels_for_role_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+) -> Labels {
+    label::recommended_labels_for_role_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+    )
+}
+
+pub(crate) fn recommended_labels_for_role_group_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_role_group_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+        role_group_name,
+    )
+}
+
+pub(crate) fn recommended_labels_for_unversioned_role_group_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_unversioned_role_group_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+        role_group_name,
+    )
+}
+
+/// Selector labels matching the pods of a role group.
+pub(crate) fn role_group_selector(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::role_group_selector(&cluster.name, &PRODUCT_NAME, role_name, role_group_name)
 }
 
 #[cfg(test)]
@@ -164,8 +234,11 @@ mod tests {
 
     use super::{KubernetesResources, Prepared, RoleGroupName, build, object_meta};
     use crate::{
-        controller::test_support::{DERBY_YAML, minimal_hive, validated_cluster},
-        crd::HIVE_PORT_NAME,
+        controller::{
+            build::recommended_labels_for_role_group_resources,
+            test_support::{DERBY_YAML, minimal_hive, validated_cluster},
+        },
+        crd::{HIVE_PORT_NAME, HiveRole},
     };
 
     fn test_cluster_info() -> KubernetesClusterInfo {
@@ -359,7 +432,16 @@ mod tests {
         let cluster = validated_cluster(&hive);
         let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
 
-        let meta = object_meta(&cluster, "test-name", &role_group_name).build();
+        let meta = object_meta(
+            &cluster,
+            "test-name",
+            recommended_labels_for_role_group_resources(
+                &cluster,
+                &HiveRole::MetaStore,
+                &role_group_name,
+            ),
+        )
+        .build();
 
         assert_eq!(meta.name.as_deref(), Some("test-name"));
         assert_eq!(meta.namespace.as_deref(), Some(cluster.namespace.as_ref()));

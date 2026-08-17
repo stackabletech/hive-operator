@@ -19,6 +19,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
     },
+    constant,
     crd::{listener::v1alpha1::Listener, s3},
     database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     k8s_openapi::api::{
@@ -33,32 +34,33 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
-    kvp::Labels,
     logging::controller::ReconcilerError,
     shared::time::Duration,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        kvp::label::{recommended_labels, role_group_selector},
         role_group_utils::ResourceNames,
         role_utils,
         types::{
             kubernetes::{ListenerClassName, SecretClassName},
-            operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
+            operator::{ControllerName, OperatorName, ProductName, ProductVersion},
         },
     },
 };
 use strum::EnumDiscriminants;
 
 use crate::{
-    OPERATOR_NAME,
-    controller::{
-        apply::Applier, build::UNVERSIONED_PRODUCT_VERSION, update_status::update_status,
-    },
+    HIVE_OPERATOR_NAME,
+    controller::{apply::Applier, update_status::update_status},
     crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha1},
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
-pub const HIVE_FULL_CONTROLLER_NAME: &str = concatcp!(HIVE_CONTROLLER_NAME, '.', OPERATOR_NAME);
+pub const HIVE_FULL_CONTROLLER_NAME: &str =
+    concatcp!(HIVE_CONTROLLER_NAME, '.', HIVE_OPERATOR_NAME);
+
+constant!(PRODUCT_NAME: ProductName = APP_NAME);
+constant!(OPERATOR_NAME: OperatorName = HIVE_OPERATOR_NAME);
+constant!(CONTROLLER_NAME: ControllerName = HIVE_CONTROLLER_NAME);
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -227,7 +229,7 @@ impl ValidatedCluster {
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
-            product_name: product_name(),
+            product_name: PRODUCT_NAME.clone(),
         }
     }
 
@@ -238,62 +240,9 @@ impl ValidatedCluster {
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: HiveRole::MetaStore.into(),
+            role_name: (*HiveRole::MetaStore).clone(),
             role_group_name: role_group_name.clone(),
         }
-    }
-
-    /// Recommended labels for a resource that is not tied to a concrete role,
-    /// using a free-form role/role-group label value.
-    pub fn recommended_labels_for(
-        &self,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
-    }
-
-    /// Recommended labels with the constant [`UNVERSIONED_PRODUCT_VERSION`], for PVC templates
-    /// that cannot be modified after deployment (keeps the labels stable across version upgrades).
-    pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_with(
-            &UNVERSIONED_PRODUCT_VERSION,
-            &HiveRole::MetaStore.into(),
-            role_group_name,
-        )
-    }
-
-    /// Recommended labels for a role-group resource, using the given product version.
-    fn recommended_labels_with(
-        &self,
-        product_version: &ProductVersion,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        recommended_labels(
-            self,
-            &product_name(),
-            product_version,
-            &operator_name(),
-            &controller_name(),
-            role_name,
-            role_group_name,
-        )
-    }
-
-    /// Recommended labels for a role-group resource.
-    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&HiveRole::MetaStore.into(), role_group_name)
-    }
-
-    /// Selector labels matching the pods of a role group.
-    pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
-        role_group_selector(
-            self,
-            &product_name(),
-            &HiveRole::MetaStore.into(),
-            role_group_name,
-        )
     }
 
     /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
@@ -350,22 +299,6 @@ impl NameIsValidLabelValue for ValidatedCluster {
     fn to_label_value(&self) -> String {
         self.name.to_label_value()
     }
-}
-
-/// The product name (`hive`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
-    ProductName::from_str(APP_NAME).expect("'hive' is a valid product name")
-}
-
-/// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
-    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
-}
-
-/// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
-    ControllerName::from_str(HIVE_CONTROLLER_NAME)
-        .expect("the controller name is a valid label value")
 }
 
 /// Cluster-wide settings resolved during validation and dereferencing.
@@ -545,18 +478,13 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::v2::types::operator::RoleName;
-    use strum::IntoEnumIterator;
+    use super::*;
 
-    use crate::crd::HiveRole;
-
-    /// Locks the invariant behind the `expect` in the `From<HiveRole> for RoleName` impls:
-    /// every `HiveRole` variant (present and future) must serialise to a valid `RoleName`.
     #[test]
-    fn every_hive_role_serialises_to_a_valid_role_name() {
-        for role in HiveRole::iter() {
-            let _: RoleName = (&role).into();
-            let _: RoleName = role.into();
-        }
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *PRODUCT_NAME;
+        let _ = *OPERATOR_NAME;
+        let _ = *CONTROLLER_NAME;
     }
 }

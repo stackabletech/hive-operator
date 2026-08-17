@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use stackable_operator::v2::types::kubernetes::VolumeName;
+use stackable_operator::{constant, v2::types::kubernetes::VolumeName};
 
 use crate::controller::dereference::ResolvedOpaConfig;
 
@@ -30,7 +30,7 @@ const OPA_AUTHORIZATION_POLICY_URL_USER: &str = "com.bosch.bdps.opa.authorizatio
 
 // Typed name for the OPA TLS secret-operator volume, reusing the existing `"opa-tls"` string
 // value so the produced volume/mount name is unchanged.
-stackable_operator::constant!(pub(crate) OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
+constant!(pub(crate) OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
 
 /// Builds the OPA-related `hive-site.xml` properties from a [`ResolvedOpaConfig`].
 pub fn build_opa_hive_site_config(

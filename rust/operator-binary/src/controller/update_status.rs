@@ -16,7 +16,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    OPERATOR_NAME,
+    HIVE_OPERATOR_NAME,
     controller::{Applied, KubernetesResources},
     crd::{HiveClusterStatus, v1alpha1},
 };
@@ -63,7 +63,7 @@ pub async fn update_status(
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, hive, &status)
+        .apply_patch_status(HIVE_OPERATOR_NAME, hive, &status)
         .await
         .context(ApplyStatusSnafu)?;
 

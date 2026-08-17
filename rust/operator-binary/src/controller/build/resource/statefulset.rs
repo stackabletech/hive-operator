@@ -14,6 +14,7 @@ use stackable_operator::{
         },
     },
     commons::secret_class::SecretClassVolumeProvisionParts,
+    constant,
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     k8s_openapi::{
         DeepMerge,
@@ -55,7 +56,10 @@ use crate::{
             object_meta,
             opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
+            recommended_labels_for_role_group_resources,
+            recommended_labels_for_unversioned_role_group_resources,
             resource::listener::role_listener_name,
+            role_group_selector,
         },
     },
     crd::{
@@ -113,20 +117,20 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Typed name for the listener-operator PersistentVolumeClaim. The volume mount that exposes the
 // PVC reuses this same name, since a volume mount references its claim by name.
-stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
+constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. These reuse the
 // existing volume-name string values (`config-mount`/`log`) so the produced volume mounts are
 // unchanged.
-stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config-mount");
-stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
+constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config-mount");
+constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
 // Mount path of the listener volume (consumed by the listener-operator PVC's volume mount below).
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 // Typed name for the HDFS discovery ConfigMap volume, reusing the existing `"hdfs-discovery"`
 // string value so the produced volume/mount name is unchanged.
-stackable_operator::constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
+constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
 
 /// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
 /// [`build_container_command_args`] when copying the
@@ -165,7 +169,6 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     database_connection_details.add_to_container(&mut container_builder);
 
     // Environment variable overrides (highest precedence), merged from role and role group.
-    // Names are validated during cluster validation, so they can be applied directly here.
     container_builder.add_env_vars(rg.env_overrides.clone());
 
     let mut pod_builder = PodBuilder::new();
@@ -322,13 +325,18 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         );
     }
 
-    let recommended_object_labels = cluster.recommended_labels(role_group_name);
-    // Used for PVC templates that cannot be modified once they are deployed. A version value is
-    // required, so a constant "none" is used to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.unversioned_recommended_labels(role_group_name);
+    let recommended_object_labels =
+        recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name);
+    // Used for PVC templates, which cannot be modified once they are deployed. The version label
+    // is omitted so the labels stay stable across version upgrades.
+    let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
+        cluster,
+        hive_role,
+        role_group_name,
+    );
 
     let metadata = ObjectMetaBuilder::new()
-        .with_labels(recommended_object_labels)
+        .with_labels(recommended_object_labels.clone())
         .build();
 
     let listener_name = role_listener_name(&cluster.name, hive_role);
@@ -435,7 +443,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         metadata: object_meta(
             cluster,
             resource_names.stateful_set_name().to_string(),
-            role_group_name,
+            recommended_object_labels,
         )
         .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),
@@ -445,7 +453,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             // HorizontalPodAutoscaler can manage it.
             replicas: rg.replicas.map(i32::from),
             selector: LabelSelector {
-                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
+                match_labels: Some(role_group_selector(cluster, hive_role, role_group_name).into()),
                 ..LabelSelector::default()
             },
             service_name: Some(resource_names.headless_service_name().to_string()),
