@@ -18,8 +18,11 @@ All notable changes to this project will be documented in this file.
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
 - `envOverrides` names are now validated by the shared `EnvVarName` type rather than by
   operator-specific validation code ([#748]).
-- Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels from the
-  resources they don't apply to (previously set to `none` or a placeholder value) ([#748]).
+- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
+  from the resources they don't apply to (previously set to `none` or a placeholder value).
+  StatefulSets created by older operator versions cannot be updated in place: after the
+  operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
+  the new labels ([#748]).
 
 ### Fixed
 
