@@ -7,7 +7,6 @@ use stackable_operator::{
     product_logging::spec::Logging,
     role_utils::GenericRoleConfig,
     v2::{
-        builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         product_logging::framework::{
             ValidatedContainerLogConfigChoice, VectorContainerLogConfig,
@@ -63,12 +62,6 @@ pub enum Error {
     #[snafu(display("failed to validate the config for role group {role_group}"))]
     ValidateConfig {
         source: fragment::ValidationError,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("invalid environment variable override name in role group {role_group}"))]
-    ParseEnvVarName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
         role_group: RoleGroupName,
     },
 
@@ -257,16 +250,6 @@ fn validate_role_group_config(
         role_group: role_group_name.clone(),
     })?;
 
-    let mut env_overrides = EnvVarSet::new();
-    for (env_var_name, env_var_value) in merged.config.env_overrides {
-        env_overrides = env_overrides.with_value(
-            &EnvVarName::from_str(&env_var_name).with_context(|_| ParseEnvVarNameSnafu {
-                role_group: role_group_name.clone(),
-            })?,
-            env_var_value,
-        );
-    }
-
     let logging = validate_logging(
         &merged.config.config.logging,
         vector_aggregator_config_map_name,
@@ -276,7 +259,7 @@ fn validate_role_group_config(
         replicas: merged.replicas,
         config: ValidatedMetaStoreConfig::from_merged(merged.config.config, logging),
         config_overrides: merged.config.config_overrides,
-        env_overrides,
+        env_overrides: merged.config.env_overrides.into(),
         // Hive does not use CLI overrides; the field is carried through the merge but unused.
         cli_overrides: merged.config.cli_overrides,
         pod_overrides: merged.config.pod_overrides,
@@ -286,6 +269,8 @@ fn validate_role_group_config(
 
 #[cfg(test)]
 mod tests {
+    use stackable_operator::v2::builder::pod::container::EnvVarSet;
+
     use super::*;
     use crate::controller::test_support::{DERBY_YAML, app_version_label, minimal_hive};
 
@@ -408,39 +393,6 @@ mod tests {
         let error = expect_validate_err(yaml);
         assert!(
             matches!(&error, Error::ParseRoleGroupName { role_group, .. } if role_group == "Invalid_RG"),
-            "unexpected error: {error:?}"
-        );
-    }
-
-    #[test]
-    fn validate_rejects_invalid_env_var_override_name() {
-        // A copy of `DERBY_YAML` with an invalid `envOverrides` name: `EnvVarName` allows any
-        // printable ASCII except `=` (the Kubernetes rule), so a leading digit is fine; the
-        // embedded `=` is what gets rejected.
-        let yaml = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
-        kind: HiveCluster
-        metadata:
-          name: simple-hive
-          namespace: default
-          uid: 12345678-1234-1234-1234-123456789012
-        spec:
-          image:
-            productVersion: "4.0.0"
-          clusterConfig:
-            metadataDatabase:
-              derby: {}
-          metastore:
-            roleGroups:
-              default:
-                replicas: 1
-                envOverrides:
-                  "BAD=NAME": value
-        "#;
-
-        let error = expect_validate_err(yaml);
-        assert!(
-            matches!(&error, Error::ParseEnvVarName { role_group, .. } if role_group.as_ref() == "default"),
             "unexpected error: {error:?}"
         );
     }

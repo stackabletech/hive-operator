@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{ops::Deref, str::FromStr};
 
 use databases::MetadataDatabaseConnection;
 /// Re-export of the shared product-logging spec data types (test-only).
@@ -21,18 +21,19 @@ use stackable_operator::{
         },
     },
     config::{fragment::Fragment, merge::Merge},
+    constant,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, Role, RoleGroup},
+    role_utils::GenericRoleConfig,
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     v2::{
         config_overrides::KeyValueConfigOverrides,
-        role_utils::JavaCommonConfig,
+        role_utils::{JavaCommonConfig, Role, RoleGroup},
         types::{
             common::Port,
             kubernetes::{
@@ -43,7 +44,7 @@ use stackable_operator::{
     },
     versioned::versioned,
 };
-use strum::{Display, EnumIter, EnumString};
+use strum::{Display, EnumIter};
 use v1alpha1::HiveMetastoreRoleConfig;
 
 use crate::crd::affinity::get_affinity;
@@ -61,10 +62,10 @@ pub const STACKABLE_CONFIG_MOUNT_DIR: &str = "/stackable/mount/config";
 pub const STACKABLE_LOG_CONFIG_MOUNT_DIR: &str = "/stackable/mount/log-config";
 
 // Volume names for the directories above
-stackable_operator::constant!(pub STACKABLE_CONFIG_DIR_NAME: VolumeName = "config");
-stackable_operator::constant!(pub STACKABLE_CONFIG_MOUNT_DIR_NAME: VolumeName = "config-mount");
-stackable_operator::constant!(pub STACKABLE_LOG_DIR_NAME: VolumeName = "log");
-stackable_operator::constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-mount");
+constant!(pub STACKABLE_CONFIG_DIR_NAME: VolumeName = "config");
+constant!(pub STACKABLE_CONFIG_MOUNT_DIR_NAME: VolumeName = "config-mount");
+constant!(pub STACKABLE_LOG_DIR_NAME: VolumeName = "log");
+constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-mount");
 
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
@@ -86,6 +87,8 @@ pub fn metastore_default_listener_class() -> ListenerClassName {
 }
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
+
+constant!(METASTORE_ROLE_NAME: RoleName = "metastore");
 
 pub type HiveRoleType = Role<
     MetaStoreConfigFragment,
@@ -254,23 +257,9 @@ pub struct HdfsConnection {
     pub config_map: ConfigMapName,
 }
 
-#[derive(Clone, Debug, Display, EnumString, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[strum(serialize_all = "camelCase")]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum HiveRole {
-    #[strum(serialize = "metastore")]
     MetaStore,
-}
-
-impl From<HiveRole> for RoleName {
-    fn from(value: HiveRole) -> Self {
-        RoleName::from_str(&value.to_string()).expect("a HiveRole is a valid role name")
-    }
-}
-
-impl From<&HiveRole> for RoleName {
-    fn from(value: &HiveRole) -> Self {
-        RoleName::from_str(&value.to_string()).expect("a HiveRole is a valid role name")
-    }
 }
 
 impl HiveRole {
@@ -278,6 +267,16 @@ impl HiveRole {
     /// We only have one role and will use "hive" everywhere (which e.g. differs from the current hdfs implementation).
     pub fn kerberos_service_name(&self) -> &'static str {
         "hive"
+    }
+}
+
+impl Deref for HiveRole {
+    type Target = RoleName;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            HiveRole::MetaStore => &METASTORE_ROLE_NAME,
+        }
     }
 }
 
@@ -405,7 +404,13 @@ pub struct HiveClusterStatus {
 mod tests {
     use stackable_operator::versioned::test_utils::RoundtripTestData;
 
-    use super::v1alpha1;
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *METASTORE_ROLE_NAME;
+    }
 
     impl RoundtripTestData for v1alpha1::HiveClusterSpec {
         fn roundtrip_test_data() -> Vec<Self> {

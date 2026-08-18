@@ -9,13 +9,19 @@ use stackable_operator::{
     v2::config_file_writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
 };
 
-use crate::controller::{
-    HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
-    build::{
-        kerberos::kerberos_config_properties,
-        object_meta,
-        properties::{ConfigFileName, core_site, hive_site, product_logging, security_properties},
+use crate::{
+    controller::{
+        HiveRoleGroupConfig, RoleGroupName, ValidatedCluster,
+        build::{
+            kerberos::kerberos_config_properties,
+            object_meta,
+            properties::{
+                ConfigFileName, core_site, hive_site, product_logging, security_properties,
+            },
+            recommended_labels_for_role_group_resources,
+        },
     },
+    crd::HiveRole,
 };
 
 #[derive(Debug, Snafu)]
@@ -40,6 +46,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_metastore_rolegroup_config_map(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
+    hive_role: &HiveRole,
     role_group_name: &RoleGroupName,
     rg: &HiveRoleGroupConfig,
 ) -> Result<ConfigMap> {
@@ -79,7 +86,7 @@ pub fn build_metastore_rolegroup_config_map(
                     .role_group_resource_names(role_group_name)
                     .role_group_config_map()
                     .to_string(),
-                role_group_name,
+                recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name),
             )
             .build(),
         )

@@ -12,10 +12,17 @@ All notable changes to this project will be documented in this file.
   functions and carry the full set of recommended labels ([#731]).
 - BREAKING: The `metastore` role is now required by the CRD; a HiveCluster without it was
   previously accepted by the API server but failed reconciliation ([#731]).
-- Bump stackable-operator to 0.114.0 ([#735]).
+- Bump stackable-operator to 0.116.0 ([#735], [#748]).
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps ([#737]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
+- `envOverrides` names are now validated by the shared `EnvVarName` type rather than by
+  operator-specific validation code ([#748]).
+- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
+  from the resources they don't apply to (previously set to `none` or a placeholder value).
+  StatefulSets created by older operator versions cannot be updated in place: after the
+  operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
+  the new labels ([#748]).
 
 ### Fixed
 
@@ -31,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#736]: https://github.com/stackabletech/hive-operator/pull/736
 [#737]: https://github.com/stackabletech/hive-operator/pull/737
 [#741]: https://github.com/stackabletech/hive-operator/pull/741
+[#748]: https://github.com/stackabletech/hive-operator/pull/748
 
 ## [26.7.0] - 2026-07-21
 

@@ -4,8 +4,11 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{RoleGroupName, ValidatedCluster, build::object_meta},
-    crd::{HIVE_PORT, HIVE_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME},
+    controller::{
+        RoleGroupName, ValidatedCluster,
+        build::{object_meta, recommended_labels_for_role_group_resources, role_group_selector},
+    },
+    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME},
 };
 
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
@@ -13,6 +16,7 @@ use crate::{
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 pub fn build_rolegroup_headless_service(
     cluster: &ValidatedCluster,
+    hive_role: &HiveRole,
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
@@ -22,7 +26,7 @@ pub fn build_rolegroup_headless_service(
                 .role_group_resource_names(role_group_name)
                 .headless_service_name()
                 .to_string(),
-            role_group_name,
+            recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name),
         )
         .build(),
         spec: Some(ServiceSpec {
@@ -31,7 +35,7 @@ pub fn build_rolegroup_headless_service(
             cluster_ip: Some("None".to_string()),
             // Expecting same ports as on listener service, just as a headless, internal service
             ports: Some(service_ports()),
-            selector: Some(cluster.role_group_selector(role_group_name).into()),
+            selector: Some(role_group_selector(cluster, hive_role, role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
@@ -42,6 +46,7 @@ pub fn build_rolegroup_headless_service(
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label
 pub fn build_rolegroup_metrics_service(
     cluster: &ValidatedCluster,
+    hive_role: &HiveRole,
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
@@ -51,7 +56,7 @@ pub fn build_rolegroup_metrics_service(
                 .role_group_resource_names(role_group_name)
                 .metrics_service_name()
                 .to_string(),
-            role_group_name,
+            recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name),
         )
         .with_labels(prometheus_labels(&Scraping::Enabled))
         .with_annotations(prometheus_annotations(
@@ -66,7 +71,7 @@ pub fn build_rolegroup_metrics_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(metrics_ports()),
-            selector: Some(cluster.role_group_selector(role_group_name).into()),
+            selector: Some(role_group_selector(cluster, hive_role, role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
@@ -112,7 +117,8 @@ mod tests {
         let cluster = validated_cluster(&hive);
         let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
 
-        let service = build_rolegroup_metrics_service(&cluster, &role_group_name);
+        let service =
+            build_rolegroup_metrics_service(&cluster, &HiveRole::MetaStore, &role_group_name);
 
         assert_eq!(
             json!({

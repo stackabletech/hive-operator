@@ -46,7 +46,7 @@ mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-const OPERATOR_NAME: &str = "hive.stackable.tech";
+const HIVE_OPERATOR_NAME: &str = "hive.stackable.tech";
 
 #[derive(Parser)]
 #[clap(about, author)]
@@ -94,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
                     .map(anyhow::Ok);
 
             let client = stackable_operator::client::initialize_operator(
-                Some(OPERATOR_NAME.to_string()),
+                Some(HIVE_OPERATOR_NAME.to_string()),
                 &common.cluster_info,
             )
             .await?;
