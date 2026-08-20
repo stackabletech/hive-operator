@@ -511,26 +511,90 @@ mod tests {
         let _ = *CONTAINERDEBUG_LOG_DIRECTORY;
     }
 
-    /// The name/value pairs of the given env var in the hive container built from `yaml`, after
-    /// applying `env_override` (if any) to the metastore `default` role group.
-    fn env_var_values(
-        yaml: &str,
-        env_override: Option<(&EnvVarName, &str)>,
-        env_var_name: &str,
-    ) -> Vec<(String, String)> {
+    /// [`DERBY_YAML`] with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY` overridden on the
+    /// metastore.
+    const OVERRIDE_DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            envOverrides:
+              CONTAINERDEBUG_LOG_DIRECTORY: /debug-override
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+    /// [`DERBY_YAML`] with Kerberos enabled.
+    const KERBEROS_DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            authentication:
+              kerberos:
+                secretClass: kerberos
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+    /// [`KERBEROS_DERBY_YAML`] with the operator-set `KRB5_CONFIG` overridden on the metastore.
+    const KERBEROS_OVERRIDE_DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            authentication:
+              kerberos:
+                secretClass: kerberos
+            metadataDatabase:
+              derby: {}
+          metastore:
+            envOverrides:
+              KRB5_CONFIG: /custom/krb5.conf
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+    /// The name/value pairs of the given env var in the hive container of the metastore `default`
+    /// role group built from `yaml`.
+    fn env_var_values(yaml: &str, env_var_name: &str) -> Vec<(String, String)> {
         let hive = minimal_hive(yaml);
         let cluster = validated_cluster(&hive);
         let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
-        let mut rg = cluster.role_group_configs[&HiveRole::MetaStore][&role_group_name].clone();
-        if let Some((name, value)) = env_override {
-            rg.env_overrides = rg.env_overrides.with_value(name, value);
-        }
+        let rg = &cluster.role_group_configs[&HiveRole::MetaStore][&role_group_name];
 
         let stateful_set = build_metastore_rolegroup_statefulset(
             &HiveRole::MetaStore,
             &cluster,
             &role_group_name,
-            &rg,
+            rg,
         )
         .expect("the StatefulSet builds");
 
@@ -559,13 +623,19 @@ mod tests {
     /// unconditionally by the operator.
     #[test]
     fn env_overrides_override_operator_set_env_vars() {
-        // Exact comparison so a duplicate entry (operator value alongside the override) fails too.
+        // Without an override, the operator's value is set (exactly once).
         assert_eq!(
-            env_var_values(
-                DERBY_YAML,
-                Some((&CONTAINERDEBUG_LOG_DIRECTORY, "/debug-override")),
-                "CONTAINERDEBUG_LOG_DIRECTORY",
-            ),
+            env_var_values(DERBY_YAML, "CONTAINERDEBUG_LOG_DIRECTORY"),
+            [(
+                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                format!("{STACKABLE_LOG_DIR}/containerdebug")
+            )]
+        );
+
+        // An override replaces it; exact comparison so a duplicate entry (operator value
+        // alongside the override) fails too.
+        assert_eq!(
+            env_var_values(OVERRIDE_DERBY_YAML, "CONTAINERDEBUG_LOG_DIRECTORY"),
             [(
                 "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
                 "/debug-override".to_string()
@@ -578,19 +648,9 @@ mod tests {
     /// overrides and could not be overridden).
     #[test]
     fn env_overrides_override_kerberos_env_vars() {
-        let kerberos_yaml = DERBY_YAML.replace(
-            "          clusterConfig:\n",
-            concat!(
-                "          clusterConfig:\n",
-                "            authentication:\n",
-                "              kerberos:\n",
-                "                secretClass: kerberos\n",
-            ),
-        );
-
         // Without an override, the operator's value is set (exactly once).
         assert_eq!(
-            env_var_values(&kerberos_yaml, None, "KRB5_CONFIG"),
+            env_var_values(KERBEROS_DERBY_YAML, "KRB5_CONFIG"),
             [(
                 "KRB5_CONFIG".to_string(),
                 "/stackable/kerberos/krb5.conf".to_string()
@@ -598,14 +658,8 @@ mod tests {
         );
 
         // An override replaces it; exact comparison so a duplicate entry fails too.
-        let krb5_config =
-            EnvVarName::from_str("KRB5_CONFIG").expect("'KRB5_CONFIG' is a valid env var name");
         assert_eq!(
-            env_var_values(
-                &kerberos_yaml,
-                Some((&krb5_config, "/custom/krb5.conf")),
-                "KRB5_CONFIG"
-            ),
+            env_var_values(KERBEROS_OVERRIDE_DERBY_YAML, "KRB5_CONFIG"),
             [("KRB5_CONFIG".to_string(), "/custom/krb5.conf".to_string())]
         );
     }
