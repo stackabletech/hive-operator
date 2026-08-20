@@ -35,7 +35,7 @@ use stackable_operator::{
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
         builder::pod::{
-            container::{EnvVarSet, new_container_builder},
+            container::{EnvVarName, EnvVarSet, new_container_builder},
             volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
         },
         product_logging::framework::{
@@ -52,7 +52,9 @@ use crate::{
             command::build_container_command_args,
             graceful_shutdown::add_graceful_shutdown_config,
             jvm::{construct_hadoop_heapsize_env, construct_non_heap_jvm_args},
-            kerberos::{add_kerberos_pod_config, kerberos_container_start_commands},
+            kerberos::{
+                add_kerberos_pod_config, kerberos_container_start_commands, kerberos_env_vars,
+            },
             object_meta,
             opa::{OPA_TLS_VOLUME_NAME, build_opa_tls_ca_cert_mount_path},
             properties::product_logging::MAX_HIVE_LOG_FILES_SIZE,
@@ -90,6 +92,11 @@ pub enum Error {
     #[snafu(display("failed to add kerberos config"))]
     AddKerberosConfig {
         source: crate::controller::build::kerberos::Error,
+    },
+
+    #[snafu(display("failed to add the database credential environment variables"))]
+    AddDatabaseCredentialEnvVar {
+        source: stackable_operator::v2::builder::pod::container::Error,
     },
 
     #[snafu(display("failed to add needed volume"))]
@@ -132,6 +139,12 @@ pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 // string value so the produced volume/mount name is unchanged.
 constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
 
+// Env vars the operator sets on the Hive container.
+constant!(HADOOP_HEAPSIZE: EnvVarName = "HADOOP_HEAPSIZE");
+constant!(HADOOP_OPTS: EnvVarName = "HADOOP_OPTS");
+// Needed for the `containerdebug` process to log its tracing information to.
+constant!(CONTAINERDEBUG_LOG_DIRECTORY: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+
 /// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
 /// [`build_container_command_args`] when copying the
 /// mounted HDFS config into the writeable config directory.
@@ -156,20 +169,31 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     let mut container_builder = new_container_builder(&Container::Hive.to_container_name());
 
-    container_builder
-        .add_env_var(
-            "HADOOP_HEAPSIZE",
+    // Operator-set env vars first; the user's `envOverrides` are merged on top last and win.
+    let mut env = EnvVarSet::new()
+        .with_value(
+            &HADOOP_HEAPSIZE,
             construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
         )
-        .add_env_var("HADOOP_OPTS", construct_non_heap_jvm_args(cluster, rg))
-        .add_env_var(
-            "CONTAINERDEBUG_LOG_DIRECTORY",
+        .with_value(&HADOOP_OPTS, construct_non_heap_jvm_args(cluster, rg))
+        .with_value(
+            &CONTAINERDEBUG_LOG_DIRECTORY,
             format!("{STACKABLE_LOG_DIR}/containerdebug"),
         );
-    database_connection_details.add_to_container(&mut container_builder);
-
-    // Environment variable overrides (highest precedence), merged from role and role group.
-    container_builder.add_env_vars(rg.env_overrides.clone());
+    // The env vars mounting the database credentials Secret (absent e.g. for Derby).
+    for env_var in database_connection_details
+        .username_env
+        .iter()
+        .chain(database_connection_details.password_env.iter())
+    {
+        env = env
+            .with_env_var(env_var.clone())
+            .context(AddDatabaseCredentialEnvVarSnafu)?;
+    }
+    container_builder.add_env_vars(
+        env.merge(kerberos_env_vars(cluster))
+            .merge(rg.env_overrides.clone()),
+    );
 
     let mut pod_builder = PodBuilder::new();
 
@@ -463,4 +487,180 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         }),
         status: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+    use crate::{
+        controller::test_support::{DERBY_YAML, minimal_hive, validated_cluster},
+        crd::HiveRole,
+    };
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *LISTENER_PVC_NAME;
+        let _ = *VECTOR_LOG_CONFIG_VOLUME_NAME;
+        let _ = *VECTOR_LOG_VOLUME_NAME;
+        let _ = *HDFS_DISCOVERY_VOLUME_NAME;
+        let _ = *HADOOP_HEAPSIZE;
+        let _ = *HADOOP_OPTS;
+        let _ = *CONTAINERDEBUG_LOG_DIRECTORY;
+    }
+
+    /// [`DERBY_YAML`] with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY` overridden on the
+    /// metastore.
+    const OVERRIDE_DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            envOverrides:
+              CONTAINERDEBUG_LOG_DIRECTORY: /debug-override
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+    /// [`DERBY_YAML`] with Kerberos enabled.
+    const KERBEROS_DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            authentication:
+              kerberos:
+                secretClass: kerberos
+            metadataDatabase:
+              derby: {}
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+    /// [`KERBEROS_DERBY_YAML`] with the operator-set `KRB5_CONFIG` overridden on the metastore.
+    const KERBEROS_OVERRIDE_DERBY_YAML: &str = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            authentication:
+              kerberos:
+                secretClass: kerberos
+            metadataDatabase:
+              derby: {}
+          metastore:
+            envOverrides:
+              KRB5_CONFIG: /custom/krb5.conf
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+    /// The name/value pairs of the given env var in the hive container of the metastore `default`
+    /// role group built from `yaml`.
+    fn env_var_values(yaml: &str, env_var_name: &str) -> Vec<(String, String)> {
+        let hive = minimal_hive(yaml);
+        let cluster = validated_cluster(&hive);
+        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
+        let rg = &cluster.role_group_configs[&HiveRole::MetaStore][&role_group_name];
+
+        let stateful_set = build_metastore_rolegroup_statefulset(
+            &HiveRole::MetaStore,
+            &cluster,
+            &role_group_name,
+            rg,
+        )
+        .expect("the StatefulSet builds");
+
+        stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == Container::Hive.to_container_name().to_string())
+            .expect("the hive container exists")
+            .env
+            .expect("the hive container has env vars")
+            .into_iter()
+            .filter(|env_var| env_var.name == env_var_name)
+            .map(|env_var| (env_var.name, env_var.value.unwrap_or_default()))
+            .collect()
+    }
+
+    /// The user-supplied `envOverrides` must be merged in after all operator-set environment
+    /// variables, so that an override replaces the operator's value instead of producing a
+    /// duplicated entry whose precedence depended on Kubernetes' duplicate-name handling.
+    /// `CONTAINERDEBUG_LOG_DIRECTORY` is used as the example here because it is set
+    /// unconditionally by the operator.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        // Without an override, the operator's value is set (exactly once).
+        assert_eq!(
+            env_var_values(DERBY_YAML, "CONTAINERDEBUG_LOG_DIRECTORY"),
+            [(
+                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                format!("{STACKABLE_LOG_DIR}/containerdebug")
+            )]
+        );
+
+        // An override replaces it; exact comparison so a duplicate entry (operator value
+        // alongside the override) fails too.
+        assert_eq!(
+            env_var_values(OVERRIDE_DERBY_YAML, "CONTAINERDEBUG_LOG_DIRECTORY"),
+            [(
+                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                "/debug-override".to_string()
+            )]
+        );
+    }
+
+    /// With Kerberos enabled, the operator sets `KRB5_CONFIG` — as part of the merged env set, so
+    /// an `envOverrides` entry replaces it (previously it was appended to the container after the
+    /// overrides and could not be overridden).
+    #[test]
+    fn env_overrides_override_kerberos_env_vars() {
+        // Without an override, the operator's value is set (exactly once).
+        assert_eq!(
+            env_var_values(KERBEROS_DERBY_YAML, "KRB5_CONFIG"),
+            [(
+                "KRB5_CONFIG".to_string(),
+                "/stackable/kerberos/krb5.conf".to_string()
+            )]
+        );
+
+        // An override replaces it; exact comparison so a duplicate entry fails too.
+        assert_eq!(
+            env_var_values(KERBEROS_OVERRIDE_DERBY_YAML, "KRB5_CONFIG"),
+            [("KRB5_CONFIG".to_string(), "/custom/krb5.conf".to_string())]
+        );
+    }
 }

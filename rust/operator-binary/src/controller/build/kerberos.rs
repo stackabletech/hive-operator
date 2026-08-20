@@ -17,7 +17,10 @@ use stackable_operator::{
     commons::secret_class::SecretClassVolumeProvisionParts,
     constant,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::kubernetes::VolumeName,
+    v2::{
+        builder::pod::container::{EnvVarName, EnvVarSet},
+        types::kubernetes::VolumeName,
+    },
 };
 
 use super::properties::ConfigFileName;
@@ -29,6 +32,9 @@ use crate::{
 // Typed name for the Kerberos secret-operator volume, reusing the existing `"kerberos"` string
 // value so the produced volume/mount name is unchanged.
 constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
+
+// The env var pointing the Kerberos libraries at the rendered `krb5.conf`.
+constant!(KRB5_CONFIG: EnvVarName = "KRB5_CONFIG");
 
 /// The directory the Kerberos secret-operator volume is mounted at. `krb5.conf` and `keytab`
 /// sub-paths are derived from this.
@@ -76,12 +82,21 @@ pub fn add_kerberos_pod_config(
         .context(AddVolumeSnafu)?;
         cb.add_volume_mount(&*KERBEROS_VOLUME_NAME, STACKABLE_KERBEROS_DIR)
             .context(AddVolumeMountSnafu)?;
-
-        // Needed env vars
-        cb.add_env_var("KRB5_CONFIG", format!("{STACKABLE_KERBEROS_DIR}/krb5.conf"));
     }
 
     Ok(())
+}
+
+/// The environment variables the Kerberos configuration requires on the Hive container, or an
+/// empty set when Kerberos is disabled.
+///
+/// Returned as an [`EnvVarSet`] (rather than added to the container directly) so the caller can
+/// merge the user's `envOverrides` on top, letting an override win on a name collision.
+pub fn kerberos_env_vars(cluster: &ValidatedCluster) -> EnvVarSet {
+    if !cluster.has_kerberos_enabled() {
+        return EnvVarSet::new();
+    }
+    EnvVarSet::new().with_value(&KRB5_CONFIG, format!("{STACKABLE_KERBEROS_DIR}/krb5.conf"))
 }
 
 pub fn kerberos_config_properties(
@@ -141,4 +156,16 @@ pub fn kerberos_container_start_commands(cluster: &ValidatedCluster) -> String {
     }
 
     args.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *KERBEROS_VOLUME_NAME;
+        let _ = *KRB5_CONFIG;
+    }
 }
