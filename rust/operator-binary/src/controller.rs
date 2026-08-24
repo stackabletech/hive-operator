@@ -361,6 +361,11 @@ pub async fn reconcile_hive(
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
+
+    if hive.meta().deletion_timestamp.is_some() {
+        return Ok(Action::await_change());
+    }
+
     let hive = hive
         .0
         .as_ref()

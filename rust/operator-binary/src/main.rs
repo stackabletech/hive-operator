@@ -8,15 +8,9 @@ use anyhow::anyhow;
 use clap::Parser;
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use stackable_operator::{
-    YamlSchema,
-    cli::{Command, RunArguments},
-    crd::listener::v1alpha1::Listener,
-    eos::EndOfSupportChecker,
-    k8s_openapi::api::{
-        apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Service},
-    },
-    kube::{
+    YamlSchema, cli::{Command, RunArguments}, crd::listener::v1alpha1::Listener, eos::EndOfSupportChecker, k8s_openapi::api::{
+        apps::v1::StatefulSet, core::v1::{ConfigMap, Service, ServiceAccount}, policy::v1::PodDisruptionBudget, rbac::v1::RoleBinding,
+    }, kube::{
         CustomResourceExt, ResourceExt,
         core::DeserializeGuard,
         runtime::{
@@ -25,11 +19,7 @@ use stackable_operator::{
             reflector::ObjectRef,
             watcher,
         },
-    },
-    logging::controller::report_controller_reconciled,
-    shared::yaml::SerializeOptions,
-    telemetry::Tracing,
-    utils::signal::{self, SignalWatcher},
+    }, logging::controller::report_controller_reconciled, shared::yaml::SerializeOptions, telemetry::Tracing, utils::signal::{self, SignalWatcher},
 };
 
 use crate::{
@@ -125,14 +115,6 @@ async fn main() -> anyhow::Result<()> {
             let config_map_store = hive_controller.store();
             let hive_controller = hive_controller
                 .owns(
-                    watch_namespace.get_api::<Service>(&client),
-                    watcher::Config::default(),
-                )
-                .owns(
-                    watch_namespace.get_api::<StatefulSet>(&client),
-                    watcher::Config::default(),
-                )
-                .owns(
                     watch_namespace.get_api::<ConfigMap>(&client),
                     watcher::Config::default(),
                 )
@@ -142,6 +124,26 @@ async fn main() -> anyhow::Result<()> {
                 // discovery ConfigMap once the address is set.
                 .owns(
                     watch_namespace.get_api::<Listener>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<PodDisruptionBudget>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<RoleBinding>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<Service>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<ServiceAccount>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<StatefulSet>(&client),
                     watcher::Config::default(),
                 )
                 .watches(

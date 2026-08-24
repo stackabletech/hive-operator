@@ -10518,6 +10518,10 @@ rec {
         ];
         devDependencies = [
           {
+            name = "http";
+            packageId = "http";
+          }
+          {
             name = "rstest";
             packageId = "rstest";
           }
