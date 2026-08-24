@@ -483,6 +483,15 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use stackable_operator::{
+        client::Client,
+        commons::networking::DomainName,
+        kube::{Client as KubeClient, Config, runtime::controller::Action},
+        utils::cluster_info::KubernetesClusterInfo,
+    };
+
     use super::*;
 
     #[test]
@@ -491,5 +500,116 @@ mod tests {
         let _ = *PRODUCT_NAME;
         let _ = *OPERATOR_NAME;
         let _ = *CONTROLLER_NAME;
+    }
+
+    /// A [`Ctx`] whose client points at a closed port. Any API call made through it fails the
+    /// reconciliation, so an `Ok` result proves the reconciler returned before touching the
+    /// Kubernetes API.
+    fn unreachable_ctx() -> Arc<Ctx> {
+        let config = Config::new(
+            "http://127.0.0.1:1"
+                .parse::<http::Uri>()
+                .expect("valid static URI"),
+        );
+        let kube_client = KubeClient::try_from(config).expect("client from static config");
+
+        Arc::new(Ctx {
+            client: Client::new(
+                kube_client.clone(),
+                None,
+                "default".to_owned(),
+                KubernetesClusterInfo {
+                    cluster_domain: DomainName::from_str("cluster.local")
+                        .expect("valid cluster domain"),
+                },
+            ),
+            operator_environment: OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_owned(),
+                operator_service_name: "hdfs-operator".to_owned(),
+                image_repository: "oci.stackable.tech/sdp".to_owned(),
+            },
+        })
+    }
+
+    fn reconcile(hdfs: DeserializeGuard<v1alpha1::HiveCluster>) -> Result<Action, Error> {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+            .block_on(async { reconcile_hive(Arc::new(hdfs), unreachable_ctx()).await })
+    }
+
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster() {
+        let hive = serde_yaml::from_str(
+            r#"
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec:
+  image:
+    productVersion: 3.2.2
+"#,
+        )
+        .expect("valid cluster YAML");
+
+        let action = reconcile(hive).expect("a deleted cluster reconciles without any API call");
+
+        assert_eq!(action, Action::await_change());
+    }
+
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster_with_invalid_spec() {
+        let hive = serde_yaml::from_str(
+            r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec: {}
+"#,
+        )
+        .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
+
+        let action =
+            reconcile(hive).expect("a deleted cluster reconciles even when its spec is invalid");
+
+        assert_eq!(action, Action::await_change());
+    }
+
+    #[test]
+    fn reconcile_proceeds_for_live_cluster() {
+        let hive = serde_yaml::from_str(
+            r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+  namespace: default
+spec:
+  image:
+    productVersion: 4.1.0
+  clusterConfig:
+    metadataDatabase:
+      derby: {}
+  metastore:
+    roleGroups:
+      default:
+        replicas: 1
+"#,
+        )
+        .expect("valid cluster YAML");
+
+        let result = reconcile(hive);
+
+        assert!(
+            matches!(result, Err(Error::Dereference { .. })),
+            "a live cluster must reach the API but when dereferencing against the unreachable test server: {result:?}"
+        );
     }
 }

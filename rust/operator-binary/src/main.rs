@@ -8,9 +8,17 @@ use anyhow::anyhow;
 use clap::Parser;
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use stackable_operator::{
-    YamlSchema, cli::{Command, RunArguments}, crd::listener::v1alpha1::Listener, eos::EndOfSupportChecker, k8s_openapi::api::{
-        apps::v1::StatefulSet, core::v1::{ConfigMap, Service, ServiceAccount}, policy::v1::PodDisruptionBudget, rbac::v1::RoleBinding,
-    }, kube::{
+    YamlSchema,
+    cli::{Command, RunArguments},
+    crd::listener::v1alpha1::Listener,
+    eos::EndOfSupportChecker,
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Service, ServiceAccount},
+        policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
+    },
+    kube::{
         CustomResourceExt, ResourceExt,
         core::DeserializeGuard,
         runtime::{
@@ -19,7 +27,11 @@ use stackable_operator::{
             reflector::ObjectRef,
             watcher,
         },
-    }, logging::controller::report_controller_reconciled, shared::yaml::SerializeOptions, telemetry::Tracing, utils::signal::{self, SignalWatcher},
+    },
+    logging::controller::report_controller_reconciled,
+    shared::yaml::SerializeOptions,
+    telemetry::Tracing,
+    utils::signal::{self, SignalWatcher},
 };
 
 use crate::{
