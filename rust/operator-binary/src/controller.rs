@@ -525,18 +525,18 @@ mod tests {
             ),
             operator_environment: OperatorEnvironmentOptions {
                 operator_namespace: "stackable-operators".to_owned(),
-                operator_service_name: "hdfs-operator".to_owned(),
+                operator_service_name: "hive-operator".to_owned(),
                 image_repository: "oci.stackable.tech/sdp".to_owned(),
             },
         })
     }
 
-    fn reconcile(hdfs: DeserializeGuard<v1alpha1::HiveCluster>) -> Result<Action, Error> {
+    fn reconcile(hive: DeserializeGuard<v1alpha1::HiveCluster>) -> Result<Action, Error> {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("current-thread tokio runtime")
-            .block_on(async { reconcile_hive(Arc::new(hdfs), unreachable_ctx()).await })
+            .block_on(async { reconcile_hive(Arc::new(hive), unreachable_ctx()).await })
     }
 
     #[test]
@@ -565,7 +565,7 @@ spec:
     fn reconcile_exits_early_for_deleted_cluster_with_invalid_spec() {
         let hive = serde_yaml::from_str(
             r#"
-apiVersion: hdfs.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
   name: hive
@@ -586,7 +586,7 @@ spec: {}
     fn reconcile_proceeds_for_live_cluster() {
         let hive = serde_yaml::from_str(
             r#"
-apiVersion: hdfs.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha1
 kind: HiveCluster
 metadata:
   name: hive
