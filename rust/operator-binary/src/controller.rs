@@ -361,6 +361,11 @@ pub async fn reconcile_hive(
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
+
+    if hive.meta().deletion_timestamp.is_some() {
+        return Ok(Action::await_change());
+    }
+
     let hive = hive
         .0
         .as_ref()
@@ -478,6 +483,15 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use stackable_operator::{
+        client::Client,
+        commons::networking::DomainName,
+        kube::{Client as KubeClient, Config, runtime::controller::Action},
+        utils::cluster_info::KubernetesClusterInfo,
+    };
+
     use super::*;
 
     #[test]
@@ -486,5 +500,55 @@ mod tests {
         let _ = *PRODUCT_NAME;
         let _ = *OPERATOR_NAME;
         let _ = *CONTROLLER_NAME;
+    }
+
+    /// The client points at a closed port, so any API call would fail the reconciliation: an `Ok`
+    /// proves that a cluster being deleted returns before the reconciler touches the Kubernetes
+    /// API, and because the spec is invalid, before the [`DeserializeGuard`] is unwrapped.
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster() {
+        let hive = serde_yaml::from_str(
+            r#"
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec: {}
+"#,
+        )
+        .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
+
+        let action = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+            .block_on(async {
+                let ctx = Arc::new(Ctx {
+                    client: Client::new(
+                        KubeClient::try_from(Config::new(
+                            "http://127.0.0.1:1".parse().expect("valid static URI"),
+                        ))
+                        .expect("client from static config"),
+                        None,
+                        "default".to_owned(),
+                        KubernetesClusterInfo {
+                            cluster_domain: DomainName::from_str("cluster.local")
+                                .expect("valid cluster domain"),
+                        },
+                    ),
+                    operator_environment: OperatorEnvironmentOptions {
+                        operator_namespace: "stackable-operators".to_owned(),
+                        operator_service_name: "hive-operator".to_owned(),
+                        image_repository: "oci.stackable.tech/sdp".to_owned(),
+                    },
+                });
+
+                reconcile_hive(Arc::new(hive), ctx).await
+            })
+            .expect("a deleted cluster reconciles without any API call");
+
+        assert_eq!(action, Action::await_change());
     }
 }
