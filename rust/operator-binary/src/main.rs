@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
             let config_map_store = hive_controller.store();
             let hive_controller = hive_controller
                 .owns(
-                    watch_namespace.get_api::<ConfigMap>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
                 )
                 // The role Listener is created by this operator, but its ingress address (from
@@ -135,27 +135,27 @@ async fn main() -> anyhow::Result<()> {
                 // listener-operator -- this watch triggers the reconcile run that builds the
                 // discovery ConfigMap once the address is set.
                 .owns(
-                    watch_namespace.get_api::<Listener>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<Listener>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<PodDisruptionBudget>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<PodDisruptionBudget>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<RoleBinding>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<Service>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<Service>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<ServiceAccount>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<StatefulSet>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                     watcher::Config::default(),
                 )
                 .watches(
