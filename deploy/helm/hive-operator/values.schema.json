@@ -153,19 +153,19 @@
       "title": "Node selector",
       "type": "object",
       "default": {},
-      "description": "Node labels the operator pod must match to be scheduled."
+      "description": "Node labels the operator pod must match to be scheduled. Product pods are placed by their own custom resource, not here."
     },
     "tolerations": {
       "title": "Tolerations",
       "type": "array",
       "default": [],
-      "description": "Taints the operator pod tolerates."
+      "description": "Taints the operator pod tolerates. Product pods take their tolerations from their own custom resource, not here."
     },
     "affinity": {
       "title": "Affinity",
       "type": "object",
       "default": {},
-      "description": "Affinity and anti-affinity rules for the operator pod."
+      "description": "Affinity and anti-affinity rules for the operator pod. Product pod affinity is configured in their own custom resource, not here."
     },
     "priorityClassName": {
       "title": "Priority class name",
@@ -323,6 +323,11 @@
           ]
         }
       }
+    },
+    "global": {
+      "title": "Global values",
+      "description": "Values shared with parent and sibling charts when this chart is used as a subchart. Not read by this chart.",
+      "type": "object"
     }
   },
   "definitions": {
