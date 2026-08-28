@@ -8,7 +8,6 @@ pub use product_logging::spec::{
 };
 use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
-use snafu::Snafu;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -78,12 +77,12 @@ pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore.p12";
 pub const STACKABLE_TRUST_STORE_PASSWORD: &str = "changeit";
 
 // Listener defaults
-pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+constant!(pub DEFAULT_LISTENER_CLASS: ListenerClassName = "cluster-internal");
 
-// used by crds to define a default listener_class name
+/// Serde default for `listenerClass`. Kept as a function because `#[serde(default = "...")]`
+/// requires a function path.
 pub fn metastore_default_listener_class() -> ListenerClassName {
-    ListenerClassName::from_str(DEFAULT_LISTENER_CLASS)
-        .expect("the default listener class is a valid listener class name")
+    DEFAULT_LISTENER_CLASS.clone()
 }
 
 const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
@@ -99,12 +98,6 @@ pub type HiveRoleType = Role<
 
 pub type HiveRoleGroupType =
     RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha1::HiveConfigOverrides>;
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("the role {role} is not defined"))]
-    CannotRetrieveHiveRole { role: String },
-}
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -410,6 +403,7 @@ mod tests {
     fn test_constants() {
         // Test that dereferencing the constants does not panic.
         let _ = *METASTORE_ROLE_NAME;
+        let _ = *DEFAULT_LISTENER_CLASS;
     }
 
     impl RoundtripTestData for v1alpha1::HiveClusterSpec {
