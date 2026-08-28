@@ -207,7 +207,14 @@ spec:
         - -euo
         - pipefail
         - -c
+        # Env vars are emitted in alphabetical order (operator-rs `EnvVarSet` is a BTreeMap).
         env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
         - name: HADOOP_HEAPSIZE
           value: "614"
         - name: HADOOP_OPTS
@@ -215,22 +222,16 @@ spec:
             -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=9084:/stackable/jmx/jmx_hive_config.yaml
             -Djavax.net.ssl.trustStore=/stackable/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit
             -Djavax.net.ssl.trustStoreType=pkcs12
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
-          value: /stackable/log/containerdebug
-        - name: METADATA_DATABASE_USERNAME
-          valueFrom:
-            secretKeyRef:
-              key: username
-              name: hive-credentials
         - name: METADATA_DATABASE_PASSWORD
           valueFrom:
             secretKeyRef:
               key: password
               name: hive-credentials
-        - name: COMMON_VAR
-          value: group-value
-        - name: GROUP_VAR
-          value: group-value
+        - name: METADATA_DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: hive-credentials
         - name: ROLE_VAR
           value: role-value
         imagePullPolicy: IfNotPresent
@@ -266,12 +267,6 @@ spec:
             cpu: 250m
             memory: 768Mi
         volumeMounts:
-        - mountPath: /stackable/secrets/test-hive-s3-secret-class
-          name: test-hive-s3-secret-class-s3-credentials
-{% if test_scenario['values']['s3-use-tls'] == 'true' %}
-        - mountPath: /stackable/secrets/minio-tls-certificates
-          name: minio-tls-certificates-ca-cert
-{% endif %}
 {% if test_scenario['values']['opa-use-tls'] == 'true' %}
         - mountPath: /stackable/secrets/opa-tls
           name: opa-tls
@@ -286,6 +281,12 @@ spec:
           name: log-config-mount
         - mountPath: /stackable/listener
           name: listener
+        - mountPath: /stackable/secrets/test-hive-s3-secret-class
+          name: test-hive-s3-secret-class-s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        - mountPath: /stackable/secrets/minio-tls-certificates
+          name: minio-tls-certificates-ca-cert
+{% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - args:
         - |-
@@ -357,6 +358,36 @@ spec:
       serviceAccountName: hive-serviceaccount
       terminationGracePeriodSeconds: 300
       volumes:
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/provision-parts: public
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
+              volumeMode: Filesystem
+        name: opa-tls
+{% endif %}
+      - emptyDir:
+          sizeLimit: 10Mi
+        name: config
+      - configMap:
+          defaultMode: 420
+          name: hive-metastore-default
+        name: config-mount
+      - emptyDir:
+          sizeLimit: 30Mi
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: hive-metastore-default
+        name: log-config-mount
       - ephemeral:
           volumeClaimTemplate:
             metadata:
@@ -389,36 +420,6 @@ spec:
               volumeMode: Filesystem
         name: minio-tls-certificates-ca-cert
 {% endif %}
-{% if test_scenario['values']['opa-use-tls'] == 'true' %}
-      - ephemeral:
-          volumeClaimTemplate:
-            metadata:
-              annotations:
-                secrets.stackable.tech/provision-parts: public
-            spec:
-              accessModes:
-              - ReadWriteOnce
-              resources:
-                requests:
-                  storage: "1"
-              storageClassName: secrets.stackable.tech
-              volumeMode: Filesystem
-        name: opa-tls
-{% endif %}
-      - emptyDir:
-          sizeLimit: 10Mi
-        name: config
-      - configMap:
-          defaultMode: 420
-          name: hive-metastore-default
-        name: config-mount
-      - emptyDir:
-          sizeLimit: 30Mi
-        name: log
-      - configMap:
-          defaultMode: 420
-          name: hive-metastore-default
-        name: log-config-mount
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim

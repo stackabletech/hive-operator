@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
   StatefulSets created by older operator versions cannot be updated in place: after the
   operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
   the new labels ([#748]).
+- Make operations infallible where appropriate ([#759]).
 
 ### Fixed
 
@@ -42,6 +43,7 @@ All notable changes to this project will be documented in this file.
 [#741]: https://github.com/stackabletech/hive-operator/pull/741
 [#748]: https://github.com/stackabletech/hive-operator/pull/748
 [#754]: https://github.com/stackabletech/hive-operator/pull/754
+[#759]: https://github.com/stackabletech/hive-operator/pull/759
 
 ## [26.7.0] - 2026-07-21
 

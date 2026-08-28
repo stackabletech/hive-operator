@@ -31,12 +31,6 @@ pub enum Error {
 
     #[snafu(display("failed to serialize {}", ConfigFileName::Security))]
     WriteSecurityProperties { source: PropertiesWriterError },
-
-    #[snafu(display("failed to assemble ConfigMap for role group {role_group}"))]
-    Assemble {
-        source: stackable_operator::builder::configmap::Error,
-        role_group: RoleGroupName,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -120,7 +114,7 @@ pub fn build_metastore_rolegroup_config_map(
         );
     }
 
-    cm_builder.build().with_context(|_| AssembleSnafu {
-        role_group: role_group_name.clone(),
-    })
+    Ok(cm_builder
+        .build()
+        .expect("The ConfigMap metadata is set in this function."))
 }
