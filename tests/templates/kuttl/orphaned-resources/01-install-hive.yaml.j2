@@ -20,6 +20,9 @@ spec:
 {% endif %}
   metastore:
     config:
+      # A Pod that does not exit before the SIGKILL therefore blocks the listener PVC -> PV -> Listener
+      # finalizer chain long enough for the namespace deletion, and with it the whole test case, to time out.
+      gracefulShutdownTimeout: 5s
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
