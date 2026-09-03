@@ -1036,9 +1036,9 @@ rec {
       };
       "chacha20" = rec {
         crateName = "chacha20";
-        version = "0.10.1";
+        version = "0.10.2";
         edition = "2024";
-        sha256 = "108aajbvs3rwl4d0pdvq3p8ydy4pwh0rxy2z265ynwkflrmla96m";
+        sha256 = "01hvvbgdmqkcgs2s4f12s9wa5h2gbq05rqvypv61azlwd55mxhv5";
         authors = [
           "RustCrypto Developers"
         ];
