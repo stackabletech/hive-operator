@@ -33,6 +33,15 @@ constant!(KRB5_CONFIG: EnvVarName = "KRB5_CONFIG");
 /// sub-paths are derived from this.
 pub(crate) const STACKABLE_KERBEROS_DIR: &str = "/stackable/kerberos";
 
+/// Adds the Kerberos secret-operator volume (providing `krb5.conf` and `keytab`) to the pod
+/// builder and mounts it into the container at [`STACKABLE_KERBEROS_DIR`]. Does nothing when
+/// Kerberos is disabled.
+///
+/// # Panics
+///
+/// Panics if the volumes or volume mounts cannot be added to the builders. Only call this
+/// on builders whose volume names and mount paths are still distinct from the ones added
+/// here.
 pub fn add_kerberos_pod_config(
     cluster: &ValidatedCluster,
     role: &HiveRole,
