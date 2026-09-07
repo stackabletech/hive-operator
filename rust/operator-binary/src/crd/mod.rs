@@ -404,6 +404,10 @@ mod tests {
         // Test that dereferencing the constants does not panic.
         let _ = *METASTORE_ROLE_NAME;
         let _ = *DEFAULT_LISTENER_CLASS;
+        let _ = *STACKABLE_CONFIG_DIR_NAME;
+        let _ = *STACKABLE_CONFIG_MOUNT_DIR_NAME;
+        let _ = *STACKABLE_LOG_DIR_NAME;
+        let _ = *STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME;
     }
 
     impl RoundtripTestData for v1alpha1::HiveClusterSpec {
