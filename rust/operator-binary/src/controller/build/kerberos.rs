@@ -1,11 +1,18 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pod::{
-        PodBuilder,
-        container::ContainerBuilder,
-        volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::{
+        self,
+        pod::{
+            PodBuilder,
+            container::ContainerBuilder,
+            volume::{
+                SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+                VolumeBuilder,
+            },
+        },
     },
     commons::secret_class::SecretClassVolumeProvisionParts,
     constant,
@@ -33,21 +40,32 @@ constant!(KRB5_CONFIG: EnvVarName = "KRB5_CONFIG");
 /// sub-paths are derived from this.
 pub(crate) const STACKABLE_KERBEROS_DIR: &str = "/stackable/kerberos";
 
+#[derive(Snafu, Debug)]
+#[allow(clippy::enum_variant_names)] // all variants have the same prefix: `Add`
+pub enum Error {
+    #[snafu(display("failed to add Kerberos secret volume"))]
+    AddKerberosSecretVolume {
+        source: SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+}
+
 /// Adds the Kerberos secret-operator volume (providing `krb5.conf` and `keytab`) to the pod
 /// builder and mounts it into the container at [`STACKABLE_KERBEROS_DIR`]. Does nothing when
 /// Kerberos is disabled.
 ///
 /// # Panics
 ///
-/// Panics if the volumes or volume mounts cannot be added to the builders. Only call this
-/// on builders whose volume names and mount paths are still distinct from the ones added
-/// here.
+/// Panics if the volume mounts cannot be added to the container builder. Only call this on a
+/// container builder whose mount paths are still distinct from the ones added here.
 pub fn add_kerberos_pod_config(
     cluster: &ValidatedCluster,
     role: &HiveRole,
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
-) {
+) -> Result<(), Error> {
     if let Some(kerberos_secret_class) = &cluster.cluster_config.kerberos_secret_class {
         // Mount keytab
         let kerberos_secret_operator_volume = SecretOperatorVolumeSourceBuilder::new(
@@ -58,16 +76,18 @@ pub fn add_kerberos_pod_config(
         .with_service_scope(cluster.name.to_string())
         .with_kerberos_service_name(role.kerberos_service_name())
         .build()
-        .expect("The annotation keys are static and annotation values cannot be invalid.");
+        .context(AddKerberosSecretVolumeSnafu)?;
         pb.add_volume(
             VolumeBuilder::new(&*KERBEROS_VOLUME_NAME)
                 .ephemeral(kerberos_secret_operator_volume)
                 .build(),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.");
+        .context(AddVolumeSnafu)?;
         cb.add_volume_mount(&*KERBEROS_VOLUME_NAME, STACKABLE_KERBEROS_DIR)
             .expect("The mount paths are statically defined and there should be no duplicates.");
     }
+
+    Ok(())
 }
 
 /// The environment variables the Kerberos configuration requires on the Hive container, or an

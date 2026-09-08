@@ -89,14 +89,34 @@ pub enum Error {
         source: crate::controller::build::graceful_shutdown::Error,
     },
 
+    #[snafu(display("failed to add kerberos config"))]
+    AddKerberosConfig {
+        source: crate::controller::build::kerberos::Error,
+    },
+
     #[snafu(display("failed to add the database credential environment variables"))]
     AddDatabaseCredentialEnvVar {
         source: stackable_operator::v2::builder::pod::container::Error,
     },
 
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume {
+        source: stackable_operator::builder::pod::Error,
+    },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: stackable_operator::builder::pod::container::Error,
+    },
+
     #[snafu(display("failed to construct JVM arguments"))]
     ConstructJvmArguments {
         source: crate::controller::build::jvm::Error,
+    },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
     },
 }
 
@@ -177,9 +197,9 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
-    // Operator-managed volumes and volume mounts have constant names and paths, so they cannot
-    // collide with each other and the adds are infallible. The S3 volumes (named after the user's
-    // SecretClasses) are added last, after every operator-managed one, and stay fallible.
+    // Operator-managed volume mounts use constant mount paths, so they cannot collide with each
+    // other and those adds are infallible. Volume adds stay fallible. The S3 volumes and mounts
+    // (named after the user's SecretClasses) are added last, after every operator-managed one.
     if let Some(hdfs) = &cluster.cluster_config.hdfs {
         pod_builder
             .add_volume(
@@ -187,7 +207,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
                     .with_config_map(&hdfs.config_map)
                     .build(),
             )
-            .expect("The volume names are statically defined and there should be no duplicates.");
+            .context(AddVolumeSnafu)?;
         container_builder
             .add_volume_mount(&*HDFS_DISCOVERY_VOLUME_NAME, HDFS_CONFIG_MOUNT_DIR)
             .expect("The mount paths are statically defined and there should be no duplicates.");
@@ -204,7 +224,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     {
         container_builder
             .add_volume_mount(&*OPA_TLS_VOLUME_NAME, &tls_mount_path)
-            .expect("The mount paths are statically defined and there should be no duplicates.");
+            .context(AddVolumeMountSnafu)?;
 
         let opa_tls_volume = VolumeBuilder::new(&*OPA_TLS_VOLUME_NAME)
             .ephemeral(
@@ -214,13 +234,13 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
                     SecretClassVolumeProvisionParts::Public,
                 )
                 .build()
-                .expect("The annotation keys are static and annotation values cannot be invalid."),
+                .context(TlsCertSecretClassVolumeBuildSnafu)?,
             )
             .build();
 
         pod_builder
             .add_volume(opa_tls_volume)
-            .expect("The volume names are statically defined and there should be no duplicates.");
+            .context(AddVolumeSnafu)?;
     }
 
     let db_type = &cluster.cluster_config.db_type;
@@ -359,7 +379,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
             name: STACKABLE_CONFIG_MOUNT_DIR_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
@@ -368,14 +388,14 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             }),
             ..Default::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
             &*STACKABLE_LOG_DIR_NAME,
             Some(product_logging::framework::calculate_log_volume_size_limit(
                 &[MAX_HIVE_LOG_FILES_SIZE],
             )),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .affinity(&merged_config.affinity)
         .service_account_name(
             cluster
@@ -407,16 +427,18 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.");
+        .context(AddVolumeSnafu)?;
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     if cluster.has_kerberos_enabled() {
-        add_kerberos_pod_config(cluster, hive_role, container_builder, &mut pod_builder);
+        add_kerberos_pod_config(cluster, hive_role, container_builder, &mut pod_builder)
+            .context(AddKerberosConfigSnafu)?;
     }
 
-    // S3 volumes and mounts last: their names come from the user's SecretClasses, so they can
-    // collide with the operator-managed ones above and the adds stay fallible.
+    // S3 volumes and mounts last: their names and mount paths come from the user's SecretClasses,
+    // so they can collide with the operator-managed ones above. Adding them after every
+    // operator-managed mount keeps the mount expects above safe from user-derived duplicates.
     if let Some(s3) = s3_connection {
         s3.add_volumes_and_mounts(&mut pod_builder, vec![&mut *container_builder])
             .context(ConfigureS3ConnectionSnafu)?;
