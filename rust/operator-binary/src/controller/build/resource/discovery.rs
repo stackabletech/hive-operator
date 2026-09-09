@@ -44,6 +44,12 @@ fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveClu
 /// Takes the bare cluster name (not [`ValidatedCluster`]) so the dereference step, which runs
 /// before validation, can derive the same name.
 pub fn discovery_config_map_name(cluster_name: &ClusterName) -> ConfigMapName {
+    const _: () = assert!(
+        ClusterName::MAX_LENGTH <= ConfigMapName::MAX_LENGTH,
+        "The string `<cluster_name>` must not exceed the limit of ConfigMap names."
+    );
+    let _ = ClusterName::IS_RFC_1123_SUBDOMAIN_NAME;
+
     ConfigMapName::from_str(cluster_name.as_ref())
         .expect("a valid cluster name is a valid ConfigMap name")
 }

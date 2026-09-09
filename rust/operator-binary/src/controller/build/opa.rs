@@ -91,3 +91,14 @@ pub fn build_opa_tls_ca_cert_mount_path(opa: &ResolvedOpaConfig) -> Option<Strin
         .as_ref()
         .map(|_| format!("/stackable/secrets/{}", *OPA_TLS_VOLUME_NAME))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *OPA_TLS_VOLUME_NAME;
+    }
+}

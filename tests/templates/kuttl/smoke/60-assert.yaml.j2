@@ -207,6 +207,9 @@ spec:
         - -euo
         - pipefail
         - -c
+        # Env var order is deterministic: operator-rs `EnvVarSet` sorts referenced variables before the
+        # variables that reference them via `$(NAME)`. Without such references (the case here) the
+        # order is alphabetical.
         env:
         - name: COMMON_VAR
           value: group-value
@@ -266,12 +269,6 @@ spec:
             cpu: 250m
             memory: 768Mi
         volumeMounts:
-        - mountPath: /stackable/secrets/test-hive-s3-secret-class
-          name: test-hive-s3-secret-class-s3-credentials
-{% if test_scenario['values']['s3-use-tls'] == 'true' %}
-        - mountPath: /stackable/secrets/minio-tls-certificates
-          name: minio-tls-certificates-ca-cert
-{% endif %}
 {% if test_scenario['values']['opa-use-tls'] == 'true' %}
         - mountPath: /stackable/secrets/opa-tls
           name: opa-tls
@@ -286,6 +283,12 @@ spec:
           name: log-config-mount
         - mountPath: /stackable/listener
           name: listener
+        - mountPath: /stackable/secrets/test-hive-s3-secret-class
+          name: test-hive-s3-secret-class-s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        - mountPath: /stackable/secrets/minio-tls-certificates
+          name: minio-tls-certificates-ca-cert
+{% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - args:
         - |-
@@ -357,6 +360,36 @@ spec:
       serviceAccountName: hive-serviceaccount
       terminationGracePeriodSeconds: 300
       volumes:
+{% if test_scenario['values']['opa-use-tls'] == 'true' %}
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/provision-parts: public
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
+              volumeMode: Filesystem
+        name: opa-tls
+{% endif %}
+      - emptyDir:
+          sizeLimit: 10Mi
+        name: config
+      - configMap:
+          defaultMode: 420
+          name: hive-metastore-default
+        name: config-mount
+      - emptyDir:
+          sizeLimit: 30Mi
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: hive-metastore-default
+        name: log-config-mount
       - ephemeral:
           volumeClaimTemplate:
             metadata:
@@ -389,36 +422,6 @@ spec:
               volumeMode: Filesystem
         name: minio-tls-certificates-ca-cert
 {% endif %}
-{% if test_scenario['values']['opa-use-tls'] == 'true' %}
-      - ephemeral:
-          volumeClaimTemplate:
-            metadata:
-              annotations:
-                secrets.stackable.tech/provision-parts: public
-            spec:
-              accessModes:
-              - ReadWriteOnce
-              resources:
-                requests:
-                  storage: "1"
-              storageClassName: secrets.stackable.tech
-              volumeMode: Filesystem
-        name: opa-tls
-{% endif %}
-      - emptyDir:
-          sizeLimit: 10Mi
-        name: config
-      - configMap:
-          defaultMode: 420
-          name: hive-metastore-default
-        name: config-mount
-      - emptyDir:
-          sizeLimit: 30Mi
-        name: log
-      - configMap:
-          defaultMode: 420
-          name: hive-metastore-default
-        name: log-config-mount
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim

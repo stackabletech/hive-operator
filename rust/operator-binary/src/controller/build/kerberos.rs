@@ -50,13 +50,16 @@ pub enum Error {
 
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
-    },
 }
 
+/// Adds the Kerberos secret-operator volume (providing `krb5.conf` and `keytab`) to the pod
+/// builder and mounts it into the container at [`STACKABLE_KERBEROS_DIR`]. Does nothing when
+/// Kerberos is disabled.
+///
+/// # Panics
+///
+/// Panics if the volume mounts cannot be added to the container builder. Only call this on a
+/// container builder whose mount paths are still distinct from the ones added here.
 pub fn add_kerberos_pod_config(
     cluster: &ValidatedCluster,
     role: &HiveRole,
@@ -81,7 +84,7 @@ pub fn add_kerberos_pod_config(
         )
         .context(AddVolumeSnafu)?;
         cb.add_volume_mount(&*KERBEROS_VOLUME_NAME, STACKABLE_KERBEROS_DIR)
-            .context(AddVolumeMountSnafu)?;
+            .expect("The mount paths are statically defined and there should be no duplicates.");
     }
 
     Ok(())

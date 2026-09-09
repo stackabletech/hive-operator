@@ -5,7 +5,7 @@ use stackable_operator::{
     crd::listener::v1alpha1::{Listener, ListenerIngress, ListenerPort, ListenerSpec},
     v2::types::{
         kubernetes::{ListenerClassName, ListenerName},
-        operator::ClusterName,
+        operator::{ClusterName, RoleName},
     },
 };
 
@@ -48,11 +48,17 @@ pub fn build_listener_connection_string(
 /// Takes the bare cluster name (not [`ValidatedCluster`]) so the dereference step, which runs
 /// before validation, can derive the same name.
 pub fn role_listener_name(cluster_name: &ClusterName, hive_role: &HiveRole) -> ListenerName {
-    ListenerName::from_str(&format!(
-        "{cluster_name}-{hive_role}",
-        hive_role = **hive_role
-    ))
-    .expect("the role listener name is a valid Listener name")
+    const _: () = assert!(
+        ClusterName::MAX_LENGTH + 1 /* dash */ + RoleName::MAX_LENGTH <= ListenerName::MAX_LENGTH,
+        "The string `<cluster_name>-<role_name>` must not exceed the limit of Listener names."
+    );
+    // Both halves are RFC 1123 labels joined by a dash, which is a valid RFC 1123 subdomain.
+    let _ = ClusterName::IS_RFC_1123_SUBDOMAIN_NAME;
+    let _ = RoleName::IS_RFC_1123_LABEL_NAME;
+
+    let role_name: &RoleName = hive_role;
+    ListenerName::from_str(&format!("{cluster_name}-{role_name}"))
+        .expect("The role listener name is a valid Listener name.")
 }
 
 // Designed to build a listener per role
