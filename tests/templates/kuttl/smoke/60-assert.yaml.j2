@@ -207,7 +207,9 @@ spec:
         - -euo
         - pipefail
         - -c
-        # Env vars are emitted in alphabetical order (operator-rs `EnvVarSet` is a BTreeMap).
+        # Env var order is deterministic: operator-rs `EnvVarSet` sorts referenced variables before the
+        # variables that reference them via `$(NAME)`. Without such references (the case here) the
+        # order is alphabetical.
         env:
         - name: COMMON_VAR
           value: group-value
