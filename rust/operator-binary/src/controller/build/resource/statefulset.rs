@@ -167,7 +167,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     let merged_config = &rg.config;
     let hive_opa_config = cluster.cluster_config.hive_opa_config.as_ref();
 
-    let mut container_builder = new_container_builder(&Container::Hive.to_container_name());
+    let mut container_builder = new_container_builder(Container::Hive.name());
 
     // Operator-set env vars first; the user's `envOverrides` are merged on top last and win.
     let mut env = EnvVarSet::new()
@@ -455,7 +455,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     // default, is started first and can provide any dependencies that vector expects
     if let Some(vector_log_config) = &rg.config.logging.vector_container {
         pod_builder.add_container(vector_container(
-            &Container::Vector.to_container_name(),
+            Container::Vector.name(),
             resolved_product_image,
             vector_log_config,
             &resource_names,
@@ -612,7 +612,7 @@ mod tests {
             .expect("the pod template has a spec")
             .containers
             .into_iter()
-            .find(|container| container.name == Container::Hive.to_container_name().to_string())
+            .find(|container| container.name == Container::Hive.name().to_string())
             .expect("the hive container exists")
             .env
             .expect("the hive container has env vars")
