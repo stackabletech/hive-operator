@@ -293,11 +293,18 @@ pub enum Container {
     Vector,
 }
 
+// Typed container names. They must match the strum `Display` (kebab-case) of the variants above,
+// which is pinned by a unit test.
+constant!(HIVE_CONTAINER_NAME: ContainerName = "hive");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+
 impl Container {
-    /// The type-safe container name for this variant (matching its kebab-case serialization).
-    pub fn to_container_name(&self) -> ContainerName {
-        ContainerName::from_str(&self.to_string())
-            .expect("a Container variant name is a valid container name")
+    /// The typed container name of this variant.
+    pub fn name(&self) -> &'static ContainerName {
+        match self {
+            Container::Hive => &HIVE_CONTAINER_NAME,
+            Container::Vector => &VECTOR_CONTAINER_NAME,
+        }
     }
 }
 
@@ -396,6 +403,7 @@ pub struct HiveClusterStatus {
 #[cfg(test)]
 mod tests {
     use stackable_operator::versioned::test_utils::RoundtripTestData;
+    use strum::IntoEnumIterator;
 
     use super::*;
 
@@ -408,6 +416,17 @@ mod tests {
         let _ = *STACKABLE_CONFIG_MOUNT_DIR_NAME;
         let _ = *STACKABLE_LOG_DIR_NAME;
         let _ = *STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME;
+        let _ = *HIVE_CONTAINER_NAME;
+        let _ = *VECTOR_CONTAINER_NAME;
+    }
+
+    /// The typed container names returned by `name` must agree with the strum `Display`
+    /// of `Container`, which the logging configuration still uses as the per-container key.
+    #[test]
+    fn container_names_match_display() {
+        for container in Container::iter() {
+            assert_eq!(container.name().to_string(), container.to_string());
+        }
     }
 
     impl RoundtripTestData for v1alpha1::HiveClusterSpec {
