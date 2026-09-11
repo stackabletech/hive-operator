@@ -34,6 +34,7 @@ All notable changes to this project will be documented in this file.
   See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#741]).
 - The operator now watches all resources that it creates and early-exits the reconcile action when the
   cluster is marked for deletion ([#754]).
+- The operator now watches the `S3Connection` referenced by `spec.clusterConfig.s3.reference` ([#764]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
@@ -44,6 +45,7 @@ All notable changes to this project will be documented in this file.
 [#748]: https://github.com/stackabletech/hive-operator/pull/748
 [#754]: https://github.com/stackabletech/hive-operator/pull/754
 [#759]: https://github.com/stackabletech/hive-operator/pull/759
+[#764]: https://github.com/stackabletech/hive-operator/pull/764
 
 ## [26.7.0] - 2026-07-21
 
