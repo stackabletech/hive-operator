@@ -10,7 +10,7 @@ use futures::{FutureExt, StreamExt, TryFutureExt};
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
-    crd::listener::v1alpha1::Listener,
+    crd::{listener::v1alpha1::Listener, s3},
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -125,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             );
             let config_map_store = hive_controller.store();
+            let s3_connection_store = hive_controller.store();
             let hive_controller = hive_controller
                 .owns(
                     watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
@@ -166,6 +167,18 @@ async fn main() -> anyhow::Result<()> {
                             .state()
                             .into_iter()
                             .filter(move |hive| references_config_map(hive, &config_map))
+                            .map(|hive| ObjectRef::from_obj(&*hive))
+                    },
+                )
+                .watches(
+                    watch_namespace
+                        .get_api::<DeserializeGuard<s3::v1alpha1::S3Connection>>(&client),
+                    watcher::Config::default(),
+                    move |s3_connection| {
+                        s3_connection_store
+                            .state()
+                            .into_iter()
+                            .filter(move |hive| references_s3_connection(hive, &s3_connection))
                             .map(|hive| ObjectRef::from_obj(&*hive))
                     },
                 )
@@ -217,8 +230,129 @@ fn references_config_map(
         return false;
     };
 
+    if hive.namespace() != config_map.namespace() {
+        return false;
+    }
+
     match &hive.spec.cluster_config.hdfs {
         Some(hdfs_connection) => hdfs_connection.config_map.as_ref() == config_map.name_any(),
         None => false,
+    }
+}
+
+fn references_s3_connection(
+    hive: &DeserializeGuard<v1alpha1::HiveCluster>,
+    s3_connection: &DeserializeGuard<s3::v1alpha1::S3Connection>,
+) -> bool {
+    let Ok(hive) = &hive.0 else {
+        return false;
+    };
+
+    if hive.namespace() != s3_connection.namespace() {
+        return false;
+    }
+
+    match &hive.spec.cluster_config.s3 {
+        Some(s3::v1alpha1::InlineConnectionOrReference::Reference(s3_connection_name)) => {
+            s3_connection_name == &s3_connection.name_any()
+        }
+        Some(s3::v1alpha1::InlineConnectionOrReference::Inline(_)) | None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+    use rstest::rstest;
+
+    use super::*;
+
+    fn hive_cluster(spec_s3: &str) -> DeserializeGuard<v1alpha1::HiveCluster> {
+        let hive: DeserializeGuard<v1alpha1::HiveCluster> = serde_yaml::from_str(&format!(
+            indoc! {r#"
+                apiVersion: hive.stackable.tech/v1alpha1
+                kind: HiveCluster
+                metadata:
+                  name: hive
+                  namespace: default
+                spec:
+                  image:
+                    productVersion: 4.2.0
+                  clusterConfig:
+                    metadataDatabase:
+                      derby: {{}}
+                    {s3}
+                  metastore:
+                    roleGroups:
+                      default:
+                        replicas: 1
+            "#},
+            s3 = spec_s3
+        ))
+        .expect("HiveCluster YAML parses");
+
+        assert!(
+            hive.0.is_ok(),
+            "test fixture spec must deserialize: {:?}",
+            hive.0.as_ref().err()
+        );
+
+        hive
+    }
+
+    fn s3_connection(namespace: &str, name: &str) -> DeserializeGuard<s3::v1alpha1::S3Connection> {
+        serde_yaml::from_str(&format!(
+            indoc! {r#"
+                apiVersion: s3.stackable.tech/v1alpha1
+                kind: S3Connection
+                metadata:
+                  name: {name}
+                  namespace: {namespace}
+                spec:
+                  host: minio
+            "#},
+            name = name,
+            namespace = namespace
+        ))
+        .expect("S3Connection YAML parses")
+    }
+
+    #[rstest]
+    #[case::referenced("s3:\n      reference: minio", "default", "minio", true)]
+    #[case::other_connection("s3:\n      reference: minio", "default", "other", false)]
+    #[case::other_namespace("s3:\n      reference: minio", "elsewhere", "minio", false)]
+    #[case::inline("s3:\n      inline:\n        host: minio", "default", "minio", false)]
+    #[case::no_s3("", "default", "minio", false)]
+    fn references_s3_connection_matches_only_the_referenced_connection(
+        #[case] spec_s3: &str,
+        #[case] connection_namespace: &str,
+        #[case] connection_name: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(
+            references_s3_connection(
+                &hive_cluster(spec_s3),
+                &s3_connection(connection_namespace, connection_name)
+            ),
+            expected
+        );
+    }
+
+    #[test]
+    fn references_s3_connection_ignores_undeserializable_clusters() {
+        let hive = serde_yaml::from_str(indoc! {r#"
+            apiVersion: hive.stackable.tech/v1alpha1
+            kind: HiveCluster
+            metadata:
+              name: hive
+              namespace: default
+            spec: {}
+        "#})
+        .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
+
+        assert!(!references_s3_connection(
+            &hive,
+            &s3_connection("default", "minio")
+        ));
     }
 }

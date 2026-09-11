@@ -118,7 +118,8 @@ rules:
       - {{ include "hive-operator.name" . }}clusters/status
     verbs:
       - patch
-  # Read S3Connection configuration referenced in the HiveCluster spec.
+  # Read S3Connection configuration referenced in the HiveCluster spec. Watched by the controller,
+  # so that rotating the credentials, the CA or the endpoint triggers a reconciliation.
   - apiGroups:
       - s3.stackable.tech
     resources:
