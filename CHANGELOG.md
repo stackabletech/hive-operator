@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
+- Add support for Hive `4.2.1` ([#766]).
+
+### Removed
+
+- Remove support for Hive `4.0.1` ([#766]).
+
 ### Changed
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
@@ -45,6 +54,7 @@ All notable changes to this project will be documented in this file.
 [#754]: https://github.com/stackabletech/hive-operator/pull/754
 [#759]: https://github.com/stackabletech/hive-operator/pull/759
 [#764]: https://github.com/stackabletech/hive-operator/pull/764
+[#766]: https://github.com/stackabletech/hive-operator/pull/766
 
 ## [26.7.0] - 2026-07-21
 
