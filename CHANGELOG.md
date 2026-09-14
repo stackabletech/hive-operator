@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support floating tag in product image selection ([#767]).
+
 ### Changed
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
@@ -45,6 +49,7 @@ All notable changes to this project will be documented in this file.
 [#754]: https://github.com/stackabletech/hive-operator/pull/754
 [#759]: https://github.com/stackabletech/hive-operator/pull/759
 [#764]: https://github.com/stackabletech/hive-operator/pull/764
+[#767]: https://github.com/stackabletech/hive-operator/pull/767
 
 ## [26.7.0] - 2026-07-21
 
