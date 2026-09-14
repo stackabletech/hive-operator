@@ -3,8 +3,8 @@
 :keywords: Stackable Operator, Hadoop, Apache Hive, Kubernetes, k8s, operator, engineer, big data, metadata, storage, query
 :hive: https://hive.apache.org
 :github: https://github.com/stackabletech/hive-operator/
-:crd: {crd-docs-base-url}/hive-operator/{crd-docs-version}/
-:crd-hivecluster: {crd-docs}/hive.stackable.tech/hivecluster/v1alpha1/
+:crd: {crd-ref}{crd-ref-release}&operator=hive-operator
+:crd-hivecluster: {crd-ref}/hive.stackable.tech/v1alpha1/hivecluster{crd-ref-release}
 :feature-tracker: https://features.stackable.tech/unified
 
 [.link-bar]
