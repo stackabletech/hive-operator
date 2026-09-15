@@ -6,17 +6,22 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support floating tag in product image selection ([#767]).
+- Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
+  ([#767]).
 
 ### Changed
 
+- BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
+  Abbreviated values such as `26.7` are no longer accepted ([#767]).
+- BREAKING: `spec.image.pullPolicy` now defaults to `IfNotPresent` for non-floating tags instead of
+  always defaulting to `Always` ([#767]).
 - Internal operator refactoring: introduce a build() step in the reconciler that
   assembles all relevant Kubernetes resources before anything is applied ([#726]).
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#731]).
 - BREAKING: The `metastore` role is now required by the CRD; a HiveCluster without it was
   previously accepted by the API server but failed reconciliation ([#731]).
-- Bump stackable-operator to 0.116.0 ([#735], [#748]).
+- Bump stackable-operator to 0.118.0 ([#735], [#748], [#767]).
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps ([#737]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
