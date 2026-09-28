@@ -110,8 +110,8 @@ async fn main() -> anyhow::Result<()> {
             .await?;
 
             let mut readiness_checks = HealthCheckRegistry::new();
-            let hive_cluster_check = readiness_checks.register(format!(
-                "CRD {crd} installed",
+            let hive_cluster_crd_check = readiness_checks.register(format!(
+                "CRD {crd} established",
                 crd = v1alpha1::HiveCluster::crd_name()
             ));
 
@@ -214,7 +214,7 @@ async fn main() -> anyhow::Result<()> {
 
             let delayed_hive_controller = async {
                 signal::crd_established(&client, v1alpha1::HiveCluster::crd_name()).await?;
-                hive_cluster_check.mark_passed();
+                hive_cluster_crd_check.mark_passed();
                 hive_controller.await
             };
 
