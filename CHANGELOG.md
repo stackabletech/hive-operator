@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#767]).
+- Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#770]).
 
 ### Changed
 
@@ -33,6 +34,7 @@ All notable changes to this project will be documented in this file.
   operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
   the new labels ([#748]).
 - Make operations infallible where dependent on static inputs ([#759], [#764]).
+- Bump stackable-operator to 0.119.0 ([#770]).
 
 ### Fixed
 
@@ -57,6 +59,7 @@ All notable changes to this project will be documented in this file.
 [#764]: https://github.com/stackabletech/hive-operator/pull/764
 [#765]: https://github.com/stackabletech/hive-operator/pull/765
 [#767]: https://github.com/stackabletech/hive-operator/pull/767
+[#770]: https://github.com/stackabletech/hive-operator/pull/770
 
 ## [26.7.0] - 2026-07-21
 
