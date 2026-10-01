@@ -64,6 +64,33 @@ def check_table(hive_client, db_name, table_name, location, label):
     ).table
 
 
+def check_legacy_get_table(hive_client, db_name, table_name):
+    """Assert the metastore still answers the pre-Hive-4.0.1 `get_table` Thrift call.
+
+    HIVE-26537 deleted `get_table` and `get_table_objects_by_name` from the Thrift
+    interface in Hive 4.0.1 and at the time of this writing (2026-09) Spark still
+    ships with a bundled Hive that requires these methods.
+    """
+    legacy = hive_client.get_table(dbname=db_name, tbl_name=table_name)
+    if legacy.tableName != table_name:
+        print(
+            f"[ERROR]: Legacy get_table returned table {legacy.tableName} - expected {table_name}"
+        )
+        exit(-1)
+
+    legacy_tables = hive_client.get_table_objects_by_name(
+        dbname=db_name, tbl_names=[table_name]
+    )
+    if [t.tableName for t in legacy_tables] != [table_name]:
+        print(
+            f"[ERROR]: Legacy get_table_objects_by_name returned "
+            f"{[t.tableName for t in legacy_tables]} - expected {[table_name]}"
+        )
+        exit(-1)
+
+    print("[INFO]: Metastore serves the legacy get_table Thrift methods")
+
+
 if __name__ == "__main__":
     all_args = argparse.ArgumentParser(description="Test hive metastore.")
     all_args.add_argument("-p", "--port", help="Metastore server port", default="9083")
@@ -96,6 +123,8 @@ if __name__ == "__main__":
             f"/stackable/warehouse/location_{database_name}_{local_test_table_name}",
             "local",
         )
+
+        check_legacy_get_table(hive_client, database_name, local_test_table_name)
 
         # S3 access
         check_table(
