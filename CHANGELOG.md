@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#770]).
 - Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
 - Add support for Hive `4.2.1` ([#766]).
+- The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#XXX]).
 
 ### Removed
 

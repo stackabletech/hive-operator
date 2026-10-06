@@ -363,7 +363,11 @@ pub struct MetaStoreConfig {
 }
 
 impl MetaStoreConfig {
-    pub(crate) fn default_config(cluster_name: &str, role: &HiveRole) -> MetaStoreConfigFragment {
+    pub(crate) fn default_config(
+        cluster_name: &str,
+        role: &HiveRole,
+        opa_config: Option<&OpaConfig>,
+    ) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
             warehouse_dir: None,
             resources: ResourcesFragment {
@@ -384,7 +388,7 @@ impl MetaStoreConfig {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
+            affinity: get_affinity(cluster_name, role, opa_config),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }

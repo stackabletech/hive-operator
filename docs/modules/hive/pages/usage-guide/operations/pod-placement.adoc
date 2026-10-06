@@ -20,3 +20,22 @@ affinity:
 ----
 
 In the example above `cluster-name` is the name of the HiveCluster custom resource that owns this Pod.
+
+If OPA authorization is configured, the metastore Pods additionally prefer to run on the same Kubernetes nodes as the OPA Pods (weight 50):
+
+[source,yaml]
+----
+affinity:
+  podAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: opa
+            app.kubernetes.io/instance: opa-cluster-name
+            app.kubernetes.io/component: server
+        topologyKey: kubernetes.io/hostname
+      weight: 50
+----
+
+`opa-cluster-name` is the `configMapName` from `spec.clusterConfig.authorization.opa`, which by convention is the name of the OpaCluster.

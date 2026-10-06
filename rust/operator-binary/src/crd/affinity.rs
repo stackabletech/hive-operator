@@ -1,13 +1,34 @@
 use stackable_operator::{
-    commons::affinity::{StackableAffinityFragment, affinity_between_role_pods},
-    k8s_openapi::api::core::v1::PodAntiAffinity,
+    commons::{
+        affinity::{StackableAffinityFragment, affinity_between_role_pods},
+        opa::OpaConfig,
+    },
+    k8s_openapi::api::core::v1::{PodAffinity, PodAntiAffinity},
 };
 
 use crate::crd::{APP_NAME, HiveRole};
 
-pub fn get_affinity(cluster_name: &str, role: &HiveRole) -> StackableAffinityFragment {
+pub fn get_affinity(
+    cluster_name: &str,
+    role: &HiveRole,
+    opa_config: Option<&OpaConfig>,
+) -> StackableAffinityFragment {
+    // With OPA authorization configured, the metastore sends its authorization requests to OPA, so
+    // prefer to place it next to the OPA Pods.
+    let pod_affinity = opa_config.map(|opa_config| PodAffinity {
+        preferred_during_scheduling_ignored_during_execution: Some(vec![
+            affinity_between_role_pods(
+                "opa",
+                &opa_config.config_map_name, // The discovery cm has the same name as the OpaCluster itself
+                "server",
+                50,
+            ),
+        ]),
+        required_during_scheduling_ignored_during_execution: None,
+    });
+
     StackableAffinityFragment {
-        pod_affinity: None,
+        pod_affinity,
         pod_anti_affinity: Some(PodAntiAffinity {
             preferred_during_scheduling_ignored_during_execution: Some(vec![
                 affinity_between_role_pods(APP_NAME, cluster_name, &role.to_string(), 70),
@@ -27,7 +48,9 @@ mod tests {
     use stackable_operator::{
         commons::affinity::StackableAffinity,
         k8s_openapi::{
-            api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
+            api::core::v1::{
+                PodAffinity, PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm,
+            },
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
     };
@@ -50,6 +73,10 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            authorization:
+              opa:
+                configMapName: simple-opa
+                package: hive
           metastore:
             roleGroups:
               default:
@@ -68,7 +95,32 @@ mod tests {
         assert_eq!(
             merged_config.affinity,
             StackableAffinity {
-                pod_affinity: None,
+                pod_affinity: Some(PodAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        WeightedPodAffinityTerm {
+                            pod_affinity_term: PodAffinityTerm {
+                                label_selector: Some(LabelSelector {
+                                    match_labels: Some(BTreeMap::from([
+                                        ("app.kubernetes.io/name".to_string(), "opa".to_string()),
+                                        (
+                                            "app.kubernetes.io/instance".to_string(),
+                                            "simple-opa".to_string(),
+                                        ),
+                                        (
+                                            "app.kubernetes.io/component".to_string(),
+                                            "server".to_string(),
+                                        ),
+                                    ])),
+                                    ..LabelSelector::default()
+                                }),
+                                topology_key: "kubernetes.io/hostname".to_string(),
+                                ..PodAffinityTerm::default()
+                            },
+                            weight: 50,
+                        }
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
                 pod_anti_affinity: Some(PodAntiAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
                         WeightedPodAffinityTerm {
