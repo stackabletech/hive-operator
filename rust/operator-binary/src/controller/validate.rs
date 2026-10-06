@@ -155,7 +155,8 @@ pub fn validate_cluster(
         listener_class: listener_class.clone(),
     };
 
-    let default_config = MetaStoreConfig::default_config(name.as_ref(), &hive_role);
+    let default_config =
+        MetaStoreConfig::default_config(name.as_ref(), &hive_role, hive.get_opa_config());
 
     // The Vector aggregator discovery ConfigMap name. It is only required when the Vector agent is
     // enabled for a role group; validity is already enforced by the `ConfigMapName` type on the CRD.
