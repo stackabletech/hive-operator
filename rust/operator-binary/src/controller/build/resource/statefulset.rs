@@ -147,7 +147,7 @@ constant!(CONTAINERDEBUG_LOG_DIRECTORY: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTO
 
 /// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
 /// [`build_container_command_args`] when copying the
-/// mounted HDFS config into the writeable config directory.
+/// mounted HDFS config into the writable config directory.
 pub(crate) const HDFS_CONFIG_MOUNT_DIR: &str = "/stackable/mount/hdfs-config";
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.

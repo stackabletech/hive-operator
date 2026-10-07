@@ -22,7 +22,7 @@ pub fn build_container_command_args(
     let core_site = ConfigFileName::CoreSite;
     let hive_site = ConfigFileName::HiveSite;
     let mut args = vec![
-        // copy config files to a writeable empty folder in order to set s3 access and secret keys
+        // copy config files to a writable empty folder in order to set s3 access and secret keys
         format!("echo copying {STACKABLE_CONFIG_MOUNT_DIR} to {STACKABLE_CONFIG_DIR}"),
         format!("cp -RL {STACKABLE_CONFIG_MOUNT_DIR}/* {STACKABLE_CONFIG_DIR}"),
         // Copy log4j2 properties
