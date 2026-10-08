@@ -96,9 +96,6 @@ exit 1
 ;;
 esac
 
-# TODO: Remove once https://github.com/stackabletech/issues/issues/828 has been implemented (see that issue for details).
-until kubectl get crd hiveclusters.hive.stackable.tech >/dev/null 2>&1; do echo "Waiting for CRDs to be installed" && sleep 1; done
-
 echo "Install HiveCluster"
 # tag::install-hive[]
 kubectl apply -f hive-minio-credentials.yaml
