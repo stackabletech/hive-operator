@@ -41,6 +41,7 @@ All notable changes to this project will be documented in this file.
   the new labels ([#748]).
 - Make operations infallible where dependent on static inputs ([#759], [#764]).
 - Bump stackable-operator to 0.119.0 ([#770]).
+- test: Bump vector-aggregator to 0.58.0 ([#776]).
 
 ### Fixed
 
@@ -68,6 +69,7 @@ All notable changes to this project will be documented in this file.
 [#767]: https://github.com/stackabletech/hive-operator/pull/767
 [#770]: https://github.com/stackabletech/hive-operator/pull/770
 [#772]: https://github.com/stackabletech/hive-operator/pull/772
+[#776]: https://github.com/stackabletech/hive-operator/pull/776
 
 ## [26.7.0] - 2026-07-21
 
