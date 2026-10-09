@@ -1,4 +1,11 @@
 {{/*
+Used by FILE_LOG_DIRECTORY and the log volume mount in deployment.yaml, which have to agree.
+*/}}
+{{- define "hive-operator.telemetry.fileLogDirectory" -}}
+/var/log/{{ include "hive-operator.appname" . }}
+{{- end }}
+
+{{/*
 Create a list of telemetry related env vars.
 */}}
 {{- define "hive-operator.telemetry.envVars" -}}
@@ -17,7 +24,7 @@ Create a list of telemetry related env vars.
 {{ end }}
 {{- if .fileLog.enabled }}
 - name: FILE_LOG_DIRECTORY
-  value: /stackable/logs/{{ include "hive-operator.appname" $ }}
+  value: {{ include "hive-operator.telemetry.fileLogDirectory" $ }}
 {{- end }}
 {{- if and .fileLog.enabled .fileLog.level }}
 - name: FILE_LOG_LEVEL
