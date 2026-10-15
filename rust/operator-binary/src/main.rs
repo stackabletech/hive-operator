@@ -312,7 +312,7 @@ mod tests {
     }
 
     fn config_map(namespace: &str, name: &str) -> DeserializeGuard<ConfigMap> {
-        serde_yaml::from_str(&format!(
+        yaml_serde::from_str(&format!(
             indoc! {r#"
                 apiVersion: v1
                 kind: ConfigMap
@@ -327,7 +327,7 @@ mod tests {
     }
 
     fn s3_connection(namespace: &str, name: &str) -> DeserializeGuard<s3::v1alpha1::S3Connection> {
-        serde_yaml::from_str(&format!(
+        yaml_serde::from_str(&format!(
             indoc! {r#"
                 apiVersion: s3.stackable.tech/v1alpha1
                 kind: S3Connection
@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn references_s3_connection_ignores_undeserializable_clusters() {
-        let hive = serde_yaml::from_str(indoc! {r#"
+        let hive = yaml_serde::from_str(indoc! {r#"
             apiVersion: hive.stackable.tech/v1alpha1
             kind: HiveCluster
             metadata:
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn references_config_map_ignores_undeserializable_clusters() {
-        let hive = serde_yaml::from_str(indoc! {r#"
+        let hive = yaml_serde::from_str(indoc! {r#"
             apiVersion: hive.stackable.tech/v1alpha1
             kind: HiveCluster
             metadata:
