@@ -448,7 +448,7 @@ pub(crate) mod test_support {
     /// (`simple-hive`) deliberately differs from the product name (`hive`), so tests asserting
     /// recommended labels catch swapped `name`/`instance` values.
     pub const DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -460,6 +460,7 @@ pub(crate) mod test_support {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             roleGroups:
               default:
@@ -514,7 +515,7 @@ mod tests {
     fn reconcile_exits_early_for_deleted_cluster() {
         let hive = yaml_serde::from_str(
             r#"
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: hive

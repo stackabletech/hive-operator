@@ -286,7 +286,7 @@ mod tests {
     fn hive_cluster(cluster_config: &str) -> DeserializeGuard<v1alpha2::HiveCluster> {
         let input = format!(
             indoc! {r#"
-                apiVersion: hive.stackable.tech/v1alpha1
+                apiVersion: hive.stackable.tech/v1alpha2
                 kind: HiveCluster
                 metadata:
                   name: hive
@@ -297,6 +297,7 @@ mod tests {
                   clusterConfig:
                     metadataDatabase:
                       derby: {{}}
+                    warehouseDir: s3a://hive/
                     {cluster_config}
                   metastore:
                     roleGroups:
@@ -367,7 +368,7 @@ mod tests {
     #[test]
     fn references_s3_connection_ignores_undeserializable_clusters() {
         let hive = yaml_serde::from_str(indoc! {r#"
-            apiVersion: hive.stackable.tech/v1alpha1
+            apiVersion: hive.stackable.tech/v1alpha2
             kind: HiveCluster
             metadata:
               name: hive
@@ -405,7 +406,7 @@ mod tests {
     #[test]
     fn references_config_map_ignores_undeserializable_clusters() {
         let hive = yaml_serde::from_str(indoc! {r#"
-            apiVersion: hive.stackable.tech/v1alpha1
+            apiVersion: hive.stackable.tech/v1alpha2
             kind: HiveCluster
             metadata:
               name: hive

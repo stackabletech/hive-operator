@@ -167,35 +167,14 @@ mod tests {
         );
         assert_eq!(
             data.get("hive.metastore.warehouse.dir"),
-            Some(&"/stackable/warehouse".to_string())
+            Some(&"s3a://hive/".to_string())
         );
+        // Not configured, so Hive falls back to its own default.
+        assert!(!data.contains_key("hive.metastore.warehouse.external.dir"));
         assert!(data.contains_key("javax.jdo.option.ConnectionDriverName"));
         // No env credentials for an embedded Derby database.
         assert!(!data.contains_key("javax.jdo.option.ConnectionUserName"));
     }
-
-    // #[test]
-    // fn warehouse_dir_spec_overrides_default() {
-    //     let cluster_config = derby_cluster_config();
-    //     let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig {
-    //         warehouse_dir: "/custom/warehouse".to_owned(),
-    //         ..MetaStoreConfig::default()
-    //     });
-
-    //     let data = build(
-    //         &cluster_config,
-    //         "4.0.0",
-    //         &merged,
-    //         BTreeMap::new(),
-    //         BTreeMap::new(),
-    //     )
-    //     .expect("build hive-site");
-
-    //     assert_eq!(
-    //         data.get("hive.metastore.warehouse.dir"),
-    //         Some(&"/custom/warehouse".to_string())
-    //     );
-    // }
 
     #[test]
     fn s3_connection_emits_s3a_settings() {

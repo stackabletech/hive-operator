@@ -520,7 +520,7 @@ mod tests {
     /// [`DERBY_YAML`] with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY` overridden on the
     /// metastore.
     const OVERRIDE_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -532,6 +532,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             envOverrides:
               CONTAINERDEBUG_LOG_DIRECTORY: /debug-override
@@ -542,7 +543,7 @@ mod tests {
 
     /// [`DERBY_YAML`] with Kerberos enabled.
     const KERBEROS_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -552,11 +553,13 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             roleGroups:
               default:
@@ -565,7 +568,7 @@ mod tests {
 
     /// [`KERBEROS_DERBY_YAML`] with the operator-set `KRB5_CONFIG` overridden on the metastore.
     const KERBEROS_OVERRIDE_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -575,11 +578,13 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             envOverrides:
               KRB5_CONFIG: /custom/krb5.conf

@@ -401,6 +401,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             roleGroups:
               Invalid_RG:

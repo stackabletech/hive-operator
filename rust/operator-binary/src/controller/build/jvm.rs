@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_construct_jvm_arguments_defaults() {
         let input = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -119,6 +119,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             roleGroups:
               default:
@@ -145,7 +146,7 @@ mod tests {
     #[test]
     fn test_construct_jvm_argument_overrides() {
         let input = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -157,6 +158,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
           metastore:
             config:
               resources:

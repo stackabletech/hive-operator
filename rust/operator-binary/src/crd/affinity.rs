@@ -61,7 +61,7 @@ mod tests {
     #[case(HiveRole::MetaStore)]
     fn test_affinity_defaults(#[case] role: HiveRole) {
         let input = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -73,6 +73,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://hive/
             authorization:
               opa:
                 configMapName: simple-opa
