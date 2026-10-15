@@ -43,6 +43,8 @@ All notable changes to this project will be documented in this file.
 - Bump stackable-operator to 0.119.0 ([#770]).
 - test: Bump vector-aggregator to 0.58.0 ([#776]).
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
+- Bump stackable-operator to 0.121.0 and replace `serde_yaml` with `yaml_serde` ([#779]).
+- All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#779]).
 
 ### Fixed
 
@@ -72,6 +74,7 @@ All notable changes to this project will be documented in this file.
 [#772]: https://github.com/stackabletech/hive-operator/pull/772
 [#776]: https://github.com/stackabletech/hive-operator/pull/776
 [#778]: https://github.com/stackabletech/hive-operator/pull/778
+[#779]: https://github.com/stackabletech/hive-operator/pull/779
 
 ## [26.7.0] - 2026-07-21
 
