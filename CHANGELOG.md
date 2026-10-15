@@ -41,10 +41,10 @@ All notable changes to this project will be documented in this file.
   the new labels ([#748]).
 - Make operations infallible where dependent on static inputs ([#759], [#764]).
 - Bump stackable-operator to 0.119.0 ([#770]).
-- Bump stackable-operator to 0.121.0 and replace `serde_yaml` with `yaml_serde` ([#779]).
-- All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#779]).
 - test: Bump vector-aggregator to 0.58.0 ([#776]).
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
+- Bump stackable-operator to 0.121.0 and replace `serde_yaml` with `yaml_serde` ([#779]).
+- All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#779]).
 
 ### Fixed
 
