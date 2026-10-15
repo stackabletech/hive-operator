@@ -52,7 +52,7 @@ pub fn build_metastore_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     // Kerberos-related hive-site.xml entries (empty when Kerberos is disabled). Computed here, in
     // the build step, from the validated cluster identity and the controller's cluster info.
-    let kerberos_config = if cluster.has_kerberos_enabled() {
+    let kerberos_config = if cluster.has_thrift_kerberos_enabled() {
         kerberos_config_properties(
             cluster.name.as_ref(),
             cluster.namespace.as_ref(),

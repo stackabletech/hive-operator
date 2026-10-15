@@ -36,9 +36,10 @@ IMPORTANT: HDFS and Hive need to use the same SecretClass (or at least use the s
 ----
 spec:
   clusterConfig:
-    authentication:
-      kerberos:
-        secretClass: kerberos # Put your SecretClass name in here
+    thriftApi:
+      authentication:
+        kerberos:
+          secretClass: kerberos # Put your SecretClass name in here
 ----
 
 The `kerberos.secretClass` is used to give Hive the possibility to request keytabs from the secret-operator.

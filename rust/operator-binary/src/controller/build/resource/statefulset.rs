@@ -431,7 +431,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
-    if cluster.has_kerberos_enabled() {
+    if cluster.has_thrift_kerberos_enabled() {
         add_kerberos_pod_config(cluster, hive_role, container_builder, &mut pod_builder)
             .context(AddKerberosConfigSnafu)?;
     }
@@ -532,6 +532,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             envOverrides:
               CONTAINERDEBUG_LOG_DIRECTORY: /debug-override
@@ -552,11 +553,13 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             roleGroups:
               default:
@@ -575,11 +578,13 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             envOverrides:
               KRB5_CONFIG: /custom/krb5.conf

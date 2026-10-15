@@ -246,8 +246,8 @@ impl ValidatedCluster {
     }
 
     /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.cluster_config.kerberos_secret_class.is_some()
+    pub fn has_thrift_kerberos_enabled(&self) -> bool {
+        self.cluster_config.thrift_kerberos_secret_class.is_some()
     }
 }
 
@@ -315,15 +315,22 @@ pub struct ValidatedClusterConfig {
     pub hdfs: Option<HdfsConnection>,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<dereference::ResolvedOpaConfig>,
-    /// The Kerberos `SecretClass` name, if Kerberos is enabled.
-    pub kerberos_secret_class: Option<SecretClassName>,
+
+    pub thrift_api_enabled: bool,
+    pub iceberg_rest_catalog_enabled: bool,
+
+    pub warehouse_dir: String,
+    pub warehouse_external_dir: Option<String>,
+
+    /// The Kerberos `SecretClass` name, if Kerberos is enabled for the Thrift API.
+    pub thrift_kerberos_secret_class: Option<SecretClassName>,
 }
 
 impl ValidatedClusterConfig {
     /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is required:
     /// Kerberos is enabled and there is no HDFS backend (i.e. S3).
     pub fn needs_kerberos_core_site(&self) -> bool {
-        self.kerberos_secret_class.is_some() && self.hdfs.is_none()
+        self.thrift_kerberos_secret_class.is_some() && self.hdfs.is_none()
     }
 }
 
@@ -455,6 +462,7 @@ pub(crate) mod test_support {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             roleGroups:
               default:

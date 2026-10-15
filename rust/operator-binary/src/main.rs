@@ -344,11 +344,11 @@ mod tests {
     }
 
     #[rstest]
-    #[case::referenced("s3:\n      reference: minio", "default", "minio", true)]
-    #[case::other_connection("s3:\n      reference: minio", "default", "other", false)]
-    #[case::other_namespace("s3:\n      reference: minio", "elsewhere", "minio", false)]
-    #[case::inline("s3:\n      inline:\n        host: minio", "default", "minio", false)]
-    #[case::no_s3("", "default", "minio", false)]
+    #[case::referenced("s3:\n      reference: minio\n    warehouseDir: s3a://my-bucket/my-warehouse/", "default", "minio", true)]
+    #[case::other_connection("s3:\n      reference: minio\n    warehouseDir: s3a://my-bucket/my-warehouse/", "default", "other", false)]
+    #[case::other_namespace("s3:\n      reference: minio\n    warehouseDir: s3a://my-bucket/my-warehouse/", "elsewhere", "minio", false)]
+    #[case::inline("s3:\n      inline:\n        host: minio\n    warehouseDir: s3a://my-bucket/my-warehouse/", "default", "minio", false)]
+    #[case::no_s3("warehouseDir: s3a://my-bucket/my-warehouse/", "default", "minio", false)]
     fn references_s3_connection_matches_only_the_referenced_connection(
         #[case] spec_s3: &str,
         #[case] connection_namespace: &str,
@@ -383,10 +383,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case::referenced("hdfs:\n      configMap: hdfs", "default", "hdfs", true)]
-    #[case::other_config_map("hdfs:\n      configMap: hdfs", "default", "other", false)]
-    #[case::other_namespace("hdfs:\n      configMap: hdfs", "elsewhere", "hdfs", false)]
-    #[case::no_hdfs("", "default", "hdfs", false)]
+    #[case::referenced("hdfs:\n      configMap: hdfs\n    warehouseDir: hdfs://my-hdfs/my-warehouse/", "default", "hdfs", true)]
+    #[case::other_config_map("hdfs:\n      configMap: hdfs\n    warehouseDir: hdfs://my-hdfs/my-warehouse/", "default", "other", false)]
+    #[case::other_namespace("hdfs:\n      configMap: hdfs\n    warehouseDir: hdfs://my-hdfs/my-warehouse/", "elsewhere", "hdfs", false)]
+    #[case::no_hdfs("warehouseDir: hdfs://my-hdfs/my-warehouse/", "default", "hdfs", false)]
     fn references_config_map_matches_only_the_referenced_config_map(
         #[case] spec_hdfs: &str,
         #[case] config_map_namespace: &str,
