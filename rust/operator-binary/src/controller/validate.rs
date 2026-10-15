@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::product_image_selection,
     config::fragment,
@@ -25,7 +25,7 @@ use crate::{
     crd::{
         HiveRole, MetaStoreConfig,
         databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha1::{self, HiveMetastoreRoleConfig},
+        v1alpha2::{self, HiveMetastoreRoleConfig},
     },
 };
 
@@ -79,6 +79,11 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display(
+        "The Thrift API and Iceberg REST catalogs are both disabled, please enable at least one"
+    ))]
+    ThriftAndRestDisabled,
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -123,7 +128,7 @@ fn validate_logging(
 }
 
 pub fn validate_cluster(
-    hive: &v1alpha1::HiveCluster,
+    hive: &v1alpha2::HiveCluster,
     image_repository: &str,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
@@ -209,7 +214,14 @@ pub fn validate_cluster(
 
     let hdfs = hive.spec.cluster_config.hdfs.clone();
 
-    let kerberos_secret_class = hive.kerberos_secret_class();
+    let thrift_api_enabled = hive.spec.cluster_config.thrift_api.enabled;
+    let iceberg_rest_catalog_enabled = hive.spec.cluster_config.iceberg_rest_catalog.enabled;
+    let thrift_kerberos_secret_class = hive.thrift_kerberos_secret_class();
+
+    ensure!(
+        thrift_api_enabled || iceberg_rest_catalog_enabled,
+        ThriftAndRestDisabledSnafu
+    );
 
     Ok(ValidatedCluster::new(
         name,
@@ -224,7 +236,11 @@ pub fn validate_cluster(
             hdfs,
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
             hive_opa_config: dereferenced_objects.hive_opa_config,
-            kerberos_secret_class,
+            warehouse_dir: hive.spec.cluster_config.warehouse_dir.clone(),
+            warehouse_external_dir: hive.spec.cluster_config.warehouse_external_dir.clone(),
+            thrift_api_enabled,
+            iceberg_rest_catalog_enabled,
+            thrift_kerberos_secret_class,
         },
         role_group_configs,
         dereferenced_objects.role_listener,
@@ -245,7 +261,7 @@ fn validate_role_group_config(
         JavaCommonConfig,
         crate::crd::MetaStoreConfigFragment,
         HiveMetastoreRoleConfig,
-        v1alpha1::HiveConfigOverrides,
+        v1alpha2::HiveConfigOverrides,
     >(role_group, role, default_config)
     .with_context(|_| ValidateConfigSnafu {
         role_group: role_group_name.clone(),
@@ -354,7 +370,7 @@ mod tests {
         assert_eq!(cluster_config.hdfs, None);
         assert_eq!(cluster_config.s3_connection_spec, None);
         assert!(cluster_config.hive_opa_config.is_none());
-        assert_eq!(cluster_config.kerberos_secret_class, None);
+        assert_eq!(cluster_config.thrift_kerberos_secret_class, None);
 
         // A single metastore role with the single `default` role group.
         assert_eq!(cluster.role_group_configs.len(), 1);
@@ -373,7 +389,7 @@ mod tests {
         // A copy of `DERBY_YAML` whose role-group name violates the RFC 1123 label rules
         // (uppercase and underscore).
         let yaml = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive

@@ -37,7 +37,7 @@ use stackable_operator::{
 
 use crate::{
     controller::HIVE_FULL_CONTROLLER_NAME,
-    crd::{HiveCluster, HiveClusterVersion, v1alpha1},
+    crd::{HiveCluster, HiveClusterVersion, v1alpha2},
     webhooks::conversion::create_webhook_server,
 };
 
@@ -69,7 +69,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => HiveCluster::merged_crd(HiveClusterVersion::V1Alpha1)?
+        Command::Crd => HiveCluster::merged_crd(HiveClusterVersion::V1Alpha2)?
             .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?,
         Command::Run(RunArguments {
             operator_environment,
@@ -112,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
             let mut readiness_checks = HealthCheckRegistry::new();
             let hive_cluster_crd_check = readiness_checks.register(format!(
                 "CRD {crd} established",
-                crd = v1alpha1::HiveCluster::crd_name()
+                crd = v1alpha2::HiveCluster::crd_name()
             ));
 
             let webhook_server = create_webhook_server(
@@ -136,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
             ));
 
             let hive_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<v1alpha1::HiveCluster>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<v1alpha2::HiveCluster>>(&client),
                 watcher::Config::default(),
             );
             let config_map_store = hive_controller.store();
@@ -226,7 +226,7 @@ async fn main() -> anyhow::Result<()> {
                 .map(anyhow::Ok);
 
             let delayed_hive_controller = async {
-                signal::crd_established(&client, v1alpha1::HiveCluster::crd_name()).await?;
+                signal::crd_established(&client, v1alpha2::HiveCluster::crd_name()).await?;
                 hive_cluster_crd_check.mark_passed();
                 hive_controller.await
             };
@@ -239,7 +239,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn references_config_map(
-    hive: &DeserializeGuard<v1alpha1::HiveCluster>,
+    hive: &DeserializeGuard<v1alpha2::HiveCluster>,
     config_map: &DeserializeGuard<ConfigMap>,
 ) -> bool {
     let Ok(hive) = &hive.0 else {
@@ -257,7 +257,7 @@ fn references_config_map(
 }
 
 fn references_s3_connection(
-    hive: &DeserializeGuard<v1alpha1::HiveCluster>,
+    hive: &DeserializeGuard<v1alpha2::HiveCluster>,
     s3_connection: &DeserializeGuard<s3::v1alpha1::S3Connection>,
 ) -> bool {
     let Ok(hive) = &hive.0 else {
@@ -283,7 +283,7 @@ mod tests {
 
     use super::*;
 
-    fn hive_cluster(cluster_config: &str) -> DeserializeGuard<v1alpha1::HiveCluster> {
+    fn hive_cluster(cluster_config: &str) -> DeserializeGuard<v1alpha2::HiveCluster> {
         let input = format!(
             indoc! {r#"
                 apiVersion: hive.stackable.tech/v1alpha1

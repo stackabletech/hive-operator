@@ -92,7 +92,7 @@ mod tests {
     };
 
     fn metastore_default(
-        hive: &crate::crd::v1alpha1::HiveCluster,
+        hive: &crate::crd::v1alpha2::HiveCluster,
     ) -> (ValidatedCluster, HiveRoleGroupConfig) {
         let validated = validated_cluster(hive);
         let rg = validated

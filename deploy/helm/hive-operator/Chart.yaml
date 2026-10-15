@@ -38,7 +38,7 @@ annotations:
       url: https://quay.io/repository/stackable/sdp/hive-operator
   artifacthub.io/crds: |-
     - kind: HiveCluster
-      version: v1alpha1
+      version: v1alpha2
       name: hiveclusters.hive.stackable.tech
       displayName: HiveCluster
       description: A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.

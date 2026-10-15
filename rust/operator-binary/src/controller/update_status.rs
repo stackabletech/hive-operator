@@ -18,7 +18,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     HIVE_OPERATOR_NAME,
     controller::{Applied, KubernetesResources},
-    crd::{HiveClusterStatus, v1alpha1},
+    crd::{HiveClusterStatus, v1alpha2},
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -38,11 +38,11 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Computes the cluster status from the applied resources and patches it onto the
-/// [`v1alpha1::HiveCluster`]. Takes [`KubernetesResources<Applied>`] so the type system proves
+/// [`v1alpha2::HiveCluster`]. Takes [`KubernetesResources<Applied>`] so the type system proves
 /// the status derives from applied resources, not merely built ones.
 pub async fn update_status(
     client: &Client,
-    hive: &v1alpha1::HiveCluster,
+    hive: &v1alpha2::HiveCluster,
     applied: &KubernetesResources<Applied>,
 ) -> Result<()> {
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();

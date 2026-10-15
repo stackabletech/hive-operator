@@ -66,7 +66,7 @@ pub fn add_kerberos_pod_config(
     cb: &mut ContainerBuilder,
     pb: &mut PodBuilder,
 ) -> Result<(), Error> {
-    if let Some(kerberos_secret_class) = &cluster.cluster_config.kerberos_secret_class {
+    if let Some(kerberos_secret_class) = &cluster.cluster_config.thrift_kerberos_secret_class {
         // Mount keytab
         let kerberos_secret_operator_volume = SecretOperatorVolumeSourceBuilder::new(
             kerberos_secret_class.clone(),

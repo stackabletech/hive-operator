@@ -77,7 +77,11 @@ pub(crate) mod test_support {
             hdfs: None,
             s3_connection_spec: None,
             hive_opa_config: None,
-            kerberos_secret_class: None,
+            thrift_api_enabled: true,
+            iceberg_rest_catalog_enabled: false,
+            warehouse_dir: "s3a://my-bucket/my-warehouse".to_owned(),
+            warehouse_external_dir: None,
+            thrift_kerberos_secret_class: None,
         }
     }
 
