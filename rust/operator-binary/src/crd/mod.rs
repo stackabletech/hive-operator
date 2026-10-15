@@ -1,4 +1,4 @@
-use std::{ops::Deref, str::FromStr};
+use std::{iter, ops::Deref, str::FromStr};
 
 use databases::MetadataDatabaseConnection;
 /// Re-export of the shared product-logging spec data types (test-only).
@@ -46,7 +46,11 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 use v1alpha2::HiveMetastoreRoleConfig;
 
-use crate::crd::{affinity::get_affinity, security::IcebergRestCatalogAuthenticationConfig};
+use crate::crd::{
+    affinity::get_affinity,
+    security::IcebergRestCatalogAuthenticationConfig,
+    v1alpha2::{IcebergRestCatalogConfig, ThriftApiConfig},
+};
 
 pub mod affinity;
 pub mod databases;
@@ -90,14 +94,14 @@ const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_min
 constant!(METASTORE_ROLE_NAME: RoleName = "metastore");
 
 pub type HiveRoleType = Role<
-    MetaStoreConfigFragment,
+    v1alpha2::MetaStoreConfigFragment,
     v1alpha2::HiveConfigOverrides,
     v1alpha2::HiveMetastoreRoleConfig,
     JavaCommonConfig,
 >;
 
 pub type HiveRoleGroupType =
-    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha2::HiveConfigOverrides>;
+    RoleGroup<v1alpha2::MetaStoreConfigFragment, JavaCommonConfig, v1alpha2::HiveConfigOverrides>;
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -108,7 +112,8 @@ pub type HiveRoleGroupType =
         k8s_openapi = "stackable_operator::k8s_openapi",
         schemars = "stackable_operator::schemars",
         versioned = "stackable_operator::versioned"
-    )
+    ),
+    skip(from) // TODO: Can we only skip between v1alpha1 and v1alpha2 to be future-proof?
 )]
 pub mod versioned {
     /// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
@@ -141,7 +146,12 @@ pub mod versioned {
         pub image: ProductImage,
 
         // no doc - docs in Role struct.
-        pub metastore: HiveRoleType,
+        pub metastore: Role<
+            MetaStoreConfigFragment,
+            HiveConfigOverrides,
+            HiveMetastoreRoleConfig,
+            JavaCommonConfig,
+        >,
     }
 
     // TODO: move generic version to op-rs?
@@ -159,13 +169,15 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
-        // /// SDP >= 26.11: Deprecated, please configure the authentication of the Thrift API using `thriftApi.authentication`.
-        // /// SDP < 26.11: Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security) for the Thrift API.
-        // #[versioned(deprecated(
-        //     since = "v1alpha2",
-        //     // from_docs = "Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security) for the Thrift API."
-        // ))]
-        // pub deprecated_authentication: Option<ThriftAuthenticationConfig>,
+        /// SDP <= 26.7: Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security) for the Thrift API.
+        /// SDP >= 26.11: Deprecated, please configure the authentication of the Thrift API using `thriftApi.authentication`.
+        // FIXME: Ideally this is a removal, but stackable-versioned doesn't support that yet.
+        #[versioned(deprecated(
+            since = "v1alpha2",
+            // from_docs = "Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security) for the Thrift API."
+        ))]
+        pub deprecated_authentication: Option<ThriftAuthenticationConfig>,
+
         /// Authorization options for Hive.
         /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
         pub authorization: Option<security::AuthorizationConfig>,
@@ -212,6 +224,44 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<ConfigMapName>,
+    }
+
+    #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+    #[fragment_attrs(
+        derive(
+            Clone,
+            Debug,
+            Default,
+            Deserialize,
+            Merge,
+            JsonSchema,
+            PartialEq,
+            Serialize
+        ),
+        serde(rename_all = "camelCase")
+    )]
+    pub struct MetaStoreConfig {
+        #[fragment_attrs(serde(default))]
+        pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
+
+        #[fragment_attrs(serde(default))]
+        pub logging: Logging<Container>,
+
+        #[fragment_attrs(serde(default))]
+        pub affinity: StackableAffinity,
+
+        /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+        #[fragment_attrs(serde(default))]
+        pub graceful_shutdown_timeout: Option<Duration>,
+
+        /// SDP <= 26.7: The location of default database for the Hive warehouse. Maps to the `hive.metastore.warehouse.dir` setting.
+        /// SDP >= 26.11: Deprecated, please configure the warehouse directory using `clusterConfig.warehouseDir`.
+        // FIXME: Ideally this is a removal, but stackable-versioned doesn't support that yet.
+        #[versioned(deprecated(
+            since = "v1alpha2",
+            // from_docs = "Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security) for the Thrift API."
+        ))]
+        pub deprecated_warehouse_dir: Option<String>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
@@ -310,6 +360,91 @@ impl Default for v1alpha2::IcebergRestCatalogConfig {
         }
     }
 }
+
+impl From<v1alpha1::HiveClusterSpec> for v1alpha2::HiveClusterSpec {
+    fn from(old: v1alpha1::HiveClusterSpec) -> Self {
+        // v1alpha1 was broken in the sense, that users could configure warehouse dirs on a
+        // roleGroup level. This is bad, as this is a cluster-wide setting. So we try our best to
+        // migrate it correctly.
+        let old_role_warehouse_dir = old.metastore.config.config.warehouse_dir;
+        let old_role_groups_warehouse_dirs = old
+            .metastore
+            .role_groups
+            .values()
+            .map(|rg| rg.config.config.warehouse_dir);
+        // Yes, this logic is broken, but is impossible to do correctly and should be good enough.
+        let old_warehouse_dir = iter::once(old_role_warehouse_dir)
+            .chain(old_role_groups_warehouse_dirs)
+            .flatten()
+            .next();
+        // Fill with the old (shitty) default
+        let old_warehouse_dir =
+            old_warehouse_dir.unwrap_or_else(|| "/stackable/warehouse".to_owned());
+
+        let new_cluster_config = v1alpha2::HiveClusterConfig {
+            #[allow(deprecated)]
+            deprecated_authentication: old.cluster_config.authentication.clone(),
+            authorization: old.cluster_config.authorization,
+            metadata_database: old.cluster_config.metadata_database,
+            thrift_api: ThriftApiConfig {
+                // In v1alpha1 the Thrift API was always enabled
+                enabled: true,
+                // The old authentication always configured the Thrift API
+                authentication: old.cluster_config.authentication,
+            },
+            iceberg_rest_catalog: IcebergRestCatalogConfig {
+                // We don't want to enabled the Iceberg REST catalog by default
+                enabled: false,
+                authentication: None,
+            },
+            hdfs: old.cluster_config.hdfs,
+            s3: old.cluster_config.s3,
+            warehouse_dir: old_warehouse_dir,
+            // v1alpha1 didn't have this field
+            //
+            // FIXME: We can't store this field anywhere to survive roundtrips
+            warehouse_external_dir: None,
+            vector_aggregator_config_map_name: old.cluster_config.vector_aggregator_config_map_name,
+        };
+
+        Self {
+            cluster_config: new_cluster_config,
+            cluster_operation: old.cluster_operation,
+            object_overrides: old.object_overrides,
+            image: old.image,
+            metastore: old.metastore,
+        }
+    }
+}
+
+impl From<v1alpha2::HiveClusterSpec> for v1alpha1::HiveClusterSpec {
+    fn from(new: v1alpha2::HiveClusterSpec) -> Self {
+        Self {
+            cluster_config: new.cluster_config.into(),
+            cluster_operation: new.cluster_operation,
+            object_overrides: new.object_overrides,
+            image: new.image,
+            metastore: new.metastore,
+        }
+    }
+}
+
+// impl From<v1alpha1::HiveClusterConfig> for v1alpha2::HiveClusterConfig {
+// }
+
+// impl From<v1alpha2::HiveClusterConfig> for v1alpha1::HiveClusterConfig {
+//     fn from(new: v1alpha2::HiveClusterConfig) -> Self {
+//         // Self {
+//         //     #[allow(deprecated)]
+//         //     authentication: new.deprecated_authentication,
+//         //     authorization: new.authorization,
+//         //     metadata_database: new.metadata_database,
+//         //     hdfs: new.hdfs,
+//         //     s3: new.s3,
+//         //     vector_aggregator_config_map_name: new.vector_aggregator_config_map_name,
+//         // }
+//     }
+// }
 
 impl HasStatusCondition for v1alpha2::HiveCluster {
     fn conditions(&self) -> Vec<ClusterCondition> {
@@ -435,42 +570,13 @@ pub struct MetastoreStorageConfig {
     pub data: PvcConfig,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct MetaStoreConfig {
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
-
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<Container>,
-
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
-}
-
-impl MetaStoreConfig {
+impl v1alpha2::MetaStoreConfig {
     pub(crate) fn default_config(
         cluster_name: &str,
         role: &HiveRole,
         opa_config: Option<&OpaConfig>,
-    ) -> MetaStoreConfigFragment {
-        MetaStoreConfigFragment {
+    ) -> v1alpha2::MetaStoreConfigFragment {
+        v1alpha2::MetaStoreConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -624,6 +730,23 @@ mod tests {
                       envOverrides:
                         COMMON_VAR: group-value
                         GROUP_VAR: group-value
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  authentication:
+                    kerberos:
+                      secretClass: my-kerberos
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
+                      config:
+                        warehouseDir: hdfs://my/custom/warehouse
         "#})
             .expect("Failed to parse HiveClusterSpec YAML")
         }
@@ -631,7 +754,114 @@ mod tests {
 
     impl RoundtripTestData for v1alpha2::HiveClusterSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            todo!()
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+              - image:
+                  productVersion: 1.2.3
+                  pullPolicy: IfNotPresent
+                clusterOperation:
+                  stopped: false
+                  reconciliationPaused: true
+                clusterConfig:
+                  authentication:
+                    kerberos:
+                      secretClass: my-kerberos
+                  authorization:
+                    opa:
+                      configMapName: opa
+                      package: hms
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  s3:
+                    reference: minio
+                  hdfs:
+                    configMap: hdfs
+                  warehouseDir: s3a://my-bucket/my-warehouse
+                  vectorAggregatorConfigMapName: vector-aggregator-discovery
+                metastore:
+                  config:
+                    logging:
+                      enableVectorAgent: true
+                      containers:
+                        hive:
+                          console:
+                            level: INFO
+                          file:
+                            level: INFO
+                          loggers:
+                            ROOT:
+                              level: INFO
+                        vector:
+                          console:
+                            level: INFO
+                          file:
+                            level: INFO
+                          loggers:
+                            ROOT:
+                              level: INFO
+                    resources:
+                      cpu:
+                        min: 400m
+                        max: "4"
+                      memory:
+                        limit: 4Gi
+                  podOverrides:
+                    spec:
+                      containers:
+                        - name: vector
+                          volumeMounts:
+                            - name: prepared-logs
+                              mountPath: /stackable/log/prepared-logs
+                      volumes:
+                        - name: prepared-logs
+                          configMap:
+                            name: prepared-logs
+                  configOverrides:
+                    hive-site.xml:
+                      hive.metastore.warehouse.dir: /stackable/warehouse/override
+                      common-var: role-value
+                      role-var: role-value
+                  envOverrides:
+                    COMMON_VAR: role-value
+                    ROLE_VAR: role-value
+                  roleGroups:
+                    default:
+                      replicas: 1
+                      config:
+                        logging:
+                          enableVectorAgent: true
+                          containers:
+                            hive:
+                              custom:
+                                configMap: hive-log-config
+                      configOverrides:
+                        hive-site.xml:
+                          common-var: group-value
+                          group-var: group-value
+                      envOverrides:
+                        COMMON_VAR: group-value
+                        GROUP_VAR: group-value
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  authentication:
+                    kerberos:
+                      secretClass: my-kerberos
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  # warehouseDir: s3a://my-bucket/my-warehouse
+                  warehouseDir: /stackable/warehouse
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
+            "#})
+            .expect("Failed to parse HiveClusterSpec YAML")
         }
     }
 }

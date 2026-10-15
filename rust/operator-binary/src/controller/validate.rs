@@ -23,9 +23,9 @@ use crate::{
         ValidatedMetaStoreConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
-        HiveRole, MetaStoreConfig,
+        HiveRole,
         databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha2::{self, HiveMetastoreRoleConfig},
+        v1alpha2::{self, HiveMetastoreRoleConfig, MetaStoreConfig},
     },
 };
 
@@ -253,13 +253,13 @@ fn validate_role_group_config(
     role_group_name: &RoleGroupName,
     role_group: &crate::crd::HiveRoleGroupType,
     role: &crate::crd::HiveRoleType,
-    default_config: &crate::crd::MetaStoreConfigFragment,
+    default_config: &crate::crd::v1alpha2::MetaStoreConfigFragment,
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<HiveRoleGroupConfig, Error> {
     let merged = with_validated_config::<
         MetaStoreConfig,
         JavaCommonConfig,
-        crate::crd::MetaStoreConfigFragment,
+        crate::crd::v1alpha2::MetaStoreConfigFragment,
         HiveMetastoreRoleConfig,
         v1alpha2::HiveConfigOverrides,
     >(role_group, role, default_config)

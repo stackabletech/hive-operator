@@ -143,7 +143,7 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::{derby_cluster_config, s3_cluster_config},
-        crd::MetaStoreConfig,
+        crd::v1alpha2::MetaStoreConfig,
     };
 
     #[test]

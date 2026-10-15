@@ -51,7 +51,7 @@ use strum::EnumDiscriminants;
 use crate::{
     HIVE_OPERATOR_NAME,
     controller::{apply::Applier, update_status::update_status},
-    crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha2},
+    crd::{APP_NAME, HdfsConnection, HiveRole, v1alpha2},
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -122,7 +122,7 @@ pub struct ValidatedMetaStoreConfig {
 impl ValidatedMetaStoreConfig {
     /// Builds the validated config from the merged [`MetaStoreConfig`], swapping in the
     /// already-validated logging.
-    fn from_merged(merged: MetaStoreConfig, logging: validate::ValidatedLogging) -> Self {
+    fn from_merged(merged: v1alpha2::MetaStoreConfig, logging: validate::ValidatedLogging) -> Self {
         Self {
             resources: merged.resources,
             logging,
@@ -134,7 +134,7 @@ impl ValidatedMetaStoreConfig {
     /// Wraps a merged [`MetaStoreConfig`] with trivial automatic logging, for builder tests
     /// that only exercise the non-logging parts of the config.
     #[cfg(test)]
-    pub(crate) fn from_merged_for_test(merged: MetaStoreConfig) -> Self {
+    pub(crate) fn from_merged_for_test(merged: v1alpha2::MetaStoreConfig) -> Self {
         use stackable_operator::{
             product_logging::spec::AutomaticContainerLogConfig,
             v2::product_logging::framework::ValidatedContainerLogConfigChoice,
