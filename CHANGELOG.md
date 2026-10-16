@@ -28,7 +28,7 @@ All notable changes to this project will be documented in this file.
   functions and carry the full set of recommended labels ([#731]).
 - BREAKING: The `metastore` role is now required by the CRD; a HiveCluster without it was
   previously accepted by the API server but failed reconciliation ([#731]).
-- Bump stackable-operator to 0.118.0 ([#735], [#748], [#767]).
+- Bump stackable-operator to 0.121.0 ([#735], [#748], [#767], [#770], [#779]).
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps ([#737]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
@@ -40,10 +40,9 @@ All notable changes to this project will be documented in this file.
   operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
   the new labels ([#748]).
 - Make operations infallible where dependent on static inputs ([#759], [#764]).
-- Bump stackable-operator to 0.119.0 ([#770]).
-- Support Vector 0.58.0 ([#776], [#780]).
+- Support Vector 0.58.0 ([#776], [#780], [#781]).
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
-- Bump stackable-operator to 0.121.0 and replace `serde_yaml` with `yaml_serde` ([#779]).
+- Replace `serde_yaml` with `yaml_serde` ([#779]).
 - All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#779]).
 
 ### Fixed
@@ -76,6 +75,7 @@ All notable changes to this project will be documented in this file.
 [#778]: https://github.com/stackabletech/hive-operator/pull/778
 [#779]: https://github.com/stackabletech/hive-operator/pull/779
 [#780]: https://github.com/stackabletech/hive-operator/pull/780
+[#781]: https://github.com/stackabletech/hive-operator/pull/781
 
 ## [26.7.0] - 2026-07-21
 
