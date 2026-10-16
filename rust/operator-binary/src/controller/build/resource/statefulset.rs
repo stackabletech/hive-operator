@@ -65,10 +65,11 @@ use crate::{
         },
     },
     crd::{
-        Container, HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME,
-        STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
-        STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
-        STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR_NAME,
+        Container, HIVE_PORT_NAME, HiveRole, ICEBERG_REST_CATALOG_PORT_NAME, METRICS_PORT,
+        METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
+        STACKABLE_LOG_DIR_NAME,
     },
 };
 
@@ -265,6 +266,24 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         "}
     };
 
+    // If the Thrift API is disabled, HMS binds it to the loopback interface (see `hive_site.rs`),
+    // so the kubelet can not reach it and we probe the Iceberg REST catalog instead.
+    // If both are enabled we probe Thrift, as HMS only starts it after the REST catalog.
+    //
+    // The REST catalog embedded in HMS has no health endpoint (only the standalone REST catalog
+    // server has Spring Boot actuator endpoints). Every request to `/iceberg/*` without a bearer
+    // token is rejected with a 401 when authentication is enabled, which an HTTP probe treats as a
+    // failure, so we use a TCP probe. HMS refuses to start if the REST catalog can't be started,
+    // so an open port already means that the catalog is being served.
+    let probe_port_name = if cluster.cluster_config.thrift_api_enabled {
+        HIVE_PORT_NAME
+    } else {
+        ICEBERG_REST_CATALOG_PORT_NAME
+    };
+    for (port_name, port) in cluster.cluster_config.api_ports() {
+        container_builder.add_container_port(port_name, port.into());
+    }
+
     let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
@@ -310,7 +329,6 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             STACKABLE_LOG_CONFIG_MOUNT_DIR,
         )
         .expect("The mount paths are statically defined and there should be no duplicates.")
-        .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .resources(merged_config.resources.clone().into())
         .readiness_probe(Probe {
@@ -318,7 +336,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             period_seconds: Some(10),
             failure_threshold: Some(5),
             tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HIVE_PORT_NAME.to_string()),
+                port: IntOrString::String(probe_port_name.to_string()),
                 ..TCPSocketAction::default()
             }),
             ..Probe::default()
@@ -327,7 +345,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             initial_delay_seconds: Some(30),
             period_seconds: Some(10),
             tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HIVE_PORT_NAME.to_string()),
+                port: IntOrString::String(probe_port_name.to_string()),
                 ..TCPSocketAction::default()
             }),
             ..Probe::default()

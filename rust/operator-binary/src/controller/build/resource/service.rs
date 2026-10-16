@@ -8,7 +8,7 @@ use crate::{
         RoleGroupName, ValidatedCluster,
         build::{object_meta, recommended_labels_for_role_group_resources, role_group_selector},
     },
-    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME},
+    crd::{HiveRole, METRICS_PORT, METRICS_PORT_NAME},
 };
 
 /// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
@@ -34,7 +34,7 @@ pub fn build_rolegroup_headless_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             // Expecting same ports as on listener service, just as a headless, internal service
-            ports: Some(service_ports()),
+            ports: Some(service_ports(cluster)),
             selector: Some(role_group_selector(cluster, hive_role, role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -88,13 +88,18 @@ fn metrics_ports() -> Vec<ServicePort> {
     }]
 }
 
-fn service_ports() -> Vec<ServicePort> {
-    vec![ServicePort {
-        name: Some(HIVE_PORT_NAME.to_string()),
-        port: HIVE_PORT.into(),
-        protocol: Some("TCP".to_string()),
-        ..ServicePort::default()
-    }]
+fn service_ports(cluster: &ValidatedCluster) -> Vec<ServicePort> {
+    cluster
+        .cluster_config
+        .api_ports()
+        .into_iter()
+        .map(|(name, port)| ServicePort {
+            name: Some(name.to_string()),
+            port: port.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        })
+        .collect()
 }
 
 #[cfg(test)]

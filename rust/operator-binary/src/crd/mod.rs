@@ -71,6 +71,8 @@ constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-moun
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: Port = Port(9083);
+pub const ICEBERG_REST_CATALOG_PORT_NAME: &str = "iceberg-rest";
+pub const ICEBERG_REST_CATALOG_PORT: Port = Port(9001);
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: Port = Port(9084);
 

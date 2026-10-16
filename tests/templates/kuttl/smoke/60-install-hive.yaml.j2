@@ -24,6 +24,7 @@ spec:
         credentialsSecretName: hive-credentials
     s3:
       reference: minio
+    warehouseDir: s3a://hive
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

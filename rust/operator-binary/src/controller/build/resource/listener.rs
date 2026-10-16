@@ -14,7 +14,7 @@ use crate::{
         ValidatedCluster,
         build::{object_meta, recommended_labels_for_role_resources},
     },
-    crd::{HIVE_PORT, HIVE_PORT_NAME, HiveRole},
+    crd::{HIVE_PORT_NAME, HiveRole},
 };
 
 #[derive(Snafu, Debug)]
@@ -77,7 +77,7 @@ pub fn build_role_listener(
 
     let spec = ListenerSpec {
         class_name: Some(listener_class.to_string()),
-        ports: Some(listener_ports()),
+        ports: Some(listener_ports(cluster)),
         ..Default::default()
     };
 
@@ -88,10 +88,15 @@ pub fn build_role_listener(
     }
 }
 
-pub fn listener_ports() -> Vec<ListenerPort> {
-    vec![ListenerPort {
-        name: HIVE_PORT_NAME.to_owned(),
-        port: HIVE_PORT.into(),
-        protocol: Some("TCP".to_owned()),
-    }]
+pub fn listener_ports(cluster: &ValidatedCluster) -> Vec<ListenerPort> {
+    cluster
+        .cluster_config
+        .api_ports()
+        .into_iter()
+        .map(|(name, port)| ListenerPort {
+            name: name.to_owned(),
+            port: port.into(),
+            protocol: Some("TCP".to_owned()),
+        })
+        .collect()
 }

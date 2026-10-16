@@ -30,9 +30,20 @@ pub struct KerberosConfig {
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct IcebergRestCatalogAuthenticationConfig {
-    /// OAuth2 configuration.
-    pub o_auth2: OAuth2Config,
+pub enum IcebergRestCatalogAuthenticationConfig {
+    // /// Hive Metastore assumes that the value of the x-actor-username HTTP header is the
+    // /// authenticated username. You may use it to test authorized access, but this mode is not
+    // /// recommend in a production environment.
+    // Simple(()),
+    /// OAuth 2 is the industry standard for authenticating Iceberg client usernames. You can
+    /// integrate Hive Metastore with your Authorization Server, e.g., Keycloak, to protect Iceberg
+    /// resources.
+    OAuth2(OAuth2Config),
+    // /// Configure Hive Metastore so that its Iceberg REST API accepts a JSON Web Token (JWT) as a
+    // /// bearer token in the Authorization header. The JSON Web Key Set (JWKS) locations must be
+    // /// configured using the metastore.authentication.jwt.jwks.url property. Hive Metastore derives
+    // /// the username from the sub claim of a properly-signed JWT.
+    // Jwt(()),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

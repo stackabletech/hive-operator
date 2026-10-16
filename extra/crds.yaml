@@ -29,25 +29,6 @@ spec:
                   Hive metastore settings that affect all roles and role groups.
                   The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                 properties:
-                  authentication:
-                    description: Settings related to user [authentication](https://docs.stackable.tech/home/nightly/hive/usage-guide/security).
-                    nullable: true
-                    properties:
-                      kerberos:
-                        description: Kerberos configuration.
-                        properties:
-                          secretClass:
-                            description: Name of the SecretClass providing the keytab for the HBase services.
-                            maxLength: 253
-                            minLength: 1
-                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                            type: string
-                        required:
-                        - secretClass
-                        type: object
-                    required:
-                    - kerberos
-                    type: object
                   authorization:
                     description: |-
                       Authorization options for Hive.
@@ -91,6 +72,42 @@ spec:
                         type: string
                     required:
                     - configMap
+                    type: object
+                  icebergRestCatalog:
+                    default:
+                      authentication: null
+                      enabled: false
+                    description: Experimental support for starting an Iceberg REST catalog server (disabled by default).
+                    properties:
+                      authentication:
+                        description: |-
+                          Settings related to user [authentication](https://docs.stackable.tech/home/nightly/hive/usage-guide/security).
+
+                          Only OAuth2 is supported.
+                        nullable: true
+                        oneOf:
+                        - required:
+                          - oAuth2
+                        properties:
+                          oAuth2:
+                            description: |-
+                              OAuth 2 is the industry standard for authenticating Iceberg client usernames. You can
+                              integrate Hive Metastore with your Authorization Server, e.g., Keycloak, to protect Iceberg
+                              resources.
+                            properties:
+                              audience:
+                                type: string
+                              issuerUrl:
+                                format: uri
+                                type: string
+                            required:
+                            - audience
+                            - issuerUrl
+                            type: object
+                        type: object
+                      enabled:
+                        default: false
+                        type: boolean
                     type: object
                   metadataDatabase:
                     description: |-
@@ -350,6 +367,38 @@ spec:
                       reference:
                         type: string
                     type: object
+                  thriftApi:
+                    default:
+                      authentication: null
+                      enabled: true
+                    description: Start the Hive metastore Thrift API (enabled by default).
+                    properties:
+                      authentication:
+                        description: |-
+                          Settings related to user [authentication](https://docs.stackable.tech/home/nightly/hive/usage-guide/security).
+
+                          Only Kerberos is supported.
+                        nullable: true
+                        properties:
+                          kerberos:
+                            description: Kerberos configuration.
+                            properties:
+                              secretClass:
+                                description: Name of the SecretClass providing the keytab for the HBase services.
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                type: string
+                            required:
+                            - secretClass
+                            type: object
+                        required:
+                        - kerberos
+                        type: object
+                      enabled:
+                        default: true
+                        type: boolean
+                    type: object
                   vectorAggregatorConfigMapName:
                     description: |-
                       Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
@@ -361,8 +410,23 @@ spec:
                     nullable: true
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                     type: string
+                  warehouseDir:
+                    description: |-
+                      The location of default database for the Hive warehouse (e.g. `s3a://my-bucket/my-warehouse`).
+
+                      Maps to the `hive.metastore.warehouse.dir` setting.
+                    type: string
+                  warehouseExternalDir:
+                    description: |-
+                      Optional external location of Hive warehouse (e.g. `s3a://my-bucket/my-warehouse/external`).
+
+                      Maps to the `hive.metastore.warehouse.external.dir` setting. If not specified the operator
+                      will *not* pass the setting to the Hive metastore and will let it default.
+                    nullable: true
+                    type: string
                 required:
                 - metadataDatabase
+                - warehouseDir
                 type: object
               clusterOperation:
                 default:

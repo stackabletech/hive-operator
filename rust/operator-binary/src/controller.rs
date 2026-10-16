@@ -41,6 +41,7 @@ use stackable_operator::{
         role_group_utils::ResourceNames,
         role_utils,
         types::{
+            common::Port,
             kubernetes::{ListenerClassName, SecretClassName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion},
         },
@@ -51,7 +52,11 @@ use strum::EnumDiscriminants;
 use crate::{
     HIVE_OPERATOR_NAME,
     controller::{apply::Applier, update_status::update_status},
-    crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha1},
+    crd::{
+        APP_NAME, HIVE_PORT, HIVE_PORT_NAME, HdfsConnection, HiveRole, ICEBERG_REST_CATALOG_PORT,
+        ICEBERG_REST_CATALOG_PORT_NAME, MetaStoreConfig,
+        security::IcebergRestCatalogAuthenticationConfig, v1alpha1,
+    },
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -117,7 +122,6 @@ pub struct ValidatedMetaStoreConfig {
     pub graceful_shutdown_timeout: Option<Duration>,
     pub logging: validate::ValidatedLogging,
     pub resources: Resources<crate::crd::MetastoreStorageConfig, NoRuntimeLimits>,
-    pub warehouse_dir: Option<String>,
 }
 
 impl ValidatedMetaStoreConfig {
@@ -125,7 +129,6 @@ impl ValidatedMetaStoreConfig {
     /// already-validated logging.
     fn from_merged(merged: MetaStoreConfig, logging: validate::ValidatedLogging) -> Self {
         Self {
-            warehouse_dir: merged.warehouse_dir,
             resources: merged.resources,
             logging,
             affinity: merged.affinity,
@@ -324,6 +327,7 @@ pub struct ValidatedClusterConfig {
 
     /// The Kerberos `SecretClass` name, if Kerberos is enabled for the Thrift API.
     pub thrift_kerberos_secret_class: Option<SecretClassName>,
+    pub iceberg_rest_catalog_security: Option<IcebergRestCatalogAuthenticationConfig>,
 }
 
 impl ValidatedClusterConfig {
@@ -331,6 +335,18 @@ impl ValidatedClusterConfig {
     /// Kerberos is enabled and there is no HDFS backend (i.e. S3).
     pub fn needs_kerberos_core_site(&self) -> bool {
         self.thrift_kerberos_secret_class.is_some() && self.hdfs.is_none()
+    }
+
+    /// The ports of the enabled APIs (Thrift and/or Iceberg REST catalog), as `(name, port)`.
+    pub fn api_ports(&self) -> Vec<(&'static str, Port)> {
+        let mut ports = Vec::new();
+        if self.thrift_api_enabled {
+            ports.push((HIVE_PORT_NAME, HIVE_PORT));
+        }
+        if self.iceberg_rest_catalog_enabled {
+            ports.push((ICEBERG_REST_CATALOG_PORT_NAME, ICEBERG_REST_CATALOG_PORT));
+        }
+        ports
     }
 }
 

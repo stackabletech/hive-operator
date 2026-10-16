@@ -216,6 +216,12 @@ pub fn validate_cluster(
     let thrift_api_enabled = hive.spec.cluster_config.thrift_api.enabled;
     let iceberg_rest_catalog_enabled = hive.spec.cluster_config.iceberg_rest_catalog.enabled;
     let thrift_kerberos_secret_class = hive.thrift_kerberos_secret_class();
+    let iceberg_rest_catalog_security = hive
+        .spec
+        .cluster_config
+        .iceberg_rest_catalog
+        .authentication
+        .clone();
 
     ensure!(
         thrift_api_enabled || iceberg_rest_catalog_enabled,
@@ -240,6 +246,7 @@ pub fn validate_cluster(
             thrift_api_enabled,
             iceberg_rest_catalog_enabled,
             thrift_kerberos_secret_class,
+            iceberg_rest_catalog_security,
         },
         role_group_configs,
         dereferenced_objects.role_listener,
