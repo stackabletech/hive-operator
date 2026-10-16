@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 - Add support for Hive `4.2.1` ([#766]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
 - Experimental support for serving the Iceberg REST catalog API from the metastore via
-  `spec.clusterConfig.icebergRestCatalog`, optionally secured with OAuth 2 ([#XXX]).
+  `spec.clusterConfig.icebergRestCatalog`, optionally secured with OAuth 2, JWT or simple authentication ([#XXX]).
 - The Thrift API can be disabled via `spec.clusterConfig.thriftApi.enabled` ([#XXX]).
 - Add `spec.clusterConfig.warehouseExternalDir` to configure `hive.metastore.warehouse.external.dir` ([#XXX]).
 

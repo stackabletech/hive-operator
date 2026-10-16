@@ -80,13 +80,13 @@ pub fn build(
         );
 
         match &cluster_config.iceberg_rest_catalog_security {
-            // Some(IcebergRestCatalogAuthenticationConfig::Simple(())) => {
-            //     data.insert(
-            //         "metastore.catalog.servlet.auth".to_owned(),
-            //         "simple".to_owned(),
-            //     );
-            //     todo!();
-            // }
+            Some(IcebergRestCatalogAuthenticationConfig::Simple {}) => {
+                data.insert(
+                    "metastore.catalog.servlet.auth".to_owned(),
+                    "simple".to_owned(),
+                );
+                // No other configuration needed or possible
+            }
             Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) => {
                 data.insert(
                     "metastore.catalog.servlet.auth".to_owned(),
@@ -101,13 +101,21 @@ pub fn build(
                     oauth2.audience.to_owned(),
                 );
             }
-            // Some(IcebergRestCatalogAuthenticationConfig::Jwt(())) => {
-            //     data.insert(
-            //         "metastore.catalog.servlet.auth".to_owned(),
-            //         "jwt".to_owned(),
-            //     );
-            //     todo!();
-            // }
+            Some(IcebergRestCatalogAuthenticationConfig::Jwt(jwt)) => {
+                data.insert(
+                    "metastore.catalog.servlet.auth".to_owned(),
+                    "jwt".to_owned(),
+                );
+                // Hive splits the setting on commas.
+                data.insert(
+                    "metastore.authentication.jwt.jwks.url".to_owned(),
+                    jwt.jwks_urls
+                        .iter()
+                        .map(|url| url.as_str())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            }
             None => {
                 data.insert(
                     "metastore.catalog.servlet.auth".to_owned(),

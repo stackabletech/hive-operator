@@ -266,19 +266,21 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         "}
     };
 
-    // If the Thrift API is disabled, HMS binds it to the loopback interface (see `hive_site.rs`),
-    // so the kubelet can not reach it and we probe the Iceberg REST catalog instead.
-    // If both are enabled we probe Thrift, as HMS only starts it after the REST catalog.
+    // If the Iceberg REST catalog is enabled, we probe it rather than Thrift:
+    // - HMS binds the Thrift socket before it starts the REST catalog, so an open REST port also
+    //   means that Thrift is listening (or bound to the loopback interface if disabled, see
+    //   `hive_site.rs`, where the kubelet can not reach it anyway).
+    // - If the REST catalog fails to initialize (e.g. its authentication), HMS logs an error and
+    //   keeps running with Thrift only. Probing Thrift would report such a Pod as ready.
     //
     // The REST catalog embedded in HMS has no health endpoint (only the standalone REST catalog
     // server has Spring Boot actuator endpoints). Every request to `/iceberg/*` without a bearer
     // token is rejected with a 401 when authentication is enabled, which an HTTP probe treats as a
-    // failure, so we use a TCP probe. HMS refuses to start if the REST catalog can't be started,
-    // so an open port already means that the catalog is being served.
-    let probe_port_name = if cluster.cluster_config.thrift_api_enabled {
-        HIVE_PORT_NAME
-    } else {
+    // failure, so we use a TCP probe. The port is only opened if the catalog is served.
+    let probe_port_name = if cluster.cluster_config.iceberg_rest_catalog_enabled {
         ICEBERG_REST_CATALOG_PORT_NAME
+    } else {
+        HIVE_PORT_NAME
     };
     for (port_name, port) in cluster.cluster_config.api_ports() {
         container_builder.add_container_port(port_name, port.into());

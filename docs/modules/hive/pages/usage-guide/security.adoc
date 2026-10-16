@@ -4,7 +4,7 @@
 
 == Authentication
 The Thrift API supports Kerberos authentication, which is disabled by default and described below.
-Authentication for the experimental Iceberg REST catalog (OAuth 2) is described in xref:usage-guide/iceberg-rest-catalog.adoc#authentication[Iceberg REST catalog].
+Authentication for the experimental Iceberg REST catalog (OAuth 2, JWT or simple) is described in xref:usage-guide/iceberg-rest-catalog.adoc#authentication[Iceberg REST catalog].
 
 For Kerberos to work a Kerberos KDC is needed, which the users need to provide.
 The xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.

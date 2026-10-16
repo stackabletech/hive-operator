@@ -242,8 +242,7 @@ pub mod versioned {
 
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/iceberg-rest-catalog#authentication).
         ///
-        /// Only OAuth2 is supported. If not specified, the Iceberg REST catalog does not
-        /// authenticate requests at all.
+        /// If not specified, the Iceberg REST catalog does not authenticate requests at all.
         pub authentication: Option<IcebergRestCatalogAuthenticationConfig>,
     }
 }

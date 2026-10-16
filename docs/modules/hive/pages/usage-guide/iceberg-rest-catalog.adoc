@@ -33,7 +33,11 @@ The xref:reference/discovery.adoc[discovery ConfigMap] does not contain an entry
 
 WARNING: If no `authentication` is configured, the REST catalog does not authenticate requests at all and accepts every client that can reach the port.
 
-The REST catalog supports OAuth 2.
+The REST catalog supports the authentication methods `oAuth2` (recommended), `jwt` and `simple`.
+Exactly one of them can be configured.
+
+=== OAuth 2
+
 The HMS validates the JWT access tokens that clients send as bearer tokens:
 
 [source,yaml]
@@ -58,6 +62,54 @@ The access tokens must also
 
 The HMS uses the `sub` claim as the user name.
 The Hive documentation describes how to {hive-keycloak-docs}[configure Keycloak] accordingly.
+
+NOTE: The HMS fetches the server metadata only on startup.
+If that fails, e.g. because the issuer is unreachable, the HMS logs an error and starts *without* the REST catalog.
+The Pod then does not become ready, as the readiness probe checks the REST catalog port.
+
+=== JWT
+
+The HMS accepts JSON Web Tokens (JWT) that clients send as bearer tokens and validates their signature using a JSON Web Key Set (JWKS):
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+      authentication:
+        jwt:
+          jwksUrls: # <1>
+            - https://keycloak.example.com/realms/my-realm/protocol/openid-connect/certs
+----
+<1> The URLs of the JWKS used to validate the signature of the tokens.
+    The HMS only falls back to another URL if fetching the JWKS fails, so all URLs need to serve the same keys, e.g. replicas of the same authorization server.
+    They can not be used to accept tokens of different issuers.
+    The HMS does not preserve the order of the URLs.
+
+The HMS uses the `sub` claim as the user name.
+
+WARNING: In this mode the HMS only checks the signature, the expiry and the presence of the `sub` claim.
+It does not check the issuer or the audience of a token.
+Every token signed by a key from the JWKS is accepted, e.g. any token of a Keycloak realm, regardless of the client it was issued for.
+Prefer <<_oauth_2,OAuth 2>>, which also checks the issuer, the audience and the scope.
+
+=== Simple
+
+The HMS takes the user name from the `x-actor-username` HTTP header of each request, without verifying it:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+      authentication:
+        simple: {}
+----
+
+WARNING: Clients can claim to be any user, so this mode is about as secure as no authentication.
+Only use it for testing, e.g. of authorization rules.
 
 == Disabling the Thrift API
 
