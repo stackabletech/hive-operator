@@ -15,11 +15,10 @@ commands:
             pullPolicy: IfNotPresent
           clusterConfig:
             dfsReplication: 1
-            thriftApi:
-              authentication:
-                kerberos:
-                  secretClass: kerberos-$NAMESPACE
-                tlsSecretClass: tls
+            authentication:
+              tlsSecretClass: tls
+              kerberos:
+                secretClass: kerberos-$NAMESPACE
             zookeeperConfigMapName: hdfs-znode
           nameNodes:
             roleGroups:
