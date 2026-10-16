@@ -52,7 +52,7 @@ spec:
         host: hive-postgresql
         database: hive
         credentialsSecretName: hive-credentials
-    warehouseDir: /stackable/warehouse
+    warehouseDir: s3a://my-bucket/my-warehouse/
     vectorAggregatorConfigMapName: hive-vector-aggregator-discovery
   metastore:
     roleGroups:

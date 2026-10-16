@@ -24,7 +24,7 @@ pub struct AuthorizationConfig {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KerberosConfig {
-    /// Name of the SecretClass providing the keytab for the HBase services.
+    /// Name of the SecretClass providing the keytab for the Hive metastore.
     pub secret_class: SecretClassName,
 }
 
@@ -49,7 +49,13 @@ pub enum IcebergRestCatalogAuthenticationConfig {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OAuth2Config {
+    /// URL of the OAuth 2 authorization server (issuer), e.g. a Keycloak realm.
+    ///
+    /// The Hive metastore fetches the server metadata from
+    /// `<issuerUrl>/.well-known/oauth-authorization-server` on startup, which must include the
+    /// `jwks_uri` used to validate access tokens.
     pub issuer_url: Url,
 
+    /// The audience the JWT access tokens must be issued for.
     pub audience: String,
 }

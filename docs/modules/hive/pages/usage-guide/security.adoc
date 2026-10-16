@@ -1,9 +1,11 @@
 = Security
-:description: Secure Apache Hive with Kerberos authentication in Kubernetes. Configure Kerberos server, SecretClass, and access Hive securely with provided guides.
+:description: Secure the Apache Hive metastore with Kerberos authentication for the Thrift API and OPA authorization in Kubernetes. Configure Kerberos server, SecretClass, and access Hive securely with provided guides.
 :opa-rego-docs: https://www.openpolicyagent.org/docs/latest/#rego
 
 == Authentication
-Currently, the only supported authentication mechanism is Kerberos, which is disabled by default.
+The Thrift API supports Kerberos authentication, which is disabled by default and described below.
+Authentication for the experimental Iceberg REST catalog (OAuth 2) is described in xref:usage-guide/iceberg-rest-catalog.adoc#authentication[Iceberg REST catalog].
+
 For Kerberos to work a Kerberos KDC is needed, which the users need to provide.
 The xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
 
@@ -46,7 +48,7 @@ The `kerberos.secretClass` is used to give Hive the possibility to request keyta
 
 === 5. Access Hive
 In case you want to access Hive it is recommended to start up a client Pod that connects to Hive, rather than shelling into the master.
-We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos/70-install-access-hive.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
+We have an https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/kerberos-s3/70-install-access-hive.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
 
 
 == Authorization

@@ -219,6 +219,10 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct ThriftApiConfig {
+        /// Whether the Thrift API is exposed (defaults to `true`).
+        ///
+        /// Hive can not switch the Thrift server off, so if disabled it is bound to the loopback
+        /// interface and not exposed via the Service and Listener.
         #[serde(default = "default_thrift_api_enabled")]
         enabled: bool,
 
@@ -231,12 +235,15 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct IcebergRestCatalogConfig {
+        /// Whether the Iceberg REST catalog is started (defaults to `false`).
+        /// Requires Hive 4.2.0 or newer.
         #[serde(default = "default_iceberg_rest_catalog_enabled")]
         enabled: bool,
 
-        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/iceberg-rest-catalog#authentication).
         ///
-        /// Only OAuth2 is supported.
+        /// Only OAuth2 is supported. If not specified, the Iceberg REST catalog does not
+        /// authenticate requests at all.
         pub authentication: Option<IcebergRestCatalogAuthenticationConfig>,
     }
 }
@@ -415,10 +422,6 @@ pub struct MetastoreStorageConfig {
     serde(rename_all = "camelCase")
 )]
 pub struct MetaStoreConfig {
-    /// The location of default database for the Hive warehouse.
-    /// Maps to the `hive.metastore.warehouse.dir` setting.
-    pub warehouse_dir: Option<String>,
-
     #[fragment_attrs(serde(default))]
     pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
 
@@ -440,7 +443,6 @@ impl MetaStoreConfig {
         opa_config: Option<&OpaConfig>,
     ) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
-            warehouse_dir: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -573,7 +575,7 @@ mod tests {
                             name: prepared-logs
                   configOverrides:
                     hive-site.xml:
-                      hive.metastore.warehouse.dir: /stackable/warehouse/override
+                      hive.metastore.warehouse.dir: s3a://my-bucket/override
                       common-var: role-value
                       role-var: role-value
                   envOverrides:
@@ -613,8 +615,6 @@ mod tests {
                   roleGroups:
                     default:
                       replicas: 1
-                      config:
-                        warehouseDir: hdfs://my/custom/warehouse
         "#})
             .expect("Failed to parse HiveClusterSpec YAML")
         }

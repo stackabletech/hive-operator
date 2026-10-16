@@ -26,7 +26,7 @@ commands:
                 credentialsSecretName: hive-credentials
             hdfs:
               configMap: hdfs
-            warehouseDir: /stackable/warehouse
+            warehouseDir: hdfs://hdfs/access-hive/warehouse/
             thriftApi:
               authentication:
                 kerberos:

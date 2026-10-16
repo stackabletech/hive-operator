@@ -1,0 +1,78 @@
+= Iceberg REST catalog
+:description: Serve the Apache Iceberg REST catalog API from the Hive metastore, secure it with OAuth 2 and optionally disable the Thrift API.
+:hive-iceberg-rest-docs: https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/
+:hive-keycloak-docs: https://hive.apache.org/docs/latest/admin/oauth2/keycloak/
+:rfc-9068: https://www.rfc-editor.org/rfc/rfc9068
+
+WARNING: Support for the Iceberg REST catalog is experimental and may change in future releases.
+
+The Hive metastore (HMS) can serve the {hive-iceberg-rest-docs}[Apache Iceberg REST catalog API] in addition to its Thrift API.
+The catalog runs inside the HMS process and uses the same metadata database and xref:usage-guide/data-storage.adoc#warehouse-directory[warehouse directory].
+Iceberg clients that support the REST catalog can therefore access the Iceberg tables in the HMS without a Hive or Thrift client.
+
+The Iceberg REST catalog requires Hive 4.2.0 or newer.
+
+== Enabling the REST catalog
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+----
+
+The catalog is served over plain HTTP on port `9001` (named `iceberg-rest`).
+The port is exposed by the role xref:usage-guide/listenerclass.adoc[Listener] and the headless role group Services, next to the Thrift port.
+Clients use the URI `http://<address>:9001/iceberg`, where `<address>` is the address of the Listener, e.g. `<cluster-name>-metastore.<namespace>.svc.cluster.local` for the default `cluster-internal` ListenerClass.
+
+The xref:reference/discovery.adoc[discovery ConfigMap] does not contain an entry for the REST catalog yet.
+
+[#authentication]
+== Authentication
+
+WARNING: If no `authentication` is configured, the REST catalog does not authenticate requests at all and accepts every client that can reach the port.
+
+The REST catalog supports OAuth 2.
+The HMS validates the JWT access tokens that clients send as bearer tokens:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+      authentication:
+        oAuth2:
+          issuerUrl: https://keycloak.example.com/realms/my-realm # <1>
+          audience: hive-metastore # <2>
+----
+<1> The issuer of the access tokens.
+    On startup, the HMS fetches the server metadata from `<issuerUrl>/.well-known/oauth-authorization-server`, which must contain the `jwks_uri` used to validate the tokens.
+<2> The audience (`aud` claim) the access tokens must be issued for.
+
+The access tokens must also
+
+* have the JOSE header type `at+jwt` as defined in {rfc-9068}[RFC 9068], which some authorization servers do not use by default,
+* contain the scope `catalog`, which Iceberg clients request by default.
+
+The HMS uses the `sub` claim as the user name.
+The Hive documentation describes how to {hive-keycloak-docs}[configure Keycloak] accordingly.
+
+== Disabling the Thrift API
+
+If clients only use the REST catalog, you can disable the Thrift API:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    thriftApi:
+      enabled: false
+    icebergRestCatalog:
+      enabled: true
+----
+
+The HMS can not switch its Thrift server off, so the operator binds it to the loopback interface of the Pod instead.
+The Thrift port is then neither exposed by the Listener nor by the Services, and the discovery ConfigMap does not contain the `HIVE` entry.
+At least one of the two APIs must be enabled.
