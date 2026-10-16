@@ -15,6 +15,14 @@ const HIVE_METASTORE_PORT: &str = "hive.metastore.port";
 const METASTORE_THRIFT_BIND_HOST: &str = "hive.metastore.thrift.bind.host";
 const METASTORE_CATALOG_SERVLET_PORT: &str = "metastore.catalog.servlet.port";
 
+// Iceberg REST catalog authentication property keys.
+const METASTORE_CATALOG_SERVLET_AUTH: &str = "metastore.catalog.servlet.auth";
+const METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_ISSUER: &str =
+    "metastore.catalog.servlet.auth.oauth2.issuer";
+const METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_AUDIENCE: &str =
+    "metastore.catalog.servlet.auth.oauth2.audience";
+const METASTORE_AUTHENTICATION_JWT_JWKS_URL: &str = "metastore.authentication.jwt.jwks.url";
+
 // Metastore property keys.
 const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
 const CONNECTION_PASSWORD: &str = "javax.jdo.option.ConnectionPassword";
@@ -79,50 +87,37 @@ pub fn build(
             ICEBERG_REST_CATALOG_PORT.to_string(),
         );
 
-        match &cluster_config.iceberg_rest_catalog_security {
-            Some(IcebergRestCatalogAuthenticationConfig::Simple {}) => {
-                data.insert(
-                    "metastore.catalog.servlet.auth".to_owned(),
-                    "simple".to_owned(),
-                );
-                // No other configuration needed or possible
-            }
+        let auth_type = match &cluster_config.iceberg_rest_catalog_security {
+            None => "none",
+            Some(IcebergRestCatalogAuthenticationConfig::Simple {}) => "simple",
             Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) => {
                 data.insert(
-                    "metastore.catalog.servlet.auth".to_owned(),
-                    "oauth2".to_owned(),
-                );
-                data.insert(
-                    "metastore.catalog.servlet.auth.oauth2.issuer".to_owned(),
+                    METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_ISSUER.to_string(),
                     oauth2.issuer_url.to_string(),
                 );
                 data.insert(
-                    "metastore.catalog.servlet.auth.oauth2.audience".to_owned(),
-                    oauth2.audience.to_owned(),
+                    METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_AUDIENCE.to_string(),
+                    oauth2.audience.to_string(),
                 );
+                "oauth2"
             }
             Some(IcebergRestCatalogAuthenticationConfig::Jwt(jwt)) => {
-                data.insert(
-                    "metastore.catalog.servlet.auth".to_owned(),
-                    "jwt".to_owned(),
-                );
                 // Hive splits the setting on commas.
                 data.insert(
-                    "metastore.authentication.jwt.jwks.url".to_owned(),
+                    METASTORE_AUTHENTICATION_JWT_JWKS_URL.to_string(),
                     jwt.jwks_urls
                         .iter()
                         .map(|url| url.as_str())
                         .collect::<Vec<_>>()
                         .join(","),
                 );
+                "jwt"
             }
-            None => {
-                data.insert(
-                    "metastore.catalog.servlet.auth".to_owned(),
-                    "none".to_owned(),
-                );
-            }
-        }
+        };
+        data.insert(
+            METASTORE_CATALOG_SERVLET_AUTH.to_string(),
+            auth_type.to_string(),
+        );
     }
 
     // Metadata database connection
