@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field ([#767]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#770]).
 - Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
-- Add support for Hive `4.2.1` ([#766]).
+- Add support for Hive `4.2.1` ([#766], [#782]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
 
 ### Removed
@@ -76,6 +76,7 @@ All notable changes to this project will be documented in this file.
 [#779]: https://github.com/stackabletech/hive-operator/pull/779
 [#780]: https://github.com/stackabletech/hive-operator/pull/780
 [#781]: https://github.com/stackabletech/hive-operator/pull/781
+[#782]: https://github.com/stackabletech/hive-operator/pull/782
 
 ## [26.7.0] - 2026-07-21
 
