@@ -40,7 +40,8 @@ A SecretClass for the credentials to the Minio. The credentials were defined in 
 include::example$getting_started/hive-minio-credentials-secret-class.yaml[]
 ----
 
-And lastly the actual Apache Hive cluster definition (`hive-postgres-s3.yaml`). Note how it references the `minio` S3 object
+And lastly the actual Apache Hive cluster definition (`hive-postgres-s3.yaml`).
+Note how it references the `minio` S3Connection and stores the xref:usage-guide/data-storage.adoc#warehouse-directory[warehouse directory] in the `hive` bucket via `warehouseDir`:
 
 [source,yaml]
 ----

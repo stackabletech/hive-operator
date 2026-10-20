@@ -29,25 +29,6 @@ spec:
                   Hive metastore settings that affect all roles and role groups.
                   The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                 properties:
-                  authentication:
-                    description: Settings related to user [authentication](https://docs.stackable.tech/home/nightly/hive/usage-guide/security).
-                    nullable: true
-                    properties:
-                      kerberos:
-                        description: Kerberos configuration.
-                        properties:
-                          secretClass:
-                            description: Name of the SecretClass providing the keytab for the HBase services.
-                            maxLength: 253
-                            minLength: 1
-                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                            type: string
-                        required:
-                        - secretClass
-                        type: object
-                    required:
-                    - kerberos
-                    type: object
                   authorization:
                     description: |-
                       Authorization options for Hive.
@@ -91,6 +72,86 @@ spec:
                         type: string
                     required:
                     - configMap
+                    type: object
+                  icebergRestCatalog:
+                    default:
+                      authentication: null
+                      enabled: false
+                    description: Experimental support for starting an Iceberg REST catalog server (disabled by default).
+                    properties:
+                      authentication:
+                        description: |-
+                          Settings related to user [authentication](https://docs.stackable.tech/home/nightly/hive/usage-guide/iceberg-rest-catalog#authentication).
+
+                          If not specified, the Iceberg REST catalog does not authenticate requests at all.
+                        nullable: true
+                        oneOf:
+                        - required:
+                          - simple
+                        - required:
+                          - oAuth2
+                        - required:
+                          - jwt
+                        properties:
+                          jwt:
+                            description: |-
+                              Configure Hive Metastore so that its Iceberg REST API accepts a JSON Web Token (JWT) as a
+                              bearer token in the Authorization header. Hive Metastore derives the username from the `sub`
+                              claim of a properly-signed JWT.
+
+                              Only the signature and the expiry of the JWT are checked, not its issuer or audience.
+                              Prefer `oAuth2` where possible.
+                            properties:
+                              jwksUrls:
+                                description: |-
+                                  URLs of the JSON Web Key Set (JWKS) used to validate the signature of the JWTs.
+
+                                  Maps to the `metastore.authentication.jwt.jwks.url` setting. Hive only falls back to
+                                  another URL if fetching the JWKS fails, so all URLs need to serve the same keys. Hive does
+                                  not preserve the order of the URLs, and the URLs must not contain commas.
+                                items:
+                                  format: uri
+                                  type: string
+                                minItems: 1
+                                type: array
+                            required:
+                            - jwksUrls
+                            type: object
+                          oAuth2:
+                            description: |-
+                              OAuth 2 is the industry standard for authenticating Iceberg client usernames. You can
+                              integrate Hive Metastore with your Authorization Server, e.g., Keycloak, to protect Iceberg
+                              resources.
+                            properties:
+                              audience:
+                                description: The audience the JWT access tokens must be issued for.
+                                type: string
+                              issuerUrl:
+                                description: |-
+                                  URL of the OAuth 2 authorization server (issuer), e.g. a Keycloak realm.
+
+                                  The Hive metastore fetches the server metadata from
+                                  `<issuerUrl>/.well-known/oauth-authorization-server` on startup, which must include the
+                                  `jwks_uri` used to validate access tokens.
+                                format: uri
+                                type: string
+                            required:
+                            - audience
+                            - issuerUrl
+                            type: object
+                          simple:
+                            description: |-
+                              Hive Metastore assumes that the value of the `x-actor-username` HTTP header is the
+                              authenticated username, without verifying it. You may use it to test authorized access,
+                              but this mode is not recommended in a production environment.
+                            type: object
+                        type: object
+                      enabled:
+                        default: false
+                        description: |-
+                          Whether the Iceberg REST catalog is started (defaults to `false`).
+                          Requires Hive 4.2.0 or newer.
+                        type: boolean
                     type: object
                   metadataDatabase:
                     description: |-
@@ -350,6 +411,43 @@ spec:
                       reference:
                         type: string
                     type: object
+                  thriftApi:
+                    default:
+                      authentication: null
+                      enabled: true
+                    description: Start the Hive metastore Thrift API (enabled by default).
+                    properties:
+                      authentication:
+                        description: |-
+                          Settings related to user [authentication](https://docs.stackable.tech/home/nightly/hive/usage-guide/security).
+
+                          Only Kerberos is supported.
+                        nullable: true
+                        properties:
+                          kerberos:
+                            description: Kerberos configuration.
+                            properties:
+                              secretClass:
+                                description: Name of the SecretClass providing the keytab for the Hive metastore.
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                type: string
+                            required:
+                            - secretClass
+                            type: object
+                        required:
+                        - kerberos
+                        type: object
+                      enabled:
+                        default: true
+                        description: |-
+                          Whether the Thrift API is exposed (defaults to `true`).
+
+                          Hive can not switch the Thrift server off, so if disabled it is bound to the loopback
+                          interface and not exposed via the Service and Listener.
+                        type: boolean
+                    type: object
                   vectorAggregatorConfigMapName:
                     description: |-
                       Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
@@ -361,8 +459,23 @@ spec:
                     nullable: true
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                     type: string
+                  warehouseDir:
+                    description: |-
+                      The location of default database for the Hive warehouse (e.g. `s3a://my-bucket/my-warehouse`).
+
+                      Maps to the `hive.metastore.warehouse.dir` setting.
+                    type: string
+                  warehouseExternalDir:
+                    description: |-
+                      Optional external location of Hive warehouse (e.g. `s3a://my-bucket/my-warehouse/external`).
+
+                      Maps to the `hive.metastore.warehouse.external.dir` setting. If not specified the operator
+                      will *not* pass the setting to the Hive metastore and will let it default.
+                    nullable: true
+                    type: string
                 required:
                 - metadataDatabase
+                - warehouseDir
                 type: object
               clusterOperation:
                 default:
@@ -823,12 +936,6 @@ spec:
                                 type: object
                             type: object
                         type: object
-                      warehouseDir:
-                        description: |-
-                          The location of default database for the Hive warehouse.
-                          Maps to the `hive.metastore.warehouse.dir` setting.
-                        nullable: true
-                        type: string
                     type: object
                   configOverrides:
                     description: |-
@@ -1276,12 +1383,6 @@ spec:
                                       type: object
                                   type: object
                               type: object
-                            warehouseDir:
-                              description: |-
-                                The location of default database for the Hive warehouse.
-                                Maps to the `hive.metastore.warehouse.dir` setting.
-                              nullable: true
-                              type: string
                           type: object
                         configOverrides:
                           description: |-

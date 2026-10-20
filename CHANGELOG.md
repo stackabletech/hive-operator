@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
 - Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
 - Add support for Hive `4.2.1` ([#766], [#782]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
+- Experimental support for serving the Iceberg REST catalog API from the metastore via
+  `spec.clusterConfig.icebergRestCatalog`, optionally secured with OAuth 2, JWT or simple authentication ([#XXX]).
+- The Thrift API can be disabled via `spec.clusterConfig.thriftApi.enabled` ([#XXX]).
+- Add `spec.clusterConfig.warehouseExternalDir` to configure `hive.metastore.warehouse.external.dir` ([#XXX]).
 
 ### Removed
 
@@ -44,6 +48,10 @@ All notable changes to this project will be documented in this file.
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
 - Replace `serde_yaml` with `yaml_serde` ([#779]).
 - All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#779]).
+- BREAKING: The warehouse directory must now be configured via the required `spec.clusterConfig.warehouseDir`.
+  The `config.warehouseDir` setting on role and role group level has been removed.
+  Previously it defaulted to a directory on the ephemeral filesystem of the Pod (`/stackable/warehouse`) ([#XXX]).
+- BREAKING: `spec.clusterConfig.authentication` moved to `spec.clusterConfig.thriftApi.authentication` ([#XXX]).
 
 ### Fixed
 
@@ -77,6 +85,7 @@ All notable changes to this project will be documented in this file.
 [#780]: https://github.com/stackabletech/hive-operator/pull/780
 [#781]: https://github.com/stackabletech/hive-operator/pull/781
 [#782]: https://github.com/stackabletech/hive-operator/pull/782
+[#XXX]: https://github.com/stackabletech/hive-operator/pull/XXX
 
 ## [26.7.0] - 2026-07-21
 

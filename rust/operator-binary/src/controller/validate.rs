@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::product_image_selection,
     config::fragment,
@@ -79,6 +79,11 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display(
+        "The Thrift API and Iceberg REST catalogs are both disabled, please enable at least one"
+    ))]
+    ThriftAndRestDisabled,
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -208,8 +213,20 @@ pub fn validate_cluster(
         .to_owned();
 
     let hdfs = hive.spec.cluster_config.hdfs.clone();
+    let thrift_api_enabled = hive.spec.cluster_config.thrift_api.enabled;
+    let iceberg_rest_catalog_enabled = hive.spec.cluster_config.iceberg_rest_catalog.enabled;
+    let thrift_kerberos_secret_class = hive.thrift_kerberos_secret_class();
+    let iceberg_rest_catalog_security = hive
+        .spec
+        .cluster_config
+        .iceberg_rest_catalog
+        .authentication
+        .clone();
 
-    let kerberos_secret_class = hive.kerberos_secret_class();
+    ensure!(
+        thrift_api_enabled || iceberg_rest_catalog_enabled,
+        ThriftAndRestDisabledSnafu
+    );
 
     Ok(ValidatedCluster::new(
         name,
@@ -224,7 +241,12 @@ pub fn validate_cluster(
             hdfs,
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
             hive_opa_config: dereferenced_objects.hive_opa_config,
-            kerberos_secret_class,
+            warehouse_dir: hive.spec.cluster_config.warehouse_dir.clone(),
+            warehouse_external_dir: hive.spec.cluster_config.warehouse_external_dir.clone(),
+            thrift_api_enabled,
+            iceberg_rest_catalog_enabled,
+            thrift_kerberos_secret_class,
+            iceberg_rest_catalog_security,
         },
         role_group_configs,
         dereferenced_objects.role_listener,
@@ -354,7 +376,7 @@ mod tests {
         assert_eq!(cluster_config.hdfs, None);
         assert_eq!(cluster_config.s3_connection_spec, None);
         assert!(cluster_config.hive_opa_config.is_none());
-        assert_eq!(cluster_config.kerberos_secret_class, None);
+        assert_eq!(cluster_config.thrift_kerberos_secret_class, None);
 
         // A single metastore role with the single `default` role group.
         assert_eq!(cluster.role_group_configs.len(), 1);
@@ -385,6 +407,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             roleGroups:
               Invalid_RG:

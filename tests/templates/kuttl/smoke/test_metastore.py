@@ -105,7 +105,7 @@ if __name__ == "__main__":
     database_name = args["database"]
     port = args["port"]
     host = args["metastore"]
-    local_test_table_name = "one_column_table"
+    warehouse_test_table_name = "one_column_table"
     s3_test_table_name = "s3_one_column_table"
     s3_scheme_test_table_name = "s3_scheme_one_column_table"
     s3_test_table_name_wrong_bucket = "s3_one_column_table_wrong_buckets"
@@ -115,16 +115,16 @@ if __name__ == "__main__":
     with HiveMetastoreClient(host, port) as hive_client:
         hive_client.create_database_if_not_exists(database)
 
-        # Local access
+        # Warehouse access
         check_table(
             hive_client,
             database_name,
-            local_test_table_name,
-            f"/stackable/warehouse/location_{database_name}_{local_test_table_name}",
-            "local",
+            warehouse_test_table_name,
+            f"s3a://hive/location_{database_name}_{warehouse_test_table_name}",
+            "warehouse",
         )
 
-        check_legacy_get_table(hive_client, database_name, local_test_table_name)
+        check_legacy_get_table(hive_client, database_name, warehouse_test_table_name)
 
         # S3 access
         check_table(

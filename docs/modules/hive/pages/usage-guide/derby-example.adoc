@@ -19,11 +19,15 @@ spec:
   clusterConfig:
     metadataDatabase:
       derby: {}
+    warehouseDir: s3a://my-bucket/warehouse/ # <1>
   metastore:
     roleGroups:
       default:
         replicas: 1
 ----
+<1> The default location for databases and tables.
+The Hive metastore only accesses it once databases or tables are created there, which requires access to the bucket as shown below.
+See xref:usage-guide/data-storage.adoc#warehouse-directory[Warehouse directory] for details.
 
 WARNING: You should not use the `Derby` database in production. Derby stores data locally which does not work in high availability setups (multiple replicas) and all data is lost after Pod restarts.
 
@@ -46,7 +50,7 @@ In order to upload data to minio we need a port-forward to access the web ui.
 ----
 kubectl port-forward service/minio 9001
 ----
-Then, connect to localhost:9001 and login with the user `minio-access-key` and password `minio-secret-key`. Create a bucket and upload data.
+Then, connect to localhost:9001 and login with the user `minio-access-key` and password `minio-secret-key`. Create a bucket named `hive` and upload data.
 
 Deploy the hive cluster:
 [source,yaml]
@@ -68,6 +72,7 @@ spec:
         accessStyle: Path
         credentials:
           secretClass: simple-hive-s3-secret-class
+    warehouseDir: s3a://hive/warehouse/
   metastore:
     roleGroups:
       default:
@@ -134,6 +139,7 @@ spec:
         host: hive-postgresql.default.svc.cluster.local
         database: hive
         credentialsSecretName: hive-credentials
+    warehouseDir: s3a://my-bucket/warehouse/ # <1>
   metastore:
     roleGroups:
       default:
@@ -148,3 +154,4 @@ stringData:
   username: hive
   password: hive
 ----
+<1> As in the first example, the Hive metastore needs access to this bucket once databases or tables are created there.
