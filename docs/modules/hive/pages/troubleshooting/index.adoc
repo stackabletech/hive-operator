@@ -25,3 +25,51 @@ spec:
 ----
 
 NOTE: This will suppress all logging from TThreadPoolServer, including log events that might be useful for diagnosing issues.
+
+== Iceberg schema changes fail with 'types incompatible with the existing columns'
+
+Changing the schema of an Apache Iceberg table that uses the Hive metastore as its catalog fails when the change moves existing columns to a different position.
+Examples are adding a column with `FIRST` or `AFTER`, or dropping a column that is not the last one:
+
+[source,sql]
+----
+CREATE TABLE iceberg.demo.t (id BIGINT, name VARCHAR);
+ALTER TABLE iceberg.demo.t ADD COLUMN c0 INTEGER FIRST;
+----
+
+Trino reports:
+
+[source]
+----
+ICEBERG_COMMIT_ERROR: Failed to add column: The following columns have types incompatible with the existing columns in their respective positions :
+c0,id
+----
+
+The metastore logs the corresponding error:
+
+[source]
+----
+ERROR [Metastore-Handler-Pool: Thread-115] metastore.RetryingHMSHandler: InvalidOperationException(message:The following columns have types incompatible with the existing columns in their respective positions :
+c0,id)
+	at org.apache.hadoop.hive.metastore.DefaultIncompatibleTableChangeHandler.checkColTypeChangeCompatible(DefaultIncompatibleTableChangeHandler.java:112)
+----
+
+Iceberg tracks columns by ID and supports these changes.
+On every commit, Iceberg also writes the new column list to the table in the Hive metastore.
+The metastore compares the old and the new column list position by position and rejects the update if the type at a position changed in a way Hive considers incompatible, for example from `string` to `bigint`.
+Appending a column at the end does not trigger the check.
+The rejected commit leaves the Iceberg table unchanged, so the statement can be repeated once the check is disabled.
+
+Disable the check with a config override:
+
+[source,yaml]
+----
+spec:
+  metastore:
+    configOverrides:
+      hive-site.xml:
+        hive.metastore.disallow.incompatible.col.type.changes: "false"
+----
+
+NOTE: The setting applies to all tables in the metastore, including plain Hive tables.
+For those, the check is relevant as it prevents schema changes that make existing data unreadable in formats that map columns by position, such as CSV.
