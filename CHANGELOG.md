@@ -44,6 +44,7 @@ All notable changes to this project will be documented in this file.
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
 - Replace `serde_yaml` with `yaml_serde` ([#779]).
 - All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#779]).
+- The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#785]).
 
 ### Fixed
 
@@ -77,6 +78,7 @@ All notable changes to this project will be documented in this file.
 [#780]: https://github.com/stackabletech/hive-operator/pull/780
 [#781]: https://github.com/stackabletech/hive-operator/pull/781
 [#782]: https://github.com/stackabletech/hive-operator/pull/782
+[#785]: https://github.com/stackabletech/hive-operator/pull/785
 
 ## [26.7.0] - 2026-07-21
 
