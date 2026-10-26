@@ -81,9 +81,21 @@ pub enum Error {
     MissingVectorAggregatorConfigMapName,
 
     #[snafu(display(
-        "The Thrift API and Iceberg REST catalogs are both disabled, please enable at least one"
+        "the Thrift API and Iceberg REST catalog are both disabled, please enable {}",
+        if *iceberg_rest_catalog_supported {
+            "at least one"
+        } else {
+            "the Thrift API (the Iceberg REST catalog requires Hive 4.2.0 or newer)"
+        }
     ))]
-    ThriftAndRestDisabled,
+    ThriftAndRestDisabled {
+        iceberg_rest_catalog_supported: bool,
+    },
+
+    #[snafu(display(
+        "the Iceberg REST catalog requires Hive 4.2.0 or newer, but {product_version} is used"
+    ))]
+    IcebergRestCatalogUnsupportedProductVersion { product_version: String },
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -223,9 +235,21 @@ pub fn validate_cluster(
         .authentication
         .clone();
 
+    // The Iceberg REST catalog is available since Hive 4.1.0, but only works since 4.2.0.
+    let product_version = &image.product_version;
+    let iceberg_rest_catalog_supported = !(product_version.starts_with("3.")
+        || product_version.starts_with("4.0.")
+        || product_version.starts_with("4.1."));
+
     ensure!(
         thrift_api_enabled || iceberg_rest_catalog_enabled,
-        ThriftAndRestDisabledSnafu
+        ThriftAndRestDisabledSnafu {
+            iceberg_rest_catalog_supported
+        }
+    );
+    ensure!(
+        !iceberg_rest_catalog_enabled || iceberg_rest_catalog_supported,
+        IcebergRestCatalogUnsupportedProductVersionSnafu { product_version }
     );
 
     Ok(ValidatedCluster::new(
@@ -292,16 +316,20 @@ fn validate_role_group_config(
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::v2::builder::pod::container::EnvVarSet;
+    use indoc::formatdoc;
+    use rstest::rstest;
+    use stackable_operator::{
+        utils::yaml_from_str_singleton_map, v2::builder::pod::container::EnvVarSet,
+    };
 
     use super::*;
     use crate::controller::test_support::{DERBY_YAML, app_version_label, minimal_hive};
 
-    /// Runs the real validate step over the given fixture YAML, without unwrapping, so error
-    /// cases can assert the specific [`Error`] variant.
-    fn validate_yaml(yaml: &str) -> Result<ValidatedCluster, Error> {
+    /// Runs the real validate step over the given cluster, without unwrapping, so error cases
+    /// can assert the specific [`Error`] variant.
+    fn validate_hive(hive: &v1alpha1::HiveCluster) -> Result<ValidatedCluster, Error> {
         validate_cluster(
-            &minimal_hive(yaml),
+            hive,
             "oci.example.org",
             DereferencedObjects {
                 s3_connection_spec: None,
@@ -312,10 +340,43 @@ mod tests {
         )
     }
 
+    /// Runs the real validate step over the given fixture YAML, see [`validate_hive`].
+    fn validate_yaml(yaml: &str) -> Result<ValidatedCluster, Error> {
+        validate_hive(&minimal_hive(yaml))
+    }
+
+    /// Runs the real validate step over the `DERBY_YAML` fixture, with its spec replaced by one
+    /// using the given product version and enabled APIs.
+    fn validate_apis(
+        product_version: &str,
+        thrift_api_enabled: bool,
+        iceberg_rest_catalog_enabled: bool,
+    ) -> Result<ValidatedCluster, Error> {
+        let mut hive = minimal_hive(DERBY_YAML);
+        hive.spec = yaml_from_str_singleton_map(&formatdoc! {r#"
+            image:
+              productVersion: "{product_version}"
+            clusterConfig:
+              metadataDatabase:
+                derby: {{}}
+              warehouseDir: s3a://my-bucket/my-warehouse/
+              thriftApi:
+                enabled: {thrift_api_enabled}
+              icebergRestCatalog:
+                enabled: {iceberg_rest_catalog_enabled}
+            metastore:
+              roleGroups:
+                default:
+                  replicas: 1
+        "#})
+        .expect("invalid test HiveClusterSpec YAML");
+        validate_hive(&hive)
+    }
+
     /// Unwraps the error of a failed validation ([`ValidatedCluster`] has no `Debug` impl, so
     /// `expect_err` is unavailable).
-    fn expect_validate_err(yaml: &str) -> Error {
-        match validate_yaml(yaml) {
+    fn expect_validate_err(result: Result<ValidatedCluster, Error>) -> Error {
+        match result {
             Ok(_) => panic!("expected validation to fail"),
             Err(error) => error,
         }
@@ -414,11 +475,54 @@ mod tests {
                 replicas: 1
         "#;
 
-        let error = expect_validate_err(yaml);
+        let error = expect_validate_err(validate_yaml(yaml));
         assert!(
             matches!(&error, Error::ParseRoleGroupName { role_group, .. } if role_group == "Invalid_RG"),
             "unexpected error: {error:?}"
         );
+    }
+
+    #[rstest]
+    #[case("3.1.3")]
+    #[case("4.0.0")]
+    #[case("4.1.0")]
+    fn validate_rejects_iceberg_rest_catalog_before_4_2(#[case] version: &str) {
+        let error = expect_validate_err(validate_apis(version, true, true));
+        assert!(
+            matches!(&error, Error::IcebergRestCatalogUnsupportedProductVersion { product_version } if product_version == version),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    #[rstest]
+    #[case("3.1.3", false)]
+    #[case("4.1.0", false)]
+    #[case("4.2.0", true)]
+    fn validate_rejects_thrift_api_and_iceberg_rest_catalog_disabled(
+        #[case] version: &str,
+        #[case] expected_iceberg_rest_catalog_supported: bool,
+    ) {
+        let error = expect_validate_err(validate_apis(version, false, false));
+        assert!(
+            matches!(error, Error::ThriftAndRestDisabled { iceberg_rest_catalog_supported } if iceberg_rest_catalog_supported == expected_iceberg_rest_catalog_supported),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    #[rstest]
+    #[case("4.2.0", true)]
+    #[case("4.2.1", false)]
+    fn validate_accepts_iceberg_rest_catalog_from_4_2(
+        #[case] version: &str,
+        #[case] thrift_api_enabled: bool,
+    ) {
+        let cluster = validate_apis(version, thrift_api_enabled, true)
+            .unwrap_or_else(|error| panic!("expected validation to succeed: {error:?}"));
+        assert_eq!(
+            cluster.cluster_config.thrift_api_enabled,
+            thrift_api_enabled
+        );
+        assert!(cluster.cluster_config.iceberg_rest_catalog_enabled);
     }
 
     #[test]
