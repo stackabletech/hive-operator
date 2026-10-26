@@ -35,7 +35,7 @@ fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> V
         format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
     ];
 
-    if cluster.has_kerberos_enabled() {
+    if cluster.has_thrift_kerberos_enabled() {
         jvm_args.push(format!(
             "-Djava.security.krb5.conf={STACKABLE_KERBEROS_DIR}/krb5.conf"
         ));
@@ -119,6 +119,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             roleGroups:
               default:
@@ -157,6 +158,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             config:
               resources:

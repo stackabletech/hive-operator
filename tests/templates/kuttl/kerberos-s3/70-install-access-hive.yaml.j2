@@ -140,7 +140,7 @@ data:
         database_name = args["database"]
         port = args["port"]
         host = args["metastore"]
-        local_test_table_name = "one_column_table"
+        warehouse_test_table_name = "one_column_table"
         s3_test_table_name = "s3_one_column_table"
         # Creating database object using builder
         database = DatabaseBuilder(database_name).build()
@@ -148,18 +148,18 @@ data:
         with KerberosHiveMetastoreClient(host, port) as hive_client:
             hive_client.create_database_if_not_exists(database)
 
-            # Local access
+            # Warehouse access
             try:
-                hive_client.create_table(table(database_name, local_test_table_name, f"/stackable/warehouse/location_{database_name}_{local_test_table_name}"))
+                hive_client.create_table(table(database_name, warehouse_test_table_name, f"s3a://hive/location_{database_name}_{warehouse_test_table_name}"))
             except AlreadyExistsException:
-                print(f"[INFO]: Table {local_test_table_name} already existed")
+                print(f"[INFO]: Table {warehouse_test_table_name} already existed")
             print("[DEBUG]: Fetching schema")
-            schema = hive_client.get_schema(db_name=database_name, table_name=local_test_table_name)
+            schema = hive_client.get_schema(db_name=database_name, table_name=warehouse_test_table_name)
             expected = [FieldSchema(name='id', type='string', comment='col comment')]
             if schema != expected:
-                print("[ERROR]: Received local schema " + str(schema) + " - expected schema: " + expected)
+                print("[ERROR]: Received warehouse schema " + str(schema) + " - expected schema: " + expected)
                 exit(-1)
-            print("[INFO]: Passed local access test")
+            print("[INFO]: Passed warehouse access test")
 
             # S3 access
             try:

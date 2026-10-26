@@ -1,12 +1,10 @@
 use std::{ops::Deref, str::FromStr};
 
-use databases::MetadataDatabaseConnection;
 /// Re-export of the shared product-logging spec data types (test-only).
 #[cfg(test)]
 pub use product_logging::spec::{
     ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
 };
-use security::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
     commons::{
@@ -46,7 +44,11 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 use v1alpha1::HiveMetastoreRoleConfig;
 
-use crate::crd::affinity::get_affinity;
+use crate::crd::{
+    affinity::get_affinity,
+    databases::MetadataDatabaseConnection,
+    security::{IcebergRestCatalogAuthenticationConfig, ThriftAuthenticationConfig},
+};
 
 pub mod affinity;
 pub mod databases;
@@ -69,6 +71,8 @@ constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-moun
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: Port = Port(9083);
+pub const ICEBERG_REST_CATALOG_PORT_NAME: &str = "iceberg-rest";
+pub const ICEBERG_REST_CATALOG_PORT: Port = Port(9001);
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: Port = Port(9084);
 
@@ -158,9 +162,6 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
-        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
-        pub authentication: Option<AuthenticationConfig>,
-
         /// Authorization options for Hive.
         /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
         pub authorization: Option<security::AuthorizationConfig>,
@@ -168,6 +169,14 @@ pub mod versioned {
         /// Configure the database where the Hive metastore stores all it's internal metadata, such
         /// as schema and tables.
         pub metadata_database: MetadataDatabaseConnection,
+
+        /// Start the Hive metastore Thrift API (enabled by default).
+        #[serde(default)]
+        pub thrift_api: ThriftApiConfig,
+
+        /// Experimental support for starting an Iceberg REST catalog server (disabled by default).
+        #[serde(default)]
+        pub iceberg_rest_catalog: IcebergRestCatalogConfig,
 
         /// HDFS connection specification.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -177,6 +186,17 @@ pub mod versioned {
         /// S3Connection object. Read the [S3 concept documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/s3) to learn more.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub s3: Option<s3::v1alpha1::InlineConnectionOrReference>,
+
+        /// The location of default database for the Hive warehouse (e.g. `s3a://my-bucket/my-warehouse`).
+        ///
+        /// Maps to the `hive.metastore.warehouse.dir` setting.
+        pub warehouse_dir: String,
+
+        /// Optional external location of Hive warehouse (e.g. `s3a://my-bucket/my-warehouse/external`).
+        ///
+        /// Maps to the `hive.metastore.warehouse.external.dir` setting. If not specified the operator
+        /// will *not* pass the setting to the Hive metastore and will let it default.
+        pub warehouse_external_dir: Option<String>,
 
         /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
@@ -195,6 +215,44 @@ pub mod versioned {
         #[serde(default, rename = "security.properties")]
         pub security_properties: KeyValueConfigOverrides,
     }
+
+    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ThriftApiConfig {
+        /// Whether the Thrift API is exposed (defaults to `true`).
+        ///
+        /// Hive can not switch the Thrift server off, so if disabled it is bound to the loopback
+        /// interface and not exposed via the Service and Listener.
+        #[serde(default = "default_thrift_api_enabled")]
+        enabled: bool,
+
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
+        ///
+        /// Only Kerberos is supported.
+        pub authentication: Option<ThriftAuthenticationConfig>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct IcebergRestCatalogConfig {
+        /// Whether the Iceberg REST catalog is started (defaults to `false`).
+        /// Requires Hive 4.2.0 or newer.
+        #[serde(default = "default_iceberg_rest_catalog_enabled")]
+        enabled: bool,
+
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/iceberg-rest-catalog#authentication).
+        ///
+        /// If not specified, the Iceberg REST catalog does not authenticate requests at all.
+        pub authentication: Option<IcebergRestCatalogAuthenticationConfig>,
+    }
+}
+
+fn default_thrift_api_enabled() -> bool {
+    true
+}
+
+fn default_iceberg_rest_catalog_enabled() -> bool {
+    false
 }
 
 impl Default for v1alpha1::HiveMetastoreRoleConfig {
@@ -202,6 +260,24 @@ impl Default for v1alpha1::HiveMetastoreRoleConfig {
         v1alpha1::HiveMetastoreRoleConfig {
             listener_class: metastore_default_listener_class(),
             common: Default::default(),
+        }
+    }
+}
+
+impl Default for v1alpha1::ThriftApiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_thrift_api_enabled(),
+            authentication: None,
+        }
+    }
+}
+
+impl Default for v1alpha1::IcebergRestCatalogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_iceberg_rest_catalog_enabled(),
+            authentication: None,
         }
     }
 }
@@ -222,9 +298,10 @@ impl v1alpha1::HiveCluster {
         }
     }
 
-    pub fn kerberos_secret_class(&self) -> Option<SecretClassName> {
+    pub fn thrift_kerberos_secret_class(&self) -> Option<SecretClassName> {
         self.spec
             .cluster_config
+            .thrift_api
             .authentication
             .as_ref()
             .map(|a| &a.kerberos)
@@ -344,10 +421,6 @@ pub struct MetastoreStorageConfig {
     serde(rename_all = "camelCase")
 )]
 pub struct MetaStoreConfig {
-    /// The location of default database for the Hive warehouse.
-    /// Maps to the `hive.metastore.warehouse.dir` setting.
-    pub warehouse_dir: Option<String>,
-
     #[fragment_attrs(serde(default))]
     pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
 
@@ -369,7 +442,6 @@ impl MetaStoreConfig {
         opa_config: Option<&OpaConfig>,
     ) -> MetaStoreConfigFragment {
         MetaStoreConfigFragment {
-            warehouse_dir: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -443,9 +515,10 @@ mod tests {
                   stopped: false
                   reconciliationPaused: true
                 clusterConfig:
-                  authentication:
-                    kerberos:
-                      secretClass: my-kerberos
+                  thriftApi:
+                    authentication:
+                      kerberos:
+                        secretClass: my-kerberos
                   authorization:
                     opa:
                       configMapName: opa
@@ -459,6 +532,7 @@ mod tests {
                     reference: minio
                   hdfs:
                     configMap: hdfs
+                  warehouseDir: s3a://my-bucket/my-warehouse/
                   vectorAggregatorConfigMapName: vector-aggregator-discovery
                 metastore:
                   config:
@@ -500,7 +574,7 @@ mod tests {
                             name: prepared-logs
                   configOverrides:
                     hive-site.xml:
-                      hive.metastore.warehouse.dir: /stackable/warehouse/override
+                      hive.metastore.warehouse.dir: s3a://my-bucket/override
                       common-var: role-value
                       role-var: role-value
                   envOverrides:
@@ -523,6 +597,23 @@ mod tests {
                       envOverrides:
                         COMMON_VAR: group-value
                         GROUP_VAR: group-value
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  thriftApi:
+                    authentication:
+                      kerberos:
+                        secretClass: my-kerberos
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  warehouseDir: s3a://my-bucket/my-warehouse/
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
         "#})
             .expect("Failed to parse HiveClusterSpec YAML")
         }

@@ -24,6 +24,7 @@ spec:
         credentialsSecretName: hive-credentials
     s3:
       reference: minio
+    warehouseDir: s3a://hive
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -36,7 +37,7 @@ spec:
       ROLE_VAR: role-value   # only defined here at role level
     configOverrides:
       hive-site.xml:
-        hive.metastore.warehouse.dir: "/stackable/warehouse/override" # Also set by the operator
+        hive.metastore.warehouse.dir: "s3a://hive/override" # Also set by the operator
         common-var: role-value # Overridden by role group below
         role-var: role-value # Only defined here at role level
     roleGroups:

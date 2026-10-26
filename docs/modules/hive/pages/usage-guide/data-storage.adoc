@@ -9,6 +9,31 @@ However, as soon as you start storing metadata in the HMS that refers to `s3://`
 So if you are storing tables in S3 (or HDFS for that matter), you need to give the HMS access to that filesystem as well.
 The Stackable Operator currently supports S3 and HDFS.
 
+[#warehouse-directory]
+== Warehouse directory
+
+The warehouse directory is the default location for databases and managed tables that are created without an explicit location.
+It is required and configured in the top level `clusterConfig`:
+
+[source,yaml]
+----
+clusterConfig:
+  warehouseDir: s3a://my-bucket/warehouse/ # <1>
+  warehouseExternalDir: s3a://my-bucket/warehouse/external/ # <2>
+----
+<1> Maps to `hive.metastore.warehouse.dir`.
+<2> Optional, maps to `hive.metastore.warehouse.external.dir`.
+    If it is not set, the operator does not configure it and the Hive metastore uses its default.
+
+When using HDFS, use an HDFS location instead, e.g. `hdfs://my-hdfs-cluster/warehouse/`.
+
+The location must be on a filesystem the HMS has access to (see <<_s3_support,S3 support>> and <<_apache_hdfs_support,Apache HDFS support>> below).
+The HMS only accesses it once databases or tables are created there.
+
+WARNING: Always specify the full URI including the scheme (`s3a://`, `s3://` or `hdfs://`).
+A path without a scheme, such as `/warehouse`, is resolved against the default filesystem.
+Without an HDFS connection this is the local filesystem of the HMS Pod, which is ephemeral: all data written there is lost when the Pod is restarted.
+
 [s3]
 == S3 support
 

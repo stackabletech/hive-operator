@@ -73,6 +73,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/my-warehouse/
             authorization:
               opa:
                 configMapName: simple-opa

@@ -156,6 +156,7 @@ spec:
         credentialsSecretName: hive-credentials # <2>
     s3:
       reference: minio  # <3>
+    warehouseDir: s3a://my-bucket/warehouse/  # <3>
   metastore:
     roleGroups:
       default:
@@ -186,7 +187,7 @@ stringData:
 
 <1> The database connection details matching those given when deploying the MySQL Helm chart
 <2> Hive credentials are retrieved from a Secret
-<3> A reference to the file store using S3 (this has been omitted from this article for the sake of brevity, but is described in e.g. the xref:getting_started/first_steps.adoc[] guide)
+<3> A reference to the file store using S3 and the xref:usage-guide/data-storage.adoc#warehouse-directory[warehouse directory] in it (this has been omitted from this article for the sake of brevity, but is described in e.g. the xref:getting_started/first_steps.adoc[] guide)
 <4> Use `envOverrides` to set the driver path
 <5> Use `podOverrides` to mount the driver
 
@@ -229,6 +230,7 @@ spec:
       ...
     s3:
       ...
+    warehouseDir: ...
   metastore:
     config:
       logging:
