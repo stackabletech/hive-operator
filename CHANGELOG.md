@@ -34,11 +34,8 @@ All notable changes to this project will be documented in this file.
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
 - `envOverrides` names are now validated by the shared `EnvVarName` type rather than by
   operator-specific validation code ([#748]).
-- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
-  from the resources they don't apply to (previously set to `none` or a placeholder value).
-  StatefulSets created by older operator versions cannot be updated in place: after the
-  operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
-  the new labels ([#748]).
+- Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels from the
+  resources they don't apply to ([#748], [#787]).
 - Make operations infallible where dependent on static inputs ([#759], [#764]).
 - Support Vector 0.58.0 ([#776], [#780], [#781]).
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
@@ -79,6 +76,7 @@ All notable changes to this project will be documented in this file.
 [#781]: https://github.com/stackabletech/hive-operator/pull/781
 [#782]: https://github.com/stackabletech/hive-operator/pull/782
 [#785]: https://github.com/stackabletech/hive-operator/pull/785
+[#787]: https://github.com/stackabletech/hive-operator/pull/787
 
 ## [26.7.0] - 2026-07-21
 
