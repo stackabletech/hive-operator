@@ -345,8 +345,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     let recommended_object_labels =
         recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name);
-    // Used for PVC templates, which cannot be modified once they are deployed. The version label
-    // is omitted so the labels stay stable across version upgrades.
+    // The PVC template is immutable once deployed, so its labels must stay stable.
     let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
         cluster,
         hive_role,
