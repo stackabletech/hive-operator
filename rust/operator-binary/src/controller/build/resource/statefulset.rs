@@ -28,9 +28,9 @@ use stackable_operator::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
     },
-    product_logging,
-    product_logging::framework::{
-        create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
+    product_logging::{
+        self,
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
     },
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
@@ -41,6 +41,7 @@ use stackable_operator::{
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
+        rbac::RbacResourceNames,
         types::kubernetes::{PersistentVolumeClaimName, VolumeName},
     },
 };
