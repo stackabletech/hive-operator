@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
 - Add support for Hive `4.2.1` ([#766], [#782]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
-  the Vector aggregator ([#788]).
+  the Vector aggregator ([#790]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
 
 ### Removed
@@ -58,9 +58,9 @@ All notable changes to this project will be documented in this file.
 - The `containerdebug` process writes its log file again. The operator set
   `CONTAINERDEBUG_LOG_DIRECTORY`, which containerdebug stopped reading in its version 0.2.0 when it
   moved to `stackable-telemetry`; the directory is now set via `FILE_LOG_DIRECTORY`. The file is
-  rotated hourly and at most two files are kept, because rotation is opt-in ([#788]).
+  rotated hourly and at most two files are kept, because rotation is opt-in ([#790]).
 - The Vector unit tests run again. [#780] added a `test-config.yaml` argument to `test-vector.sh`
-  without adding the file, so since then the test run aborted before executing any case ([#788]).
+  without adding the file, so since then the test run aborted before executing any case ([#790]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
@@ -85,7 +85,7 @@ All notable changes to this project will be documented in this file.
 [#782]: https://github.com/stackabletech/hive-operator/pull/782
 [#785]: https://github.com/stackabletech/hive-operator/pull/785
 [#787]: https://github.com/stackabletech/hive-operator/pull/787
-[#788]: https://github.com/stackabletech/hive-operator/pull/788
+[#790]: https://github.com/stackabletech/hive-operator/pull/790
 
 ## [26.7.0] - 2026-07-21
 
