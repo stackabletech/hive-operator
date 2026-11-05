@@ -23,9 +23,9 @@ use crate::{
         ValidatedMetaStoreConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
-        HiveRole, MetaStoreConfig,
+        HiveRole,
         databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha2::{self, HiveMetastoreRoleConfig},
+        v1alpha2::{self, HiveMetastoreRoleConfig, MetaStoreConfig},
     },
 };
 
@@ -209,7 +209,7 @@ pub fn validate_cluster(
 
     let hdfs = hive.spec.cluster_config.hdfs.clone();
 
-    let kerberos_secret_class = hive.kerberos_secret_class();
+    let kerberos_secret_class = hive.thrift_kerberos_secret_class();
 
     Ok(ValidatedCluster::new(
         name,
@@ -224,7 +224,9 @@ pub fn validate_cluster(
             hdfs,
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
             hive_opa_config: dereferenced_objects.hive_opa_config,
-            kerberos_secret_class,
+            warehouse_dir: hive.spec.cluster_config.warehouse_dir.clone(),
+            warehouse_external_dir: hive.spec.cluster_config.warehouse_external_dir.clone(),
+            thrift_kerberos_secret_class: kerberos_secret_class,
         },
         role_group_configs,
         dereferenced_objects.role_listener,
@@ -237,13 +239,13 @@ fn validate_role_group_config(
     role_group_name: &RoleGroupName,
     role_group: &crate::crd::HiveRoleGroupType,
     role: &crate::crd::HiveRoleType,
-    default_config: &crate::crd::MetaStoreConfigFragment,
+    default_config: &crate::crd::v1alpha2::MetaStoreConfigFragment,
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<HiveRoleGroupConfig, Error> {
     let merged = with_validated_config::<
         MetaStoreConfig,
         JavaCommonConfig,
-        crate::crd::MetaStoreConfigFragment,
+        crate::crd::v1alpha2::MetaStoreConfigFragment,
         HiveMetastoreRoleConfig,
         v1alpha2::HiveConfigOverrides,
     >(role_group, role, default_config)
@@ -354,7 +356,7 @@ mod tests {
         assert_eq!(cluster_config.hdfs, None);
         assert_eq!(cluster_config.s3_connection_spec, None);
         assert!(cluster_config.hive_opa_config.is_none());
-        assert_eq!(cluster_config.kerberos_secret_class, None);
+        assert_eq!(cluster_config.thrift_kerberos_secret_class, None);
 
         // A single metastore role with the single `default` role group.
         assert_eq!(cluster.role_group_configs.len(), 1);
@@ -385,6 +387,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             roleGroups:
               Invalid_RG:

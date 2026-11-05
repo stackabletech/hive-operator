@@ -67,7 +67,6 @@ pub fn build_metastore_rolegroup_config_map(
     let hive_site_data = hive_site::build(
         &cluster.cluster_config,
         &cluster.image.product_version,
-        &rg.config,
         kerberos_config,
         hive_site_overrides,
     )

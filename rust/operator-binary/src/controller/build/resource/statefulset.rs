@@ -532,6 +532,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             envOverrides:
               CONTAINERDEBUG_LOG_DIRECTORY: /debug-override
@@ -558,6 +559,7 @@ mod tests {
                   secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             roleGroups:
               default:
@@ -582,6 +584,7 @@ mod tests {
                   secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             envOverrides:
               KRB5_CONFIG: /custom/krb5.conf

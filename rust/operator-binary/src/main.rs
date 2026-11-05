@@ -297,6 +297,7 @@ mod tests {
                   clusterConfig:
                     metadataDatabase:
                       derby: {{}}
+                    warehouseDir: s3a://my-bucket/warehouse/
                     {cluster_config}
                   metastore:
                     roleGroups:

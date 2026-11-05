@@ -5,9 +5,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::s3, k8s_openapi::api::core::v1::EnvVar};
 
 use crate::{
-    controller::{
-        ValidatedClusterConfig, ValidatedMetaStoreConfig, build::opa::build_opa_hive_site_config,
-    },
+    controller::{ValidatedClusterConfig, build::opa::build_opa_hive_site_config},
     crd::HIVE_PORT,
 };
 
@@ -21,6 +19,7 @@ const CONNECTION_URL: &str = "javax.jdo.option.ConnectionURL";
 const CONNECTION_USER_NAME: &str = "javax.jdo.option.ConnectionUserName";
 const METASTORE_METRICS_ENABLED: &str = "hive.metastore.metrics.enabled";
 const METASTORE_WAREHOUSE_DIR: &str = "hive.metastore.warehouse.dir";
+const METASTORE_WAREHOUSE_EXTERNAL_DIR: &str = "hive.metastore.warehouse.external.dir";
 
 // S3 property keys.
 const S3_ACCESS_KEY: &str = "fs.s3a.access.key";
@@ -47,7 +46,6 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build(
     cluster_config: &ValidatedClusterConfig,
     product_version: &str,
-    merged_config: &ValidatedMetaStoreConfig,
     kerberos_config: BTreeMap<String, String>,
     overrides: BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>> {
@@ -124,9 +122,16 @@ pub fn build(
         data.extend(build_opa_hive_site_config(opa_config, product_version));
     }
 
-    // 3. Spec: warehouse dir from the merged CRD config (overrides the default).
-    if let Some(warehouse_dir) = &merged_config.warehouse_dir {
-        data.insert(METASTORE_WAREHOUSE_DIR.to_string(), warehouse_dir.clone());
+    // 3. Spec: warehouse (including external) dirs
+    data.insert(
+        METASTORE_WAREHOUSE_DIR.to_string(),
+        cluster_config.warehouse_dir.clone(),
+    );
+    if let Some(warehouse_external_dir) = &cluster_config.warehouse_external_dir {
+        data.insert(
+            METASTORE_WAREHOUSE_EXTERNAL_DIR.to_string(),
+            warehouse_external_dir.clone(),
+        );
     }
 
     // 4. User overrides (highest precedence).
@@ -138,33 +143,21 @@ pub fn build(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        controller::build::properties::test_support::{derby_cluster_config, s3_cluster_config},
-        crd::MetaStoreConfig,
+    use crate::controller::build::properties::test_support::{
+        derby_cluster_config, s3_cluster_config,
     };
 
     #[test]
     fn defaults_present_for_minimal_derby_cluster() {
         let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
 
-        let data = build(
-            &cluster_config,
-            "4.0.0",
-            &merged,
-            BTreeMap::new(),
-            BTreeMap::new(),
-        )
-        .expect("build hive-site");
+        let data = build(&cluster_config, "4.0.0", BTreeMap::new(), BTreeMap::new())
+            .expect("build hive-site");
 
         assert_eq!(data.get("hive.metastore.port"), Some(&"9083".to_string()));
         assert_eq!(
             data.get("hive.metastore.metrics.enabled"),
             Some(&"true".to_string())
-        );
-        assert_eq!(
-            data.get("hive.metastore.warehouse.dir"),
-            Some(&"/stackable/warehouse".to_string())
         );
         assert!(data.contains_key("javax.jdo.option.ConnectionDriverName"));
         // No env credentials for an embedded Derby database.
@@ -172,41 +165,11 @@ mod tests {
     }
 
     #[test]
-    fn warehouse_dir_spec_overrides_default() {
-        let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig {
-            warehouse_dir: Some("/custom/warehouse".to_string()),
-            ..MetaStoreConfig::default()
-        });
-
-        let data = build(
-            &cluster_config,
-            "4.0.0",
-            &merged,
-            BTreeMap::new(),
-            BTreeMap::new(),
-        )
-        .expect("build hive-site");
-
-        assert_eq!(
-            data.get("hive.metastore.warehouse.dir"),
-            Some(&"/custom/warehouse".to_string())
-        );
-    }
-
-    #[test]
     fn s3_connection_emits_s3a_settings() {
         let cluster_config = s3_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
 
-        let data = build(
-            &cluster_config,
-            "4.0.0",
-            &merged,
-            BTreeMap::new(),
-            BTreeMap::new(),
-        )
-        .expect("build hive-site");
+        let data = build(&cluster_config, "4.0.0", BTreeMap::new(), BTreeMap::new())
+            .expect("build hive-site");
 
         assert_eq!(
             data.get("fs.s3a.endpoint"),
@@ -225,16 +188,9 @@ mod tests {
     #[test]
     fn s3_connection_registers_the_s3_scheme() {
         let cluster_config = s3_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
 
-        let data = build(
-            &cluster_config,
-            "4.0.0",
-            &merged,
-            BTreeMap::new(),
-            BTreeMap::new(),
-        )
-        .expect("build hive-site");
+        let data = build(&cluster_config, "4.0.0", BTreeMap::new(), BTreeMap::new())
+            .expect("build hive-site");
 
         assert_eq!(
             data.get("fs.s3.impl"),
@@ -245,16 +201,9 @@ mod tests {
     #[test]
     fn no_s3_connection_leaves_the_s3_scheme_unregistered() {
         let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
 
-        let data = build(
-            &cluster_config,
-            "4.0.0",
-            &merged,
-            BTreeMap::new(),
-            BTreeMap::new(),
-        )
-        .expect("build hive-site");
+        let data = build(&cluster_config, "4.0.0", BTreeMap::new(), BTreeMap::new())
+            .expect("build hive-site");
 
         assert!(!data.contains_key("fs.s3.impl"));
     }
@@ -262,19 +211,12 @@ mod tests {
     #[test]
     fn user_override_wins_over_everything() {
         let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
         let overrides = [("hive.metastore.port".to_string(), "1234".to_string())]
             .into_iter()
             .collect();
 
-        let data = build(
-            &cluster_config,
-            "4.0.0",
-            &merged,
-            BTreeMap::new(),
-            overrides,
-        )
-        .expect("build hive-site");
+        let data =
+            build(&cluster_config, "4.0.0", BTreeMap::new(), overrides).expect("build hive-site");
 
         assert_eq!(data.get("hive.metastore.port"), Some(&"1234".to_string()));
     }
