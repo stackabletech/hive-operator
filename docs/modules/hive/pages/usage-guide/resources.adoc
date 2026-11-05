@@ -1,7 +1,7 @@
 = Resource requests
 :description: Set CPU and memory requests for Hive metastore in Kubernetes. Default values and customization options are provided for optimal resource management.
 
-include::home:concepts:partial$stackable_resource_requests.adoc[]
+include::concepts:partial$stackable_resource_requests.adoc[]
 
 A minimal HA setup consisting of 2 Hive metastore instances has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
 
