@@ -32,7 +32,7 @@ fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> V
         ),
         format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}"),
         format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}"),
-        format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+        "-Djavax.net.ssl.trustStoreType=pkcs12".to_owned(),
     ];
 
     if cluster.has_kerberos_enabled() {
