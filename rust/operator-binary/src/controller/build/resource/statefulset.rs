@@ -520,7 +520,7 @@ mod tests {
     /// [`DERBY_YAML`] with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY` overridden on the
     /// metastore.
     const OVERRIDE_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -542,7 +542,7 @@ mod tests {
 
     /// [`DERBY_YAML`] with Kerberos enabled.
     const KERBEROS_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -552,9 +552,10 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
           metastore:
@@ -565,7 +566,7 @@ mod tests {
 
     /// [`KERBEROS_DERBY_YAML`] with the operator-set `KRB5_CONFIG` overridden on the metastore.
     const KERBEROS_OVERRIDE_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -575,9 +576,10 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
           metastore:

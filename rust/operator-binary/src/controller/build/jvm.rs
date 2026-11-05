@@ -32,7 +32,7 @@ fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> V
         ),
         format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}"),
         format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TRUST_STORE_PASSWORD}"),
-        format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+        "-Djavax.net.ssl.trustStoreType=pkcs12".to_string(),
     ];
 
     if cluster.has_kerberos_enabled() {
@@ -92,7 +92,7 @@ mod tests {
     };
 
     fn metastore_default(
-        hive: &crate::crd::v1alpha1::HiveCluster,
+        hive: &crate::crd::v1alpha2::HiveCluster,
     ) -> (ValidatedCluster, HiveRoleGroupConfig) {
         let validated = validated_cluster(hive);
         let rg = validated
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_construct_jvm_arguments_defaults() {
         let input = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn test_construct_jvm_argument_overrides() {
         let input = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive

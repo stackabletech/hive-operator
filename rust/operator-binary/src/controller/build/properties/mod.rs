@@ -45,13 +45,13 @@ pub(crate) mod test_support {
         controller::{ValidatedClusterConfig, test_support::DERBY_YAML},
         crd::{
             databases::{MetadataDatabaseConnection, derby_driver_class},
-            v1alpha1,
+            v1alpha2,
         },
     };
 
     /// Build a minimal Derby-backed [`ValidatedClusterConfig`] for builder tests.
     pub fn derby_cluster_config() -> ValidatedClusterConfig {
-        let hive: v1alpha1::HiveCluster =
+        let hive: v1alpha2::HiveCluster =
             stackable_operator::utils::yaml_from_str_singleton_map(DERBY_YAML)
                 .expect("valid HiveCluster YAML");
         let metadata_database_connection_details = hive

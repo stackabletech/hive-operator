@@ -90,13 +90,13 @@ constant!(METASTORE_ROLE_NAME: RoleName = "metastore");
 
 pub type HiveRoleType = Role<
     MetaStoreConfigFragment,
-    v1alpha1::HiveConfigOverrides,
-    v1alpha1::HiveMetastoreRoleConfig,
+    v1alpha2::HiveConfigOverrides,
+    v1alpha2::HiveMetastoreRoleConfig,
     JavaCommonConfig,
 >;
 
 pub type HiveRoleGroupType =
-    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha1::HiveConfigOverrides>;
+    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha2::HiveConfigOverrides>;
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -264,9 +264,9 @@ fn default_iceberg_rest_catalog_enabled() -> bool {
     false
 }
 
-impl Default for v1alpha1::HiveMetastoreRoleConfig {
+impl Default for v1alpha2::HiveMetastoreRoleConfig {
     fn default() -> Self {
-        v1alpha1::HiveMetastoreRoleConfig {
+        v1alpha2::HiveMetastoreRoleConfig {
             listener_class: metastore_default_listener_class(),
             common: Default::default(),
         }
@@ -413,7 +413,7 @@ impl TrackingFrom<v1alpha2::HiveClusterSpec, HiveClusterStatusWithChangedValues>
     }
 }
 
-impl HasStatusCondition for v1alpha1::HiveCluster {
+impl HasStatusCondition for v1alpha2::HiveCluster {
     fn conditions(&self) -> Vec<ClusterCondition> {
         match &self.status {
             Some(status) => status.status.conditions.clone(),
@@ -422,8 +422,8 @@ impl HasStatusCondition for v1alpha1::HiveCluster {
     }
 }
 
-impl v1alpha1::HiveCluster {
-    pub fn role_config(&self, role: &HiveRole) -> &v1alpha1::HiveMetastoreRoleConfig {
+impl v1alpha2::HiveCluster {
+    pub fn role_config(&self, role: &HiveRole) -> &v1alpha2::HiveMetastoreRoleConfig {
         match role {
             HiveRole::MetaStore => &self.spec.metastore.role_config,
         }
@@ -432,6 +432,7 @@ impl v1alpha1::HiveCluster {
     pub fn kerberos_secret_class(&self) -> Option<SecretClassName> {
         self.spec
             .cluster_config
+            .thrift_api
             .authentication
             .as_ref()
             .map(|a| &a.kerberos)

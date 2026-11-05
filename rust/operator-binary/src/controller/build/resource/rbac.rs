@@ -60,7 +60,7 @@ mod tests {
                     "namespace": "default",
                     "ownerReferences": [
                         {
-                            "apiVersion": "hive.stackable.tech/v1alpha1",
+                            "apiVersion": "hive.stackable.tech/v1alpha2",
                             "controller": true,
                             "kind": "HiveCluster",
                             "name": "simple-hive",
@@ -94,7 +94,7 @@ mod tests {
                     "namespace": "default",
                     "ownerReferences": [
                         {
-                            "apiVersion": "hive.stackable.tech/v1alpha1",
+                            "apiVersion": "hive.stackable.tech/v1alpha2",
                             "controller": true,
                             "kind": "HiveCluster",
                             "name": "simple-hive",

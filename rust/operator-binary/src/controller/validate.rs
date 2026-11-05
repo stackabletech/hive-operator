@@ -25,7 +25,7 @@ use crate::{
     crd::{
         HiveRole, MetaStoreConfig,
         databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha1::{self, HiveMetastoreRoleConfig},
+        v1alpha2::{self, HiveMetastoreRoleConfig},
     },
 };
 
@@ -123,7 +123,7 @@ fn validate_logging(
 }
 
 pub fn validate_cluster(
-    hive: &v1alpha1::HiveCluster,
+    hive: &v1alpha2::HiveCluster,
     image_repository: &str,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
@@ -245,7 +245,7 @@ fn validate_role_group_config(
         JavaCommonConfig,
         crate::crd::MetaStoreConfigFragment,
         HiveMetastoreRoleConfig,
-        v1alpha1::HiveConfigOverrides,
+        v1alpha2::HiveConfigOverrides,
     >(role_group, role, default_config)
     .with_context(|_| ValidateConfigSnafu {
         role_group: role_group_name.clone(),
@@ -373,7 +373,7 @@ mod tests {
         // A copy of `DERBY_YAML` whose role-group name violates the RFC 1123 label rules
         // (uppercase and underscore).
         let yaml = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive

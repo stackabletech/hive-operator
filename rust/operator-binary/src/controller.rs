@@ -1,4 +1,4 @@
-//! Ensures that `Pod`s are configured and running for each [`v1alpha1::HiveCluster`]
+//! Ensures that `Pod`s are configured and running for each [`v1alpha2::HiveCluster`]
 
 mod apply;
 mod build;
@@ -51,7 +51,7 @@ use strum::EnumDiscriminants;
 use crate::{
     HIVE_OPERATOR_NAME,
     controller::{apply::Applier, update_status::update_status},
-    crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha1},
+    crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha2},
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -105,7 +105,7 @@ impl ReconcilerError for Error {
 pub type HiveRoleGroupConfig = stackable_operator::v2::role_utils::RoleGroupConfig<
     ValidatedMetaStoreConfig,
     stackable_operator::v2::role_utils::JavaCommonConfig,
-    v1alpha1::HiveConfigOverrides,
+    v1alpha2::HiveConfigOverrides,
 >;
 
 /// A validated Hive metastore config: the merged [`MetaStoreConfig`] with its raw `logging`
@@ -161,7 +161,7 @@ impl ValidatedMetaStoreConfig {
 ///
 /// The cluster identity (`name`, `namespace`, `uid`) is captured here so that owner
 /// references for child objects can be built straight from this struct
-/// (via its [`Resource`] impl) without threading the raw [`v1alpha1::HiveCluster`]
+/// (via its [`Resource`] impl) without threading the raw [`v1alpha2::HiveCluster`]
 /// around.
 pub struct ValidatedCluster {
     /// `ObjectMeta` carrying `name`, `namespace` and `uid`, so this struct can act as the
@@ -252,27 +252,27 @@ impl ValidatedCluster {
     }
 }
 
-/// Lets [`ValidatedCluster`] stand in for the raw [`v1alpha1::HiveCluster`] when building owner
+/// Lets [`ValidatedCluster`] stand in for the raw [`v1alpha2::HiveCluster`] when building owner
 /// references and metadata for child objects. Kind/group/version are delegated to the CRD; the
 /// `metadata` (name, namespace, uid) is captured during validation.
 impl Resource for ValidatedCluster {
-    type DynamicType = <v1alpha1::HiveCluster as Resource>::DynamicType;
-    type Scope = <v1alpha1::HiveCluster as Resource>::Scope;
+    type DynamicType = <v1alpha2::HiveCluster as Resource>::DynamicType;
+    type Scope = <v1alpha2::HiveCluster as Resource>::Scope;
 
     fn kind(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::kind(dt)
+        v1alpha2::HiveCluster::kind(dt)
     }
 
     fn group(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::group(dt)
+        v1alpha2::HiveCluster::group(dt)
     }
 
     fn version(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::version(dt)
+        v1alpha2::HiveCluster::version(dt)
     }
 
     fn plural(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::plural(dt)
+        v1alpha2::HiveCluster::plural(dt)
     }
 
     fn meta(&self) -> &ObjectMeta {
@@ -358,7 +358,7 @@ pub struct KubernetesResources<T> {
 }
 
 pub async fn reconcile_hive(
-    hive: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
+    hive: Arc<DeserializeGuard<v1alpha2::HiveCluster>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -408,7 +408,7 @@ pub async fn reconcile_hive(
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
+    _obj: Arc<DeserializeGuard<v1alpha2::HiveCluster>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
@@ -424,7 +424,7 @@ pub(crate) mod test_support {
     use stackable_operator::utils::yaml_from_str_singleton_map;
 
     use super::{ValidatedCluster, dereference::DereferencedObjects, validate::validate_cluster};
-    use crate::crd::v1alpha1;
+    use crate::crd::v1alpha2;
 
     /// The expected `app.kubernetes.io/version` label value for the given product version.
     ///
@@ -444,7 +444,7 @@ pub(crate) mod test_support {
     /// (`simple-hive`) deliberately differs from the product name (`hive`), so tests asserting
     /// recommended labels catch swapped `name`/`instance` values.
     pub const DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -462,12 +462,12 @@ pub(crate) mod test_support {
                 replicas: 1
         "#;
 
-    pub fn minimal_hive(yaml: &str) -> v1alpha1::HiveCluster {
+    pub fn minimal_hive(yaml: &str) -> v1alpha2::HiveCluster {
         yaml_from_str_singleton_map(yaml).expect("invalid test HiveCluster YAML")
     }
 
     /// Runs the real validate step against a minimal (S3/OPA-free) fixture.
-    pub fn validated_cluster(hive: &v1alpha1::HiveCluster) -> ValidatedCluster {
+    pub fn validated_cluster(hive: &v1alpha2::HiveCluster) -> ValidatedCluster {
         validate_cluster(
             hive,
             "oci.example.org",
@@ -510,7 +510,7 @@ mod tests {
     fn reconcile_exits_early_for_deleted_cluster() {
         let hive = yaml_serde::from_str(
             r#"
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: hive

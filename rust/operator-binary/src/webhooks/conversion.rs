@@ -30,7 +30,7 @@ pub async fn create_webhook_server(
     client: Client,
 ) -> Result<WebhookServer, Error> {
     let crds_and_handlers = vec![(
-        HiveCluster::merged_crd(HiveClusterVersion::V1Alpha1).context(MergeCrdSnafu)?,
+        HiveCluster::merged_crd(HiveClusterVersion::V1Alpha2).context(MergeCrdSnafu)?,
         HiveCluster::try_convert,
     )];
 
