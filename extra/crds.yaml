@@ -1571,9 +1571,6 @@ spec:
                       type: array
                     description: List of values needed when upgrading to a particular version.
                     type: object
-                required:
-                - downgrades
-                - upgrades
                 type: object
               conditions:
                 default: []
@@ -1617,8 +1614,6 @@ spec:
                 description: An opaque value that changes every time a discovery detail does
                 nullable: true
                 type: string
-            required:
-            - changedValues
             type: object
         required:
         - spec
@@ -3088,9 +3083,6 @@ spec:
                       type: array
                     description: List of values needed when upgrading to a particular version.
                     type: object
-                required:
-                - downgrades
-                - upgrades
                 type: object
               conditions:
                 default: []
@@ -3134,8 +3126,6 @@ spec:
                 description: An opaque value that changes every time a discovery detail does
                 nullable: true
                 type: string
-            required:
-            - changedValues
             type: object
         required:
         - spec

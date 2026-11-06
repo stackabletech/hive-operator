@@ -62,6 +62,8 @@ pub async fn update_status(
         conditions: compute_conditions(hive, &[&ss_cond_builder, &cluster_operation_cond_builder]),
     };
 
+    // Deliberately not a HiveClusterStatusWithChangedValues: The changedValues are owned by the
+    // conversion webhook. Server-side apply only touches the fields we send, so they are retained.
     client
         .apply_patch_status(HIVE_OPERATOR_NAME, hive, &status)
         .await
