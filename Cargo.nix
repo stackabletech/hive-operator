@@ -5614,7 +5614,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "k8s_version";
         license = "Apache-2.0";
@@ -10632,7 +10632,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "stackable_certs";
         license = "Apache-2.0";
@@ -10842,7 +10842,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "stackable_operator";
         license = "Apache-2.0";
@@ -11047,7 +11047,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         procMacro = true;
         libName = "stackable_operator_derive";
@@ -11083,7 +11083,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "stackable_shared";
         license = "Apache-2.0";
@@ -11165,7 +11165,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "stackable_telemetry";
         license = "Apache-2.0";
@@ -11276,7 +11276,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "stackable_versioned";
         license = "Apache-2.0";
@@ -11323,7 +11323,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         procMacro = true;
         libName = "stackable_versioned_macros";
@@ -11388,7 +11388,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
           rev = "f7735379fa51c7aaddf1c5032437fc50810b8dcf";
-          sha256 = "1yfmjslv9s111zc4zfqzi2aankchiw8yjxx2zlc17wgayqrbmxrj";
+          sha256 = "07cmwq39x1rxvpahz63g67l8cd8k9a8qpmraww272hs1w7m995yg";
         };
         libName = "stackable_webhook";
         license = "Apache-2.0";
