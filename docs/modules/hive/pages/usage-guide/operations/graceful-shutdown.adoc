@@ -1,4 +1,5 @@
 = Graceful shutdown
+:description: Graceful shutdown of Apache Hive metastores, covering the configurable shutdown timeout and how the metastore process stops.
 
 You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 

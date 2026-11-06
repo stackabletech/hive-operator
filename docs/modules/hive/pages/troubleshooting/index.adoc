@@ -1,4 +1,5 @@
 = Troubleshooting
+:description: Troubleshooting the Apache Hive metastore on Kubernetes, covering Thrift errors from health checks under Kerberos and failing Iceberg schema changes.
 
 == Probe error 'Thrift Error' while using Kerberos authentication
 
