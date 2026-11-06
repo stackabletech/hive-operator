@@ -4,5 +4,5 @@ kind: TestStep
 timeout: 600
 commands:
   - script: >
-      envsubst < install-hive.yaml |
+      envsubst < 20_hive.yaml |
       kubectl apply -n "$NAMESPACE" -f -

@@ -6,5 +6,5 @@ commands:
       helm install hive
       --version={{ test_scenario['values']['postgres'] }}
       --namespace "$NAMESPACE"
-      -f helm-bitnami-postgresql-values.yaml
+      -f 02_helm-bitnami-postgresql-values.yaml
       --repo https://charts.bitnami.com/bitnami postgresql

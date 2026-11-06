@@ -33,8 +33,6 @@ commands:
                     kinit -kt /stackable/kerberos/keytab testuser/access-hdfs.$NAMESPACE.svc.cluster.local
                     klist
 
-                    bin/hdfs dfs -mkdir /stackable
-                    bin/hdfs dfs -chown -R access-hive /stackable
                     bin/hdfs dfs -mkdir /access-hive
                     bin/hdfs dfs -chown -R access-hive /access-hive
                     bin/hdfs dfs -ls /

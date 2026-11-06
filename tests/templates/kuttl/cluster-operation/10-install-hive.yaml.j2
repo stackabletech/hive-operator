@@ -15,6 +15,7 @@ spec:
   clusterConfig:
     metadataDatabase:
       derby: {}
+    warehouseDir: s3a://my-bucket/my-warehouse/
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

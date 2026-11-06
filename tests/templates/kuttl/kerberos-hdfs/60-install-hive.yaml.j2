@@ -30,6 +30,7 @@ commands:
               authentication:
                 kerberos:
                   secretClass: kerberos-$NAMESPACE
+            warehouseDir: hdfs://hdfs/access-hive/warehouse/
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
             vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
