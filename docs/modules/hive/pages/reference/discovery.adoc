@@ -8,7 +8,7 @@
 
 The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#configmap-v1-core[ConfigMap], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
 
-The bundle includes an Apache Thrift connection string to access the Hive Metastore service. This string may be used by other operators or tools to configure their products with access to Hive. Access is limited to services within the same Kubernetes cluster.
+The bundle includes an Apache Thrift connection string to access the Hive Metastore service. This string may be used by other operators or tools to configure their products with access to Hive.
 
 == Example
 
@@ -28,6 +28,7 @@ spec:
         host: postgresql
         database: hive
         credentialsSecretName: hive-credentials
+    warehouseDir: s3a://my-bucket/warehouse/
   metastore:
     roleGroups:
       default: # <3>
@@ -50,27 +51,20 @@ The resulting discovery ConfigMap is `{namespace}/{clusterName}`.
 
 == Contents
 
-=== Internal access
-
-The `{namespace}/{clusterName}` discovery ConfigMap contains the following fields where `{clusterName}` represents the name, `{namespace}` the namespace of the cluster and `{roleGroup}` a role group of the `metastore` role:
+The `{namespace}/{clusterName}` discovery ConfigMap contains the following fields where `{clusterName}` represents the name and `{namespace}` the namespace of the cluster:
 
 `HIVE`::
 ====
-Contains the thrift protocol connection string for the Hive metastore service:
+Contains the thrift protocol connection string for the Hive metastore service.
+The address and port are the ones published by the `{clusterName}-metastore` xref:listener-operator:listener.adoc[Listener], so they depend on the xref:usage-guide/listenerclass.adoc[ListenerClass] in use.
+For the default `cluster-internal` ListenerClass this is:
 
 [subs="attributes"]
-  thrift://{clusterName}.{namespace}.svc.cluster.local:{metastorePort}
+  thrift://{clusterName}-metastore.{namespace}.svc.cluster.local:{metastorePort}
+
+This entry is only present if the Thrift API is enabled (`spec.clusterConfig.thriftApi.enabled`, which is the default).
 ====
+
+The discovery ConfigMap does not contain an entry for the xref:usage-guide/iceberg-rest-catalog.adoc[Iceberg REST catalog] yet.
 
 WARNING: Using the Hive metastore in high availability mode (replicas > 1) does not work with Derby but instead requires a properly configured database like PostgreSQL or MySQL.
-
-=== External access
-
-If `spec.clusterConfig.listenerClass` is set to `external-unstable` an additional ConfigMap is generated to expose external access to the cluster. This discovery ConfigMap is reachable via `{namespace}/{clusterName}-nodeport`.
-
-====
-Contains the thrift protocol connection string for the Hive metastore NodePort service:
-
-  thrift://<node-ip>:<nodeport>
-  thrift://<other-node-ip>:<nodeport>
-====

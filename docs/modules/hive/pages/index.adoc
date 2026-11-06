@@ -37,6 +37,8 @@ Every role group is accessible through its own Service, and there is a Service f
 The operator creates a xref:concepts:service_discovery.adoc[service discovery ConfigMap] for the Hive metastore instance.
 The discovery ConfigMap contains information on how to connect to the HMS.
 
+Besides its Thrift API, the HMS can also serve the xref:usage-guide/iceberg-rest-catalog.adoc[Iceberg REST catalog API] (experimental).
+
 == Dependencies
 
 The Stackable operator for Apache Hive depends on the Stackable xref:commons-operator:index.adoc[commons], xref:secret-operator:index.adoc[secret] and  xref:listener-operator:index.adoc[listener] operators.
