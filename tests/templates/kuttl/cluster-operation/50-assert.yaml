@@ -15,7 +15,7 @@ kind: StatefulSet
 metadata:
   name: test-hive-metastore-default
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -28,7 +28,7 @@ kind: ServiceAccount
 metadata:
   name: test-hive-serviceaccount
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -38,7 +38,7 @@ kind: RoleBinding
 metadata:
   name: test-hive-rolebinding
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -48,7 +48,7 @@ kind: PodDisruptionBudget
 metadata:
   name: test-hive-metastore
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -58,7 +58,7 @@ kind: Listener
 metadata:
   name: test-hive-metastore
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -68,7 +68,7 @@ kind: ConfigMap
 metadata:
   name: test-hive
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -78,7 +78,7 @@ kind: Service
 metadata:
   name: test-hive-metastore-default-headless
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive
@@ -88,7 +88,7 @@ kind: Service
 metadata:
   name: test-hive-metastore-default-metrics
   ownerReferences:
-    - apiVersion: hive.stackable.tech/v1alpha1
+    - apiVersion: hive.stackable.tech/v1alpha2
       controller: true
       kind: HiveCluster
       name: test-hive

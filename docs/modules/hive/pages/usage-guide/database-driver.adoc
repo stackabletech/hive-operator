@@ -141,7 +141,7 @@ This is done by setting the value of the environment variable `METASTORE_AUX_JAR
 [source,yaml]
 ----
 ---
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: hive-with-drivers
@@ -217,7 +217,7 @@ docker build -f ./Dockerfile -t oci.stackable.tech/sdp/hive:4.2.1-stackable0.0.0
 [source, yaml]
 ----
 ---
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: hive

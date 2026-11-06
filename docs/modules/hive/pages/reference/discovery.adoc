@@ -16,7 +16,7 @@ Given the following Hive cluster:
 
 [source,yaml,subs="normal,callouts"]
 ----
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: {clusterName} # <1>

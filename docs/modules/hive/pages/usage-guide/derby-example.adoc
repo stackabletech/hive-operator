@@ -9,7 +9,7 @@ It should generally be safe to simply use the latest image version that is avail
 .Create a single node Apache Hive Metastore cluster using Derby:
 [source,yaml]
 ----
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: simple-hive-derby
@@ -55,7 +55,7 @@ Then, connect to localhost:9001 and login with the user `minio-access-key` and p
 Deploy the hive cluster:
 [source,yaml]
 ----
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: simple-hive-derby
@@ -126,7 +126,7 @@ helm install hive bitnami/postgresql --version=12.1.5 \
 .Create Hive Metastore using a PostgreSQL database
 [source,yaml]
 ----
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: simple-hive-postgres

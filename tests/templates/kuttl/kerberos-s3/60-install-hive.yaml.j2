@@ -5,7 +5,7 @@ commands:
   - script: |
         kubectl apply -n "$NAMESPACE" -f - <<EOF
         ---
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: hive
