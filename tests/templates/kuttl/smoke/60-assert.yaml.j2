@@ -191,7 +191,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
-          mkdir --parents "$FILE_LOG_DIRECTORY"
+          mkdir --parents "$FILE_LOG_DIRECTORY" || true
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
 {% if test_scenario['values']['hive'].split(',')[0].startswith('3.') %}
           bin/start-metastore --config /stackable/config --db-type postgres --hive-bin-dir bin &
