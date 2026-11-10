@@ -21,7 +21,10 @@ use stackable_operator::{
     },
     config::{fragment::Fragment, merge::Merge},
     constant,
-    crd::s3,
+    crd::{
+        containerdebug::{default_containerdebug_config, v1alpha1::ContainerdebugConfig},
+        s3,
+    },
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
@@ -329,7 +332,7 @@ pub struct MetastoreStorageConfig {
     pub data: PvcConfig,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -356,6 +359,9 @@ pub struct MetaStoreConfig {
 
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
+    #[fragment_attrs(serde(default))]
+    pub containerdebug: ContainerdebugConfig,
 
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
@@ -389,6 +395,7 @@ impl MetaStoreConfig {
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role, opa_config),
+            containerdebug: default_containerdebug_config(),
             graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }

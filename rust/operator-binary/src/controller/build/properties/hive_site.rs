@@ -139,14 +139,16 @@ pub fn build(
 mod tests {
     use super::*;
     use crate::{
-        controller::build::properties::test_support::{derby_cluster_config, s3_cluster_config},
+        controller::build::properties::test_support::{
+            default_metastore_config, derby_cluster_config, s3_cluster_config,
+        },
         crd::MetaStoreConfig,
     };
 
     #[test]
     fn defaults_present_for_minimal_derby_cluster() {
         let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(default_metastore_config());
 
         let data = build(
             &cluster_config,
@@ -176,7 +178,7 @@ mod tests {
         let cluster_config = derby_cluster_config();
         let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig {
             warehouse_dir: Some("/custom/warehouse".to_string()),
-            ..MetaStoreConfig::default()
+            ..default_metastore_config()
         });
 
         let data = build(
@@ -197,7 +199,7 @@ mod tests {
     #[test]
     fn s3_connection_emits_s3a_settings() {
         let cluster_config = s3_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(default_metastore_config());
 
         let data = build(
             &cluster_config,
@@ -225,7 +227,7 @@ mod tests {
     #[test]
     fn s3_connection_registers_the_s3_scheme() {
         let cluster_config = s3_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(default_metastore_config());
 
         let data = build(
             &cluster_config,
@@ -245,7 +247,7 @@ mod tests {
     #[test]
     fn no_s3_connection_leaves_the_s3_scheme_unregistered() {
         let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(default_metastore_config());
 
         let data = build(
             &cluster_config,
@@ -262,7 +264,7 @@ mod tests {
     #[test]
     fn user_override_wins_over_everything() {
         let cluster_config = derby_cluster_config();
-        let merged = ValidatedMetaStoreConfig::from_merged_for_test(MetaStoreConfig::default());
+        let merged = ValidatedMetaStoreConfig::from_merged_for_test(default_metastore_config());
         let overrides = [("hive.metastore.port".to_string(), "1234".to_string())]
             .into_iter()
             .collect();
