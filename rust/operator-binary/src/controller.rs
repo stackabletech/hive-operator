@@ -20,7 +20,7 @@ use stackable_operator::{
         resources::{NoRuntimeLimits, Resources},
     },
     constant,
-    crd::{listener::v1alpha1::Listener, s3},
+    crd::{containerdebug::ValidatedContainerdebugConfig, listener::v1alpha1::Listener, s3},
     database_connections::drivers::jdbc::JdbcDatabaseConnectionDetails,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -115,6 +115,7 @@ pub type HiveRoleGroupConfig = stackable_operator::v2::role_utils::RoleGroupConf
 #[derive(Clone, Debug, PartialEq)]
 pub struct ValidatedMetaStoreConfig {
     pub affinity: StackableAffinity,
+    pub containerdebug: ValidatedContainerdebugConfig,
     pub graceful_shutdown_timeout: Option<Duration>,
     pub logging: validate::ValidatedLogging,
     pub resources: Resources<crate::crd::MetastoreStorageConfig, NoRuntimeLimits>,
@@ -123,19 +124,25 @@ pub struct ValidatedMetaStoreConfig {
 
 impl ValidatedMetaStoreConfig {
     /// Builds the validated config from the merged [`MetaStoreConfig`], swapping in the
-    /// already-validated logging.
-    fn from_merged(merged: MetaStoreConfig, logging: validate::ValidatedLogging) -> Self {
+    /// already-validated `containerdebug` and logging configuration.
+    fn from_merged(
+        merged: MetaStoreConfig,
+        containerdebug: ValidatedContainerdebugConfig,
+        logging: validate::ValidatedLogging,
+    ) -> Self {
         Self {
             warehouse_dir: merged.warehouse_dir,
             resources: merged.resources,
             logging,
             affinity: merged.affinity,
+            containerdebug,
             graceful_shutdown_timeout: merged.graceful_shutdown_timeout,
         }
     }
 
-    /// Wraps a merged [`MetaStoreConfig`] with trivial automatic logging, for builder tests
-    /// that only exercise the non-logging parts of the config.
+    /// Wraps a merged [`MetaStoreConfig`] with trivial automatic logging and its own validated
+    /// `containerdebug` config, for builder tests that only exercise the non-logging parts of
+    /// the config.
     #[cfg(test)]
     pub(crate) fn from_merged_for_test(merged: MetaStoreConfig) -> Self {
         use stackable_operator::{
@@ -143,8 +150,14 @@ impl ValidatedMetaStoreConfig {
             v2::product_logging::framework::ValidatedContainerLogConfigChoice,
         };
 
+        let containerdebug = merged
+            .containerdebug
+            .validate()
+            .expect("the containerdebug config is valid");
+
         Self::from_merged(
             merged,
+            containerdebug,
             validate::ValidatedLogging {
                 hive_container: ValidatedContainerLogConfigChoice::Automatic(
                     AutomaticContainerLogConfig::default(),
