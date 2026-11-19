@@ -282,7 +282,7 @@ impl NameIsValidLabelValue for ValidatedCluster {
 /// Cluster-wide settings resolved during validation and dereferencing.
 ///
 /// Everything the config-file builders need is resolved here so they never have to
-/// read the raw [`v1alpha1::HiveCluster`] spec.
+/// read the raw [`v1alpha2::HiveCluster`] spec.
 pub struct ValidatedClusterConfig {
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     /// The resolved JDBC driver class (Derby version special-casing already applied).
