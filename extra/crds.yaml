@@ -1526,14 +1526,14 @@ spec:
                               When upgrading again, the tracked `value` is only applied if the field still contains this
                               value. Otherwise, the field was changed by a user in the older version and that change is
                               kept instead.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                           jsonPath:
                             description: The name of the field of the custom resource this value is for.
                             type: string
                           value:
                             description: The value to be used when upgrading or downgrading the custom resource.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                         required:
                         - jsonPath
@@ -1555,14 +1555,14 @@ spec:
                               When upgrading again, the tracked `value` is only applied if the field still contains this
                               value. Otherwise, the field was changed by a user in the older version and that change is
                               kept instead.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                           jsonPath:
                             description: The name of the field of the custom resource this value is for.
                             type: string
                           value:
                             description: The value to be used when upgrading or downgrading the custom resource.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                         required:
                         - jsonPath
@@ -3038,14 +3038,14 @@ spec:
                               When upgrading again, the tracked `value` is only applied if the field still contains this
                               value. Otherwise, the field was changed by a user in the older version and that change is
                               kept instead.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                           jsonPath:
                             description: The name of the field of the custom resource this value is for.
                             type: string
                           value:
                             description: The value to be used when upgrading or downgrading the custom resource.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                         required:
                         - jsonPath
@@ -3067,14 +3067,14 @@ spec:
                               When upgrading again, the tracked `value` is only applied if the field still contains this
                               value. Otherwise, the field was changed by a user in the older version and that change is
                               kept instead.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                           jsonPath:
                             description: The name of the field of the custom resource this value is for.
                             type: string
                           value:
                             description: The value to be used when upgrading or downgrading the custom resource.
-                            type: object
+                            nullable: true
                             x-kubernetes-preserve-unknown-fields: true
                         required:
                         - jsonPath
