@@ -295,7 +295,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
             mkdir --parents \"${file_log_directory}\" || true
-            containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+            {containerdebug_command}
             {start_command}
             wait_for_termination $!
             {create_vector_shutdown_file_command}
@@ -304,6 +304,10 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
                 remove_vector_shutdown_file_command =
                     remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                 file_log_directory = FILE_LOG_DIRECTORY.as_ref(),
+                containerdebug_command = merged_config
+                    .containerdebug
+                    .background_command(STACKABLE_LOG_DIR)
+                    .unwrap_or_default(),
                 create_vector_shutdown_file_command =
                     create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
             },
@@ -515,6 +519,11 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 mod tests {
     use std::str::FromStr;
 
+    use rstest::rstest;
+    use stackable_operator::{
+        crd::containerdebug::ValidatedContainerdebugConfig, shared::time::Duration,
+    };
+
     use super::*;
     use crate::{
         controller::test_support::{DERBY_YAML, minimal_hive, validated_cluster},
@@ -685,6 +694,53 @@ mod tests {
         assert_eq!(
             env_var_values(KERBEROS_OVERRIDE_DERBY_YAML, "KRB5_CONFIG"),
             [("KRB5_CONFIG".to_string(), "/custom/krb5.conf".to_string())]
+        );
+    }
+
+    /// The hive container starts `containerdebug` from the role group's validated config. The
+    /// command itself is owned (and tested) by operator-rs, so only the wiring is checked here.
+    #[rstest]
+    #[case::enabled(ValidatedContainerdebugConfig::Enabled {
+        interval: Duration::from_minutes_unchecked(10)
+    })]
+    #[case::disabled(ValidatedContainerdebugConfig::Disabled)]
+    fn hive_container_starts_containerdebug_from_config(
+        #[case] containerdebug: ValidatedContainerdebugConfig,
+    ) {
+        let expected = containerdebug.background_command(STACKABLE_LOG_DIR);
+        let hive = minimal_hive(DERBY_YAML);
+        let cluster = validated_cluster(&hive);
+        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
+        let mut rg = cluster.role_group_configs[&HiveRole::MetaStore][&role_group_name].clone();
+        rg.config.containerdebug = containerdebug;
+
+        let stateful_set = build_metastore_rolegroup_statefulset(
+            &HiveRole::MetaStore,
+            &cluster,
+            &role_group_name,
+            &rg,
+        )
+        .expect("the StatefulSet builds");
+
+        let args = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == Container::Hive.name().to_string())
+            .expect("the hive container exists")
+            .args
+            .expect("the hive container has args")
+            .join("\n");
+        assert_eq!(
+            args.lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("containerdebug ")),
+            expected.as_deref(),
+            "args: {args}"
         );
     }
 }

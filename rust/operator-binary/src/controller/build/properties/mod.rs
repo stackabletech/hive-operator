@@ -39,15 +39,26 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use stackable_operator::crd::s3;
+    use stackable_operator::{config::fragment, crd::s3};
 
     use crate::{
         controller::{ValidatedClusterConfig, test_support::DERBY_YAML},
         crd::{
+            HiveRole, MetaStoreConfig,
             databases::{MetadataDatabaseConnection, derby_driver_class},
             v1alpha1,
         },
     };
+
+    /// The merged [`MetaStoreConfig`] of a role group that configures nothing itself.
+    pub fn default_metastore_config() -> MetaStoreConfig {
+        fragment::validate(MetaStoreConfig::default_config(
+            "simple-hive",
+            &HiveRole::MetaStore,
+            None,
+        ))
+        .expect("the default config is complete")
+    }
 
     /// Build a minimal Derby-backed [`ValidatedClusterConfig`] for builder tests.
     pub fn derby_cluster_config() -> ValidatedClusterConfig {

@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#790]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
+- Add `containerdebug` config CRD ([#794]).
 
 ### Removed
 
@@ -86,6 +87,7 @@ All notable changes to this project will be documented in this file.
 [#785]: https://github.com/stackabletech/hive-operator/pull/785
 [#787]: https://github.com/stackabletech/hive-operator/pull/787
 [#790]: https://github.com/stackabletech/hive-operator/pull/790
+[#794]: https://github.com/stackabletech/hive-operator/pull/794
 
 ## [26.7.0] - 2026-07-21
 
