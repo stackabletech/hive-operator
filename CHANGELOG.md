@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#770]).
 - Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
 - Add support for Hive `4.2.1` ([#766], [#782]).
+- The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
+  the Vector aggregator ([#790]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
 - Experimental support for serving the Iceberg REST catalog API from the metastore via
   `spec.clusterConfig.icebergRestCatalog`, optionally secured with OAuth 2, JWT or simple authentication ([#XXX]).
@@ -38,11 +40,8 @@ All notable changes to this project will be documented in this file.
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#741]).
 - `envOverrides` names are now validated by the shared `EnvVarName` type rather than by
   operator-specific validation code ([#748]).
-- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
-  from the resources they don't apply to (previously set to `none` or a placeholder value).
-  StatefulSets created by older operator versions cannot be updated in place: after the
-  operator upgrade, delete each metastore StatefulSet so that the operator immediately recreates it with
-  the new labels ([#748]).
+- Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels from the
+  resources they don't apply to ([#748], [#787]).
 - Make operations infallible where dependent on static inputs ([#759], [#764]).
 - Support Vector 0.58.0 ([#776], [#780], [#781]).
 - test: Update OPA to 1.20.2 in integration tests ([#778]).
@@ -64,6 +63,12 @@ All notable changes to this project will be documented in this file.
 - The operator now watches all resources that it creates and early-exits the reconcile action when the
   cluster is marked for deletion ([#754]).
 - The operator now watches the `S3Connection` referenced by `spec.clusterConfig.s3.reference` ([#765]).
+- The `containerdebug` process writes its log file again. The operator set
+  `CONTAINERDEBUG_LOG_DIRECTORY`, which containerdebug stopped reading in its version 0.2.0 when it
+  moved to `stackable-telemetry`; the directory is now set via `FILE_LOG_DIRECTORY`. The file is
+  rotated hourly and at most two files are kept, because rotation is opt-in ([#790]).
+- The Vector unit tests run again. [#780] added a `test-config.yaml` argument to `test-vector.sh`
+  without adding the file, so since then the test run aborted before executing any case ([#790]).
 
 [#726]: https://github.com/stackabletech/hive-operator/pull/726
 [#731]: https://github.com/stackabletech/hive-operator/pull/731
@@ -90,6 +95,11 @@ All notable changes to this project will be documented in this file.
 [#XXX]: https://github.com/stackabletech/hive-operator/pull/XXX
 =======
 [#785]: https://github.com/stackabletech/hive-operator/pull/785
+<<<<<<< HEAD
+>>>>>>> origin/main
+=======
+[#787]: https://github.com/stackabletech/hive-operator/pull/787
+[#790]: https://github.com/stackabletech/hive-operator/pull/790
 >>>>>>> origin/main
 
 ## [26.7.0] - 2026-07-21

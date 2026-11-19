@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use const_format::concatcp;
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -28,9 +29,9 @@ use stackable_operator::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
     },
-    product_logging,
-    product_logging::framework::{
-        create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
+    product_logging::{
+        self,
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
     },
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
@@ -41,6 +42,7 @@ use stackable_operator::{
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
+        rbac::RbacResourceNames,
         types::kubernetes::{PersistentVolumeClaimName, VolumeName},
     },
 };
@@ -143,8 +145,13 @@ constant!(HDFS_DISCOVERY_VOLUME_NAME: VolumeName = "hdfs-discovery");
 // Env vars the operator sets on the Hive container.
 constant!(HADOOP_HEAPSIZE: EnvVarName = "HADOOP_HEAPSIZE");
 constant!(HADOOP_OPTS: EnvVarName = "HADOOP_OPTS");
-// Needed for the `containerdebug` process to log its tracing information to.
-constant!(CONTAINERDEBUG_LOG_DIRECTORY: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+// Let the `containerdebug` process write its tracing information to a file. These are the generic
+// `stackable-telemetry` variables and apply to the whole Hive container, so any other
+// telemetry-based process in it would log into the same directory and the Vector agent would label
+// its events with `container: containerdebug`.
+constant!(FILE_LOG_DIRECTORY: EnvVarName = "FILE_LOG_DIRECTORY");
+constant!(FILE_LOG_MAX_FILES: EnvVarName = "FILE_LOG_MAX_FILES");
+constant!(FILE_LOG_ROTATION_PERIOD: EnvVarName = "FILE_LOG_ROTATION_PERIOD");
 
 /// The directory the HDFS discovery ConfigMap volume is mounted at. Also consumed by
 /// [`build_container_command_args`] when copying the
@@ -177,10 +184,15 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             construct_hadoop_heapsize_env(merged_config).context(ConstructJvmArgumentsSnafu)?,
         )
         .with_value(&HADOOP_OPTS, construct_non_heap_jvm_args(cluster, rg))
+        // The directory must be exactly one level below the log directory, because the Vector
+        // agent derives the container name from that path segment.
         .with_value(
-            &CONTAINERDEBUG_LOG_DIRECTORY,
-            format!("{STACKABLE_LOG_DIR}/containerdebug"),
-        );
+            &FILE_LOG_DIRECTORY,
+            concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
+        )
+        // Rotation is opt-in, so without these the file would grow unbounded.
+        .with_value(&FILE_LOG_ROTATION_PERIOD, "hourly")
+        .with_value(&FILE_LOG_MAX_FILES, "2");
     // The env vars mounting the database credentials Secret (absent e.g. for Derby).
     for env_var in database_connection_details
         .username_env
@@ -303,6 +315,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
+            mkdir --parents \"${file_log_directory}\" || true
             containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
             {start_command}
             wait_for_termination $!
@@ -311,6 +324,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
                 kerberos_container_start_commands = kerberos_container_start_commands(cluster),
                 remove_vector_shutdown_file_command =
                     remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+                file_log_directory = FILE_LOG_DIRECTORY.as_ref(),
                 create_vector_shutdown_file_command =
                     create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
             },
@@ -365,8 +379,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     let recommended_object_labels =
         recommended_labels_for_role_group_resources(cluster, hive_role, role_group_name);
-    // Used for PVC templates, which cannot be modified once they are deployed. The version label
-    // is omitted so the labels stay stable across version upgrades.
+    // The PVC template is immutable once deployed, so its labels must stay stable.
     let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
         cluster,
         hive_role,
@@ -411,6 +424,9 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
             &*STACKABLE_LOG_DIR_NAME,
+            // Only the Hive log files are budgeted. The `containerdebug` files in this
+            // volume are rotated by time, not by size, so they have no budget; raising
+            // `FILE_LOG_LEVEL` via `envOverrides` can therefore evict the Pod.
             Some(product_logging::framework::calculate_log_volume_size_limit(
                 &[MAX_HIVE_LOG_FILES_SIZE],
             )),
@@ -534,10 +550,12 @@ mod tests {
         let _ = *HDFS_DISCOVERY_VOLUME_NAME;
         let _ = *HADOOP_HEAPSIZE;
         let _ = *HADOOP_OPTS;
-        let _ = *CONTAINERDEBUG_LOG_DIRECTORY;
+        let _ = *FILE_LOG_DIRECTORY;
+        let _ = *FILE_LOG_MAX_FILES;
+        let _ = *FILE_LOG_ROTATION_PERIOD;
     }
 
-    /// [`DERBY_YAML`] with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY` overridden on the
+    /// [`DERBY_YAML`] with the operator-set `FILE_LOG_DIRECTORY` overridden on the
     /// metastore.
     const OVERRIDE_DERBY_YAML: &str = r#"
         apiVersion: hive.stackable.tech/v1alpha1
@@ -555,7 +573,7 @@ mod tests {
             warehouseDir: s3a://my-bucket/my-warehouse/
           metastore:
             envOverrides:
-              CONTAINERDEBUG_LOG_DIRECTORY: /debug-override
+              FILE_LOG_DIRECTORY: /debug-override
             roleGroups:
               default:
                 replicas: 1
@@ -650,15 +668,15 @@ mod tests {
     /// The user-supplied `envOverrides` must be merged in after all operator-set environment
     /// variables, so that an override replaces the operator's value instead of producing a
     /// duplicated entry whose precedence depended on Kubernetes' duplicate-name handling.
-    /// `CONTAINERDEBUG_LOG_DIRECTORY` is used as the example here because it is set
+    /// `FILE_LOG_DIRECTORY` is used as the example here because it is set
     /// unconditionally by the operator.
     #[test]
     fn env_overrides_override_operator_set_env_vars() {
         // Without an override, the operator's value is set (exactly once).
         assert_eq!(
-            env_var_values(DERBY_YAML, "CONTAINERDEBUG_LOG_DIRECTORY"),
+            env_var_values(DERBY_YAML, "FILE_LOG_DIRECTORY"),
             [(
-                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                "FILE_LOG_DIRECTORY".to_string(),
                 format!("{STACKABLE_LOG_DIR}/containerdebug")
             )]
         );
@@ -666,9 +684,9 @@ mod tests {
         // An override replaces it; exact comparison so a duplicate entry (operator value
         // alongside the override) fails too.
         assert_eq!(
-            env_var_values(OVERRIDE_DERBY_YAML, "CONTAINERDEBUG_LOG_DIRECTORY"),
+            env_var_values(OVERRIDE_DERBY_YAML, "FILE_LOG_DIRECTORY"),
             [(
-                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                "FILE_LOG_DIRECTORY".to_string(),
                 "/debug-override".to_string()
             )]
         );

@@ -16,4 +16,4 @@ export VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
 
 vector validate --no-environment vector.yaml
 
-vector test test-config.yaml vector.yaml vector-test.yaml
+vector test vector.yaml vector-test.yaml

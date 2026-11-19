@@ -38,17 +38,19 @@ helm install --wait hive-operator oci://oci.stackable.tech/sdp-charts/hive-opera
 echo "Install minio for S3"
 # tag::helm-install-minio[]
 helm install minio \
-  --version 5.4.0 \
+  --version 12.6.4 \
   --namespace default \
+  --set global.security.allowInsecureImages=true \
+  --set image.repository=bitnamilegacy/minio \
+  --set clientImage.repository=bitnamilegacy/minio-client \
   --set mode=standalone \
-  --set replicas=1 \
   --set persistence.enabled=false \
-  --set "buckets[0].name=hive,buckets[0].policy=none" \
-  --set "users[0].accessKey=hive,users[0].secretKey=hivehive,users[0].policy=readwrite" \
+  --set auth.rootUser=hive \
+  --set auth.rootPassword=hivehive \
+  --set defaultBuckets=hive \
   --set resources.requests.memory=1Gi \
-  --set service.type=NodePort,service.nodePort=null \
-  --set consoleService.type=NodePort,consoleService.nodePort=null \
-  --repo https://charts.min.io/ minio
+  --set service.type=NodePort \
+  --repo https://charts.bitnami.com/bitnami minio
 # end::helm-install-minio[]
 
 echo "Install postgres for Hive"
