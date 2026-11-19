@@ -1,4 +1,5 @@
 = Usage guide
+:description: Guides for Apache Hive metastores on Kubernetes, covering database drivers, data storage, security, resources, logging, monitoring and overrides.
 :page-aliases: usage.adoc
 
 This Section helps you to use and configure the Stackable operator for Apache Hive in various ways.

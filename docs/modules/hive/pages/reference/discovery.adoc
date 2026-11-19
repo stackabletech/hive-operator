@@ -5,6 +5,7 @@
 :page-aliases: discovery.adoc
 
 = Discovery
+:description: Reference for the discovery ConfigMap the Stackable operator for Apache Hive publishes, with the Thrift connection string for the Hive metastore.
 
 The Stackable Operator for Apache Hive publishes a discovery https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#configmap-v1-core[ConfigMap], which exposes a client configuration bundle that allows access to the Apache Hive cluster.
 

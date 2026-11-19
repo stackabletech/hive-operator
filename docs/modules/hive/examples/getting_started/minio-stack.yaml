@@ -2,26 +2,26 @@
 releaseName: minio
 name: minio
 repo:
-  name: minio
-  url: https://charts.min.io/
-version: 5.4.0
+  name: bitnami
+  url: https://charts.bitnami.com/bitnami/
+version: 12.6.4
 options:
-  rootUser: root
-  rootPassword: rootroot
+  global:
+    security:
+      allowInsecureImages: true
+  image:
+    repository: bitnamilegacy/minio
+  clientImage:
+    repository: bitnamilegacy/minio-client
   mode: standalone
-  users:
-    - accessKey: hive
-      secretKey: hivehive
-      policy: readwrite
-  buckets:
-    - name: hive
-      policy: public
+  persistence:
+    enabled: false
+  auth:
+    rootUser: hive
+    rootPassword: hivehive
+  defaultBuckets: hive
   resources:
     requests:
-      memory: 2Gi
+      memory: 1Gi
   service:
     type: NodePort
-    nodePort: null
-  consoleService:
-    type: NodePort
-    nodePort: null
