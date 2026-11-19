@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::product_image_selection,
     config::fragment,
@@ -79,6 +79,23 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display(
+        "the Thrift API and Iceberg REST catalog are both disabled, please enable {}",
+        if *iceberg_rest_catalog_supported {
+            "at least one"
+        } else {
+            "the Thrift API (the Iceberg REST catalog requires Hive 4.2.0 or newer)"
+        }
+    ))]
+    ThriftAndRestDisabled {
+        iceberg_rest_catalog_supported: bool,
+    },
+
+    #[snafu(display(
+        "the Iceberg REST catalog requires Hive 4.2.0 or newer, but {product_version} is used"
+    ))]
+    IcebergRestCatalogUnsupportedProductVersion { product_version: String },
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -208,8 +225,32 @@ pub fn validate_cluster(
         .to_owned();
 
     let hdfs = hive.spec.cluster_config.hdfs.clone();
+    let thrift_api_enabled = hive.spec.cluster_config.thrift_api.enabled;
+    let iceberg_rest_catalog_enabled = hive.spec.cluster_config.iceberg_rest_catalog.enabled;
+    let thrift_kerberos_secret_class = hive.thrift_kerberos_secret_class();
+    let iceberg_rest_catalog_security = hive
+        .spec
+        .cluster_config
+        .iceberg_rest_catalog
+        .authentication
+        .clone();
 
-    let kerberos_secret_class = hive.thrift_kerberos_secret_class();
+    // The Iceberg REST catalog is available since Hive 4.1.0, but only works since 4.2.0.
+    let product_version = &image.product_version;
+    let iceberg_rest_catalog_supported = !(product_version.starts_with("3.")
+        || product_version.starts_with("4.0.")
+        || product_version.starts_with("4.1."));
+
+    ensure!(
+        thrift_api_enabled || iceberg_rest_catalog_enabled,
+        ThriftAndRestDisabledSnafu {
+            iceberg_rest_catalog_supported
+        }
+    );
+    ensure!(
+        !iceberg_rest_catalog_enabled || iceberg_rest_catalog_supported,
+        IcebergRestCatalogUnsupportedProductVersionSnafu { product_version }
+    );
 
     Ok(ValidatedCluster::new(
         name,
@@ -226,7 +267,10 @@ pub fn validate_cluster(
             hive_opa_config: dereferenced_objects.hive_opa_config,
             warehouse_dir: hive.spec.cluster_config.warehouse_dir.clone(),
             warehouse_external_dir: hive.spec.cluster_config.warehouse_external_dir.clone(),
-            thrift_kerberos_secret_class: kerberos_secret_class,
+            thrift_api_enabled,
+            iceberg_rest_catalog_enabled,
+            thrift_kerberos_secret_class,
+            iceberg_rest_catalog_security,
         },
         role_group_configs,
         dereferenced_objects.role_listener,

@@ -96,7 +96,7 @@ pub fn add_kerberos_pod_config(
 /// Returned as an [`EnvVarSet`] (rather than added to the container directly) so the caller can
 /// merge the user's `envOverrides` on top, letting an override win on a name collision.
 pub fn kerberos_env_vars(cluster: &ValidatedCluster) -> EnvVarSet {
-    if !cluster.has_kerberos_enabled() {
+    if !cluster.has_thrift_kerberos_enabled() {
         return EnvVarSet::new();
     }
     EnvVarSet::new().with_value(&KRB5_CONFIG, format!("{STACKABLE_KERBEROS_DIR}/krb5.conf"))
@@ -137,7 +137,7 @@ pub fn kerberos_config_properties(
 }
 
 pub fn kerberos_container_start_commands(cluster: &ValidatedCluster) -> String {
-    if !cluster.has_kerberos_enabled() {
+    if !cluster.has_thrift_kerberos_enabled() {
         return String::new();
     }
 

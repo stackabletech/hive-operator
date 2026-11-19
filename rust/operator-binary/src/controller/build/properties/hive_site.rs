@@ -6,11 +6,20 @@ use stackable_operator::{crd::s3, k8s_openapi::api::core::v1::EnvVar};
 
 use crate::{
     controller::{ValidatedClusterConfig, build::opa::build_opa_hive_site_config},
-    crd::HIVE_PORT,
+    crd::{HIVE_PORT, ICEBERG_REST_CATALOG_PORT, security::IcebergRestCatalogAuthenticationConfig},
 };
 
-const DEFAULT_WAREHOUSE_DIR: &str = "/stackable/warehouse";
 const HIVE_METASTORE_PORT: &str = "hive.metastore.port";
+const METASTORE_THRIFT_BIND_HOST: &str = "hive.metastore.thrift.bind.host";
+const METASTORE_CATALOG_SERVLET_PORT: &str = "metastore.catalog.servlet.port";
+
+// Iceberg REST catalog authentication property keys.
+const METASTORE_CATALOG_SERVLET_AUTH: &str = "metastore.catalog.servlet.auth";
+const METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_ISSUER: &str =
+    "metastore.catalog.servlet.auth.oauth2.issuer";
+const METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_AUDIENCE: &str =
+    "metastore.catalog.servlet.auth.oauth2.audience";
+const METASTORE_AUTHENTICATION_JWT_JWKS_URL: &str = "metastore.authentication.jwt.jwks.url";
 
 // Metastore property keys.
 const CONNECTION_DRIVER_NAME: &str = "javax.jdo.option.ConnectionDriverName";
@@ -52,16 +61,63 @@ pub fn build(
     let database_connection_details = &cluster_config.metadata_database_connection_details;
     let mut data: BTreeMap<String, String> = BTreeMap::new();
 
-    // 1. Defaults.
-    data.insert(HIVE_METASTORE_PORT.to_string(), HIVE_PORT.to_string());
-
-    // 2. Automatic / operator-injected.
-    data.insert(
-        METASTORE_WAREHOUSE_DIR.to_string(),
-        DEFAULT_WAREHOUSE_DIR.to_string(),
-    );
+    // Defaults.
     data.insert(METASTORE_METRICS_ENABLED.to_string(), "true".to_string());
 
+    // HMS can not disable the Thrift server: it always listens (on 9083 if no port is set) and
+    // its main loop is what the background threads (compaction, housekeeping) wait for. If the
+    // Thrift API is disabled, we bind it to the loopback interface so it can not be reached from
+    // outside the Pod. The embedded Iceberg REST catalog talks to HMS in-process, not via Thrift.
+    // Note that the bind host is only honoured by the (default) binary transport mode.
+    data.insert(HIVE_METASTORE_PORT.to_string(), HIVE_PORT.to_string());
+    if !cluster_config.thrift_api_enabled {
+        data.insert(
+            METASTORE_THRIFT_BIND_HOST.to_string(),
+            "127.0.0.1".to_string(),
+        );
+    }
+
+    if cluster_config.iceberg_rest_catalog_enabled {
+        // The REST catalog is only started for a non-negative port (defaults to -1).
+        data.insert(
+            METASTORE_CATALOG_SERVLET_PORT.to_string(),
+            ICEBERG_REST_CATALOG_PORT.to_string(),
+        );
+
+        let auth_type = match &cluster_config.iceberg_rest_catalog_security {
+            None => "none",
+            Some(IcebergRestCatalogAuthenticationConfig::Simple {}) => "simple",
+            Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) => {
+                data.insert(
+                    METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_ISSUER.to_string(),
+                    oauth2.issuer_url.to_string(),
+                );
+                data.insert(
+                    METASTORE_CATALOG_SERVLET_AUTH_OAUTH2_AUDIENCE.to_string(),
+                    oauth2.audience.to_string(),
+                );
+                "oauth2"
+            }
+            Some(IcebergRestCatalogAuthenticationConfig::Jwt(jwt)) => {
+                // Hive splits the setting on commas.
+                data.insert(
+                    METASTORE_AUTHENTICATION_JWT_JWKS_URL.to_string(),
+                    jwt.jwks_urls
+                        .iter()
+                        .map(|url| url.as_str())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                "jwt"
+            }
+        };
+        data.insert(
+            METASTORE_CATALOG_SERVLET_AUTH.to_string(),
+            auth_type.to_string(),
+        );
+    }
+
+    // Metadata database connection
     data.insert(
         CONNECTION_DRIVER_NAME.to_string(),
         cluster_config.connection_driver.clone(),
@@ -77,6 +133,7 @@ pub fn build(
         data.insert(CONNECTION_PASSWORD.to_string(), format!("${{env:{name}}}"));
     }
 
+    // S3 connection
     if let Some(s3) = cluster_config.s3_connection_spec.as_ref() {
         data.insert(
             S3_ENDPOINT.to_string(),
@@ -122,7 +179,7 @@ pub fn build(
         data.extend(build_opa_hive_site_config(opa_config, product_version));
     }
 
-    // 3. Spec: warehouse (including external) dirs
+    // Warehouse dir from the clusterConfig.
     data.insert(
         METASTORE_WAREHOUSE_DIR.to_string(),
         cluster_config.warehouse_dir.clone(),
@@ -134,7 +191,7 @@ pub fn build(
         );
     }
 
-    // 4. User overrides (highest precedence).
+    // User overrides (highest precedence).
     data.extend(overrides);
 
     Ok(data)
@@ -159,9 +216,36 @@ mod tests {
             data.get("hive.metastore.metrics.enabled"),
             Some(&"true".to_string())
         );
+        assert_eq!(
+            data.get("hive.metastore.warehouse.dir"),
+            Some(&"s3a://my-bucket/warehouse/".to_string())
+        );
         assert!(data.contains_key("javax.jdo.option.ConnectionDriverName"));
         // No env credentials for an embedded Derby database.
         assert!(!data.contains_key("javax.jdo.option.ConnectionUserName"));
+        // Thrift is reachable from outside the Pod and the REST catalog is not started.
+        assert!(!data.contains_key("hive.metastore.thrift.bind.host"));
+        assert!(!data.contains_key("metastore.catalog.servlet.port"));
+    }
+
+    #[test]
+    fn thrift_disabled_binds_to_loopback() {
+        let mut cluster_config = derby_cluster_config();
+        cluster_config.thrift_api_enabled = false;
+        cluster_config.iceberg_rest_catalog_enabled = true;
+
+        let data = build(&cluster_config, "4.2.0", BTreeMap::new(), BTreeMap::new())
+            .expect("build hive-site");
+
+        assert_eq!(data.get("hive.metastore.port"), Some(&"9083".to_string()));
+        assert_eq!(
+            data.get("hive.metastore.thrift.bind.host"),
+            Some(&"127.0.0.1".to_string())
+        );
+        assert_eq!(
+            data.get("metastore.catalog.servlet.port"),
+            Some(&"9001".to_string())
+        );
     }
 
     #[test]

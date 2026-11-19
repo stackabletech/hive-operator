@@ -35,7 +35,7 @@ fn construct_jvm_args(cluster: &ValidatedCluster, rg: &HiveRoleGroupConfig) -> V
         "-Djavax.net.ssl.trustStoreType=pkcs12".to_owned(),
     ];
 
-    if cluster.has_kerberos_enabled() {
+    if cluster.has_thrift_kerberos_enabled() {
         jvm_args.push(format!(
             "-Djava.security.krb5.conf={STACKABLE_KERBEROS_DIR}/krb5.conf"
         ));

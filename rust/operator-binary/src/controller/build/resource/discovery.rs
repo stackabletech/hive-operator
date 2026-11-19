@@ -96,11 +96,17 @@ pub fn build_discovery_configmap(
 
     discovery_configmap.metadata(discovery_config_map_meta(cluster, hive_role));
 
-    discovery_configmap.add_data(
-        "HIVE".to_string(),
-        build_listener_connection_string(listener_address, &hive_role.to_string())
-            .context(ListenerConfigurationSnafu)?,
-    );
+    // The Listener only exposes the Thrift port if the Thrift API is enabled.
+    if cluster.cluster_config.thrift_api_enabled {
+        discovery_configmap.add_data(
+            "HIVE".to_string(),
+            build_listener_connection_string(listener_address, &hive_role.to_string())
+                .context(ListenerConfigurationSnafu)?,
+        );
+    }
+
+    // Note that we intentionally don't add an discovery entry for the Iceberg REST catalog, as we
+    // don't want to commit to more public API that will likely break with Discovery 2.0.
 
     let config_map = discovery_configmap
         .build()
