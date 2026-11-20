@@ -39,7 +39,8 @@ echo "Install minio for S3"
 # tag::helm-install-minio[]
 helm install minio \
   --version 12.6.4 \
-  --namespace default \
+  --namespace hive-minio-postgres \
+  --create-namespace \
   --set global.security.allowInsecureImages=true \
   --set image.repository=bitnamilegacy/minio \
   --set clientImage.repository=bitnamilegacy/minio-client \
@@ -57,7 +58,8 @@ echo "Install postgres for Hive"
 # tag::helm-install-postgres[]
 helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
   --version 16.5.0 \
-  --namespace default \
+  --namespace hive-minio-postgres \
+  --create-namespace \
   --set image.repository=bitnamilegacy/postgresql \
   --set volumePermissions.image.repository=bitnamilegacy/os-shell \
   --set metrics.image.repository=bitnamilegacy/postgres-exporter \
@@ -89,7 +91,8 @@ echo "Installing MinIO and PostgreSQL with stackablectl"
 stackablectl \
 --stack-file stackablectl-hive-postgres-minio-stack.yaml \
 --release-file release.yaml \
-stack install hive-minio-postgres
+stack install hive-minio-postgres \
+--namespace hive-minio-postgres
 # end::stackablectl-install-minio-postgres-stack[]
 ;;
 *)

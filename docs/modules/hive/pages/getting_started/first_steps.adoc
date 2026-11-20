@@ -26,6 +26,9 @@ An xref:concepts:s3.adoc[S3Connection] to connect to MinIO (`hive-minio-s3-conne
 include::example$getting_started/hive-minio-s3-connection.yaml[]
 ----
 
+MinIO and PostgreSQL run in the `hive-minio-postgres` namespace, while Hive runs in the `default` namespace.
+Therefore, the S3Connection and the HiveCluster reference them by their fully qualified domain names.
+
 Credentials for the S3Connection to log into MinIO (`hive-minio-credentials.yaml`)
 
 [source,yaml]
