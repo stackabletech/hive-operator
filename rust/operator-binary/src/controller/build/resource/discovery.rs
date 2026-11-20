@@ -16,7 +16,7 @@ use crate::{
             resource::listener::build_listener_connection_string,
         },
     },
-    crd::{HiveRole, v1alpha1},
+    crd::{HiveRole, v1alpha2},
 };
 
 #[derive(Snafu, Debug)]
@@ -24,7 +24,7 @@ pub enum Error {
     #[snafu(display("could not build discovery config map for {obj_ref}"))]
     DiscoveryConfigMap {
         source: stackable_operator::builder::configmap::Error,
-        obj_ref: ObjectRef<v1alpha1::HiveCluster>,
+        obj_ref: ObjectRef<v1alpha2::HiveCluster>,
     },
 
     #[snafu(display("failed to configure listener discovery configmap"))]
@@ -33,9 +33,9 @@ pub enum Error {
     },
 }
 
-/// An [`ObjectRef`] back to the owning [`v1alpha1::HiveCluster`], reconstructed from the validated
+/// An [`ObjectRef`] back to the owning [`v1alpha2::HiveCluster`], reconstructed from the validated
 /// cluster identity for use in error messages.
-fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha1::HiveCluster> {
+fn cluster_object_ref(cluster: &ValidatedCluster) -> ObjectRef<v1alpha2::HiveCluster> {
     ObjectRef::new(cluster.name.as_ref()).within(cluster.namespace.as_ref())
 }
 
@@ -55,7 +55,7 @@ pub fn discovery_config_map_name(cluster_name: &ClusterName) -> ConfigMapName {
 }
 
 /// Builds the discovery [`ConfigMap`] containing information about how to connect to a certain
-/// [`v1alpha1::HiveCluster`].
+/// [`v1alpha2::HiveCluster`].
 ///
 /// The ConfigMap needs the role Listener's ingress address, which only the listener-operator
 /// writes. While the dereferenced Listener is absent or still address-less (around the first
@@ -96,11 +96,17 @@ pub fn build_discovery_configmap(
 
     discovery_configmap.metadata(discovery_config_map_meta(cluster, hive_role));
 
-    discovery_configmap.add_data(
-        "HIVE".to_string(),
-        build_listener_connection_string(listener_address, &hive_role.to_string())
-            .context(ListenerConfigurationSnafu)?,
-    );
+    // The Listener only exposes the Thrift port if the Thrift API is enabled.
+    if cluster.cluster_config.thrift_api_enabled {
+        discovery_configmap.add_data(
+            "HIVE".to_string(),
+            build_listener_connection_string(listener_address, &hive_role.to_string())
+                .context(ListenerConfigurationSnafu)?,
+        );
+    }
+
+    // Note that we intentionally don't add an discovery entry for the Iceberg REST catalog, as we
+    // don't want to commit to more public API that will likely break with Discovery 2.0.
 
     let config_map = discovery_configmap
         .build()

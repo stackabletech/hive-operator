@@ -2,5 +2,5 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - script: kubectl cp -n "$NAMESPACE" ./test_metastore.py  test-metastore-0:/tmp
-  - script: kubectl cp -n "$NAMESPACE" ./test_metastore_opa.py  test-metastore-0:/tmp
+  - script: kubectl cp -n "$NAMESPACE" ./80_test_metastore.py  test-metastore-0:/tmp
+  - script: kubectl cp -n "$NAMESPACE" ./80_test_metastore_opa.py  test-metastore-0:/tmp

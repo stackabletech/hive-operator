@@ -38,6 +38,12 @@ dimensions:
   - name: hdfs-latest
     values:
       - 3.5.0
+  - name: trino-latest
+    values:
+      - "483"
+      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
+      # as in the example below.
+      # - 483,oci.stackable.tech/sdp/trino:483-stackable0.0.0-dev
   - name: zookeeper-latest
     values:
       - 3.9.6
@@ -118,6 +124,12 @@ tests:
   - name: external-access
     dimensions:
       - hive
+      - openshift
+  - name: iceberg-rest-catalog
+    dimensions:
+      - postgres
+      - hive-latest
+      - trino-latest
       - openshift
 suites:
   - name: nightly

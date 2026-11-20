@@ -1,0 +1,36 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  - script: kubectl -n "$NAMESPACE" get cm hive -o json | jq -e '.data.HIVE == null'
+  # The Thrift server is bound to the loopback interface, so it refuses connections to the Pod IP.
+  # Other errors, such as the Pod name not resolving during the restart, don't count.
+  - script: >-
+      kubectl -n "$NAMESPACE" exec trino-cli-0 --
+      timeout 5 bash -c "</dev/tcp/hive-metastore-default-0.hive-metastore-default-headless.$NAMESPACE.svc.cluster.local/9083" 2>&1
+      | grep -q 'Connection refused'
+  # All tables, including the ones created via the Thrift API, are still accessible
+  - script: sh orders.sh iceberg_rest | diff 33_orders.csv -
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_rest.marketing.campaigns')" = 2
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  name: hive-metastore
+spec:
+  ports:
+    - name: iceberg-rest
+      port: 9001
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-metastore-default-headless
+spec:
+  ports:
+    - name: iceberg-rest
+      port: 9001
+      protocol: TCP
+      targetPort: 9001

@@ -1,5 +1,5 @@
 ---
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: hive-postgres-s3
@@ -14,6 +14,7 @@ spec:
         credentialsSecretName: hive-credentials
     s3:
       reference: minio
+    warehouseDir: s3a://my-bucket/warehouse/
   metastore:
     roleGroups:
       default:

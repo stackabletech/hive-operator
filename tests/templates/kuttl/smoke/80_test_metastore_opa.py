@@ -8,7 +8,7 @@ from hive_metastore_client.builders import (
     TableBuilder,
 )
 import argparse
-
+import sys
 
 def table(db_name, table_name, location):
     columns = [ColumnBuilder("id", "string", "col comment").build()]
@@ -72,4 +72,4 @@ if __name__ == "__main__":
         print(
             f"[ERROR] Test hive-metastore-opa-authorizer failed. Could access database '{database_name}'!"
         )
-        exit(-1)
+        sys.exit(-1)

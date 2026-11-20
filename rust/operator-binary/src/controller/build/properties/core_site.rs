@@ -38,7 +38,7 @@ mod tests {
 
         // Kerberos enabled (a SecretClass is set) and no HDFS backend (the fixture has none).
         let mut cluster_config = derby_cluster_config();
-        cluster_config.kerberos_secret_class =
+        cluster_config.thrift_kerberos_secret_class =
             Some(SecretClassName::from_str("kerberos").expect("valid secret class name"));
         let data = build(&cluster_config).expect("core-site present");
         assert_eq!(

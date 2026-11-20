@@ -16,7 +16,7 @@ use crate::{
     controller::build::resource::{
         discovery::discovery_config_map_name, listener::role_listener_name,
     },
-    crd::{HiveRole, v1alpha1},
+    crd::{HiveRole, v1alpha2},
 };
 
 #[derive(Snafu, Debug)]
@@ -91,7 +91,7 @@ pub struct ResolvedOpaConfig {
 impl ResolvedOpaConfig {
     pub async fn from_opa_config(
         client: &Client,
-        hive: &v1alpha1::HiveCluster,
+        hive: &v1alpha2::HiveCluster,
         opa_config: &OpaConfig,
     ) -> Result<Self, Error> {
         // See: <https://github.com/boschglobal/hive-metastore-opa-authorizer?tab=readme-ov-file#configuration>
@@ -120,7 +120,7 @@ impl ResolvedOpaConfig {
 
 pub async fn dereference(
     client: &stackable_operator::client::Client,
-    hive: &v1alpha1::HiveCluster,
+    hive: &v1alpha2::HiveCluster,
 ) -> Result<DereferencedObjects, Error> {
     let s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec> =
         if let Some(s3) = &hive.spec.cluster_config.s3 {

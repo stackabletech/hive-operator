@@ -1,0 +1,20 @@
+---
+# Finish the migration: All clients use the REST catalog, so the Thrift API can be disabled.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+delete:
+  - apiVersion: trino.stackable.tech/v1alpha2
+    kind: TrinoCatalog
+    name: iceberg-thrift
+  - apiVersion: trino.stackable.tech/v1alpha2
+    kind: TrinoCatalog
+    name: hive
+---
+apiVersion: hive.stackable.tech/v1alpha2
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  clusterConfig:
+    thriftApi:
+      enabled: false
