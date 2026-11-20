@@ -24,6 +24,7 @@ clusterConfig:
 <1> Maps to `hive.metastore.warehouse.dir`.
 <2> Optional, maps to `hive.metastore.warehouse.external.dir`.
     If it is not set, the operator does not configure it and the Hive metastore uses its internal default.
+    It is required when using the xref:usage-guide/iceberg-rest-catalog.adoc[Iceberg REST catalog], see that docs for details.
 
 When using HDFS, use an HDFS location instead, e.g. `hdfs://my-hdfs-cluster/warehouse/`.
 
