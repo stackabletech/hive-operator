@@ -4,7 +4,7 @@ kind: S3Connection
 metadata:
   name: minio
 spec:
-  host: minio
+  host: minio.hive-minio-postgres.svc.cluster.local
   port: 9000
   accessStyle: Path
   credentials:
