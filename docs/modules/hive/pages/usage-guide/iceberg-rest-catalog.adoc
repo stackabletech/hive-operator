@@ -40,17 +40,25 @@ The xref:reference/discovery.adoc[discovery ConfigMap] does not contain an entry
 
 The REST catalog serves the same metadata as the Thrift API.
 Iceberg tables that were created via the Thrift API, e.g. by Trino using the Hive metastore, therefore show up in the REST catalog without any migration and keep their locations.
+Their schema, partitioning and history (e.g. for time travel) carry over as well.
 Hive databases show up as namespaces.
 
 Plain (non-Iceberg) Hive tables are not served by the REST catalog: they are neither listed nor can they be loaded.
 Keep the Thrift API enabled as long as clients need to access them.
+
+Views are not shared between the two APIs:
+
+* Trino views created via the Thrift API are stored as Hive views, which the REST catalog does not serve.
+  Recreate them via the REST catalog.
+* Iceberg views created via the REST catalog are listed by Trino via the Thrift API, but can not be read.
 
 You can move clients from the Thrift API to the REST catalog step by step:
 
 . Enable the REST catalog next to the Thrift API and set `warehouseExternalDir`, as described in <<_enabling_the_rest_catalog>>.
   This restarts the HMS, existing tables are not modified.
 . Switch the clients to the REST catalog one by one.
-  Clients can use both APIs at the same time, changes made via one API are visible via the other one.
+  Clients can use both APIs at the same time.
+  Changes made via one API are visible via the other one, including schema changes, row-level deletes and updates as well as table maintenance such as compaction.
 . Once no client uses the Thrift API anymore, disable it as described in <<_disabling_the_thrift_api>>.
 
 The https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/iceberg-rest-catalog/[iceberg-rest-catalog integration test] runs through these steps with Trino.

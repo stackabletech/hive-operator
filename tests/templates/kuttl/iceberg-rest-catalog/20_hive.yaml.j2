@@ -56,11 +56,11 @@ metadata:
   name: hive
 spec:
   image:
-{% if test_scenario['values']['hive-latest'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['hive-latest'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['hive-latest'].split(',')[0] }}"
+{% if test_scenario['values']['hive-rest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hive-rest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hive-rest'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['hive-latest'] }}"
+    productVersion: "{{ test_scenario['values']['hive-rest'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:

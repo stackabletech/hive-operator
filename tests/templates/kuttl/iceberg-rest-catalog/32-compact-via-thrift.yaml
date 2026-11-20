@@ -1,0 +1,7 @@
+---
+# Compaction via the Thrift API, which rewrites the data files and applies the delete files written
+# by the DELETE and UPDATE in step 31
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: sh trino-query.sh 'ALTER TABLE iceberg_thrift.sales.orders EXECUTE optimize'

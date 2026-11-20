@@ -11,7 +11,7 @@ commands:
       timeout 5 bash -c "</dev/tcp/hive-metastore-default-0.hive-metastore-default-headless.$NAMESPACE.svc.cluster.local/9083" 2>&1
       | grep -q 'Connection refused'
   # All tables, including the ones created via the Thrift API, are still accessible
-  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_rest.sales.orders')" = 5
+  - script: sh orders.sh iceberg_rest | diff 33_orders.csv -
   - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_rest.marketing.campaigns')" = 2
 ---
 apiVersion: listeners.stackable.tech/v1alpha1

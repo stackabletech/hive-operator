@@ -1,0 +1,11 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  # Via the REST catalog: One data file per partition (3 partitions) and no delete files left
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FILTER (WHERE content = 0), count(DISTINCT partition), count(*) FILTER (WHERE content <> 0) FROM iceberg_rest.sales."orders$files"')" = 3,3,0
+  - script: test "$(sh trino-query.sh 'SELECT operation FROM iceberg_rest.sales."orders$snapshots" ORDER BY committed_at DESC LIMIT 1')" = replace
+  # The content is unchanged
+  - script: sh orders.sh iceberg_rest | diff 31_orders.csv -
+  - script: sh compare-catalogs.sh

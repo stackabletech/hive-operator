@@ -1,0 +1,5 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: sh trino-query.sh < 41_use-rest-only.sql

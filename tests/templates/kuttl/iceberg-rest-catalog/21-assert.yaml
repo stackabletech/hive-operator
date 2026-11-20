@@ -3,5 +3,6 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 300
 commands:
-  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_thrift.sales.orders')" = 3
+  - script: sh orders.sh iceberg_thrift | diff 21_orders.csv -
+  - script: test "$(sh trino-query.sh 'SELECT array_agg(revenue ORDER BY day) FROM iceberg_thrift.sales.daily_revenue')" = '[7.99, 8.75]'
   - script: test "$(sh trino-query.sh 'SELECT count(*) FROM hive.sales.legacy_orders')" = 1
