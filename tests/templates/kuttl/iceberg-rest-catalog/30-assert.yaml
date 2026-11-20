@@ -1,0 +1,38 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  # The Thrift API is still available
+  - script: kubectl -n "$NAMESPACE" get cm hive -o json | jq -e '.data.HIVE'
+  # The existing Iceberg table shows up in the REST catalog, the plain Hive table does not
+  - script: test "$(sh trino-query.sh 'SHOW TABLES FROM iceberg_rest.sales')" = orders
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_rest.sales.orders')" = 3
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  name: hive-metastore
+spec:
+  ports:
+    - name: hive
+      port: 9083
+      protocol: TCP
+    - name: iceberg-rest
+      port: 9001
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-metastore-default-headless
+spec:
+  ports:
+    - name: hive
+      port: 9083
+      protocol: TCP
+      targetPort: 9083
+    - name: iceberg-rest
+      port: 9001
+      protocol: TCP
+      targetPort: 9001

@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_thrift.sales.orders')" = 3
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM hive.sales.legacy_orders')" = 1

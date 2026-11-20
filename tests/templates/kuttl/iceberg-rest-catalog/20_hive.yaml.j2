@@ -1,0 +1,86 @@
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: garage
+spec:
+  host: garage.$NAMESPACE.svc.cluster.local
+  port: 9000
+  # The region must match the s3_region in 10-install-garage.yaml.
+  region:
+    name: region-1
+  accessStyle: Path
+  credentials:
+    secretClass: s3-credentials-class
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: tls
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: s3-credentials-class
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: garage-credentials
+  labels:
+    secrets.stackable.tech/class: s3-credentials-class
+stringData:
+  # Must match the GARAGE_DEFAULT_* variables in 10-install-garage.yaml.
+  accessKey: GK31c0ffee31c0ffee31c0ffee
+  secretKey: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hive-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive
+---
+# The starting point of the migration: A Hive metastore that only serves the Thrift API.
+# The Iceberg REST catalog is enabled in step 30 and the Thrift API disabled in step 40.
+apiVersion: hive.stackable.tech/v1alpha2
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  image:
+{% if test_scenario['values']['hive-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hive-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hive-latest'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['hive-latest'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    # The HMS is restarted on every config change in this test, so the metadata needs to be stored
+    # persistently (Derby would lose all tables).
+    metadataDatabase:
+      postgresql:
+        host: postgresql
+        database: hive
+        credentialsSecretName: hive-credentials
+    s3:
+      reference: garage
+    warehouseDir: s3a://lakehouse/warehouse/
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  metastore:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1

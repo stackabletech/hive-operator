@@ -1,0 +1,14 @@
+---
+# Create the tables existing users have: Iceberg tables and plain Hive tables, both created via the
+# Thrift API of the Hive metastore.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      sh trino-query.sh "
+        CREATE SCHEMA IF NOT EXISTS iceberg_thrift.sales WITH (location = 's3a://lakehouse/sales/');
+        CREATE TABLE IF NOT EXISTS iceberg_thrift.sales.orders AS
+          SELECT * FROM (VALUES (1, 'apple'), (2, 'banana'), (3, 'cherry')) AS t (id, item);
+        CREATE TABLE IF NOT EXISTS hive.sales.legacy_orders AS
+          SELECT * FROM (VALUES (1, 'apple')) AS t (id, item);
+      "

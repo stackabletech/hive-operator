@@ -1,0 +1,101 @@
+---
+# Iceberg tables accessed via the Thrift API of the Hive metastore, as existing users have them.
+apiVersion: trino.stackable.tech/v1alpha2
+kind: TrinoCatalog
+metadata:
+  name: iceberg-thrift
+  labels:
+    trino: trino
+spec:
+  name:
+    inferred:
+      replaceHyphensWithUnderscores: true # iceberg_thrift
+  connector:
+    iceberg:
+      catalog:
+        hiveMetastore:
+          configMap: hive
+      s3:
+        reference: garage
+---
+# Plain (non-Iceberg) Hive tables, which sometimes live in the same Hive metastore (although I
+# personally don't recommend that)
+apiVersion: trino.stackable.tech/v1alpha2
+kind: TrinoCatalog
+metadata:
+  name: hive
+  labels:
+    trino: trino
+spec:
+  connector:
+    hive:
+      metastore:
+        configMap: hive
+      s3:
+        reference: garage
+---
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCluster
+metadata:
+  name: trino
+spec:
+  image:
+{% if test_scenario['values']['trino-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['trino-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['trino-latest'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['trino-latest'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    catalogLabelSelector:
+      matchLabels:
+        trino: trino
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  coordinators:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+  workers:
+    config:
+      gracefulShutdownTimeout: 60s # Let the test run faster
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: trino-cli
+  labels:
+    app: trino-cli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trino-cli
+  template:
+    metadata:
+      labels:
+        app: trino-cli
+    spec:
+      containers:
+        - name: trino-cli
+          image: "oci.stackable.tech/sdp/trino-cli:{{ test_scenario['values']['trino-latest'].split(',')[0] }}-stackable0.0.0-dev"
+          command:
+            - sleep
+            - infinity
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 512Mi
+              cpu: "1"
