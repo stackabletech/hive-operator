@@ -14,7 +14,7 @@ spec:
         credentialsSecretName: hive-credentials
     s3:
       reference: minio
-    warehouseDir: s3a://my-bucket/warehouse/
+    warehouseDir: s3a://hive/warehouse/
   metastore:
     roleGroups:
       default:
