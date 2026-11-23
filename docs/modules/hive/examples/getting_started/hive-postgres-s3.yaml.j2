@@ -9,7 +9,7 @@ spec:
   clusterConfig:
     metadataDatabase:
       postgresql:
-        host: postgresql
+        host: postgresql.hive-minio-postgres.svc.cluster.local
         database: hive
         credentialsSecretName: hive-credentials
     s3:
