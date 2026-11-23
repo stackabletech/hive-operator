@@ -252,6 +252,14 @@ pub fn validate_cluster(
         IcebergRestCatalogUnsupportedProductVersionSnafu { product_version }
     );
 
+    if iceberg_rest_catalog_enabled && hive.spec.cluster_config.warehouse_external_dir.is_none() {
+        tracing::warn!(
+            "The Iceberg REST catalog is enabled, but clusterConfig.warehouseExternalDir is not set. \
+            Without it, the REST catalog may fail to create namespaces. \
+            Read on our REST catalog usage guide for details."
+        );
+    }
+
     Ok(ValidatedCluster::new(
         name,
         namespace,
