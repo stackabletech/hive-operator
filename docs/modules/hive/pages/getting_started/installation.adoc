@@ -66,7 +66,7 @@ Now call `stackablectl` and reference those two files:
 include::example$getting_started/getting_started.sh[tag=stackablectl-install-minio-postgres-stack]
 ----
 
-This installs MinIO and PostgreSQL as defined in the Stacks, as well as the operators.
+This installs MinIO and PostgreSQL as defined in the Stacks into the `hive-minio-postgres` namespace, as well as the operators.
 You can now skip the <<Stackable Operators>> step that follows next.
 
 TIP: Consult the xref:management:stackablectl:quickstart.adoc[Quickstart] to learn more about how to use `stackablectl`.
@@ -74,6 +74,7 @@ TIP: Consult the xref:management:stackablectl:quickstart.adoc[Quickstart] to lea
 === Helm
 
 In order to install the MinIO and PostgreSQL dependencies via Helm, you have to deploy two charts.
+Both are installed into the `hive-minio-postgres` namespace.
 
 ==== Minio ====
 
