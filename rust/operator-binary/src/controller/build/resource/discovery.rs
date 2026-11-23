@@ -16,7 +16,7 @@ use crate::{
             resource::listener::build_listener_connection_string,
         },
     },
-    crd::{HiveRole, v1alpha2},
+    crd::{HIVE_PORT_NAME, HiveRole, v1alpha2},
 };
 
 #[derive(Snafu, Debug)]
@@ -59,7 +59,8 @@ pub fn discovery_config_map_name(cluster_name: &ClusterName) -> ConfigMapName {
 ///
 /// The ConfigMap needs the role Listener's ingress address, which only the listener-operator
 /// writes. While the dereferenced Listener is absent or still address-less (around the first
-/// reconcile runs), no fresh ConfigMap can be built; the previously stored one is then
+/// reconcile runs), or its address does not carry the Thrift port yet (right after the Thrift API
+/// was re-enabled), no fresh ConfigMap can be built; the previously stored one is then
 /// re-emitted unchanged so that it stays tracked by the apply step instead of being deleted as
 /// an orphan. `None` is only returned before a discovery ConfigMap has ever been stored
 /// (initial deploy) -- the run is not failed, since the Listener watch triggers a new run once
@@ -68,23 +69,30 @@ pub fn build_discovery_configmap(
     cluster: &ValidatedCluster,
     hive_role: &HiveRole,
 ) -> Result<Option<ConfigMap>, Error> {
+    // The Listener only exposes the Thrift port if the Thrift API is enabled.
+    let thrift_api_enabled = cluster.cluster_config.thrift_api_enabled;
+
     let Some(listener_address) = cluster
         .role_listener
         .as_ref()
         .and_then(|listener| listener.status.as_ref())
         .and_then(|status| status.ingress_addresses.as_ref()?.first())
+        // The status only carries the Thrift port once the listener-operator has reconciled the
+        // Listener with it. Failing the build instead would prevent that updated Listener from
+        // ever being applied.
+        .filter(|address| !thrift_api_enabled || address.ports.contains_key(HIVE_PORT_NAME))
     else {
         return Ok(match &cluster.existing_discovery_config_map {
             Some(existing) => {
                 tracing::debug!(
-                    "the metastore role Listener has no ingress address, \
+                    "the metastore role Listener has no (complete) ingress address, \
                        re-emitting the stored discovery ConfigMap"
                 );
                 Some(reemit_discovery_configmap(cluster, hive_role, existing))
             }
             None => {
                 tracing::debug!(
-                    "the metastore role Listener has no ingress address yet and no \
+                    "the metastore role Listener has no (complete) ingress address yet and no \
                        discovery ConfigMap is stored, skipping it"
                 );
                 None
@@ -96,8 +104,7 @@ pub fn build_discovery_configmap(
 
     discovery_configmap.metadata(discovery_config_map_meta(cluster, hive_role));
 
-    // The Listener only exposes the Thrift port if the Thrift API is enabled.
-    if cluster.cluster_config.thrift_api_enabled {
+    if thrift_api_enabled {
         discovery_configmap.add_data(
             "HIVE".to_string(),
             build_listener_connection_string(listener_address, &hive_role.to_string())

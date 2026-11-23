@@ -256,7 +256,7 @@ mod tests {
             build::recommended_labels_for_role_group_resources,
             test_support::{DERBY_YAML, minimal_hive, validated_cluster},
         },
-        crd::{HIVE_PORT_NAME, HiveRole},
+        crd::{HIVE_PORT_NAME, HiveRole, ICEBERG_REST_CATALOG_PORT_NAME},
     };
 
     fn test_cluster_info() -> KubernetesClusterInfo {
@@ -415,6 +415,47 @@ mod tests {
         assert_eq!(config_map.metadata.uid, None);
         assert!(config_map.metadata.owner_references.is_some());
         assert!(config_map.metadata.labels.is_some());
+    }
+
+    /// Right after the Thrift API was re-enabled, the role Listener status still carries the
+    /// ports of the previous Listener spec, i.e. no Thrift port. The stored discovery ConfigMap is
+    /// re-emitted instead of failing the build: a failed build would never apply the updated
+    /// Listener exposing the Thrift port, so the status would never get it.
+    #[test]
+    fn reemits_stored_discovery_config_map_without_thrift_port() {
+        let hive = minimal_hive(DERBY_YAML);
+        let mut cluster = validated_cluster(&hive);
+        cluster.role_listener = Some(Listener {
+            status: Some(listener::v1alpha1::ListenerStatus {
+                service_name: None,
+                ingress_addresses: Some(vec![listener::v1alpha1::ListenerIngress {
+                    address: "hive.example.com".to_string(),
+                    address_type: listener::v1alpha1::AddressType::Hostname,
+                    ports: BTreeMap::from([(ICEBERG_REST_CATALOG_PORT_NAME.to_string(), 9001)]),
+                }]),
+                node_ports: None,
+            }),
+            ..role_listener_with_address()
+        });
+        cluster.existing_discovery_config_map = Some(stored_discovery_config_map());
+
+        let resources =
+            build(&cluster, &test_cluster_info()).expect("build succeeds without a Thrift port");
+
+        let config_map =
+            discovery_config_map(&resources).expect("the stored discovery ConfigMap is re-emitted");
+        assert_eq!(config_map.data, stored_discovery_config_map().data);
+        let listener_ports = resources.listeners[0]
+            .spec
+            .ports
+            .as_ref()
+            .expect("the role Listener has ports");
+        assert!(
+            listener_ports
+                .iter()
+                .any(|port| port.name == HIVE_PORT_NAME),
+            "the updated role Listener exposing the Thrift port must still be built"
+        );
     }
 
     /// While the Listener is absent (the apply step has not created it yet) or carries no
