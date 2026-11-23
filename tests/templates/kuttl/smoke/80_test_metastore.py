@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
+import argparse
+import sys
+
 from hive_metastore_client import HiveMetastoreClient
 from hive_metastore_client.builders import (
-    DatabaseBuilder,
     ColumnBuilder,
+    DatabaseBuilder,
     SerDeInfoBuilder,
     StorageDescriptorBuilder,
     TableBuilder,
 )
 from thrift_files.libraries.thrift_hive_metastore_client.ttypes import (
-    FieldSchema,
     AlreadyExistsException,
+    FieldSchema,
     GetTableRequest,
 )
-import argparse
-import sys
+
 
 def table(db_name, table_name, location):
     columns = [ColumnBuilder("id", "string", "col comment").build()]
@@ -174,4 +176,4 @@ if __name__ == "__main__":
         #        sys.exit(-1)
 
         print("[SUCCESS] Test finished successfully!")
-        exit(0)
+        sys.exit(0)
