@@ -55,11 +55,6 @@ impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
             .unwrap_or_else(|| "/stackable/warehouse");
 
         let mut cluster_config = v1alpha2::HiveClusterConfig {
-            // // We old keep the deprecated property, as stackable-versioned doesn't support removing
-            // // yet. We restore the value from the new location, so the deprecated value doesn't
-            // // matter. We set it to null to make this clear.
-            // #[expect(deprecated)]
-            // deprecated_authentication: None,
             authorization: old.cluster_config.authorization,
             metadata_database: old.cluster_config.metadata_database,
             thrift_api: v1alpha2::ThriftApiConfig {

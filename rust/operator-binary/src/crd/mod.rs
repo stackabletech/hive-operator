@@ -169,19 +169,6 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
-        // // FIXME: This should be a #[versioned(removed)], but that's not supported yet
-        // #[versioned(deprecated(
-        //     in = "v1alpha2",
-        //     previous_docs = "Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security)."
-        // ))]
-        // /// This field is deprecated, please don't use it! This field will always be converted to `null`.
-        // ///
-        // /// Configure the Thrift API authentication on `.spec.clusterConfig.thriftApi.authentication`
-        // /// instead.
-        // pub deprecated_authentication: Option<ThriftAuthenticationConfig>,
-        //
-        //
-        //
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
         ///
         /// Moved to `.spec.clusterConfig.thriftApi.authentication` in v1alpha2.
@@ -619,7 +606,7 @@ mod tests {
                             name: prepared-logs
                   configOverrides:
                     hive-site.xml:
-                      hive.metastore.warehouse.dir: /stackable/warehouse/override
+                      hive.metastore.warehouse.dir: s3a://override
                       common-var: role-value
                       role-var: role-value
                   envOverrides:
