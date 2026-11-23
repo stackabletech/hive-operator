@@ -104,7 +104,7 @@ The Hive documentation describes how to {hive-keycloak-docs}[configure Keycloak]
 
 NOTE: The HMS fetches the server metadata only on startup.
 If that fails, e.g. because the issuer is unreachable, the HMS logs an error and starts *without* the REST catalog.
-The Pod then does not become ready, as the readiness probe checks the REST catalog port.
+The Pod then does not become ready, so the Thrift API is unavailable as well, and is restarted until the issuer is reachable.
 
 === JWT
 

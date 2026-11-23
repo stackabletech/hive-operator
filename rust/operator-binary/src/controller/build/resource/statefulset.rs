@@ -283,7 +283,11 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
     //   means that Thrift is listening (or bound to the loopback interface if disabled, see
     //   `hive_site.rs`, where the kubelet can not reach it anyway).
     // - If the REST catalog fails to initialize (e.g. its authentication), HMS logs an error and
-    //   keeps running with Thrift only. Probing Thrift would report such a Pod as ready.
+    //   keeps running with Thrift only (see `HiveMetaStore.createCatalogServlet`). Probing Thrift
+    //   would report such a Pod as ready.
+    // - HMS only tries to start the REST catalog once on startup, so it can only recover by a
+    //   restart. Hence the liveness probe checks the REST port as well. Restarting also takes Thrift
+    //   down, but it is unavailable anyway, as the Pod is not ready.
     //
     // The REST catalog embedded in HMS has no health endpoint (only the standalone REST catalog
     // server has Spring Boot actuator endpoints). Every request to `/iceberg/*` without a bearer
