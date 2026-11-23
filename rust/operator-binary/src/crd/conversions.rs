@@ -4,7 +4,7 @@
 //!
 //! Tests for this functions are in the roundtrip test on the [`HiveCluster`](crate::crd::v1alpha2::HiveClusterSpec).
 
-use std::iter;
+use std::{collections::BTreeMap, iter};
 
 use stackable_operator::{
     v2::role_utils::{CommonConfiguration, JavaCommonConfig, Role, RoleGroup},
@@ -33,16 +33,17 @@ impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
         // roleGroup level. This is bad, as this is a cluster-wide setting. So we try our best to
         // migrate it correctly.
         let old_role_warehouse_dir = &old.metastore.config.config.warehouse_dir;
+        // The roleGroups come from a HashMap, which has a random iteration order (that even
+        // differs between conversions of the same object). So we sort them by name to keep the
+        // conversion deterministic.
         let old_role_groups_warehouse_dirs = old
             .metastore
             .role_groups
-            .values()
+            .iter()
+            .collect::<BTreeMap<_, _>>()
+            .into_values()
             .map(|rg| &rg.config.config.warehouse_dir);
         // Yes, this logic is broken, but is impossible to do correctly and should be good enough.
-        // Also yes, the order of the roleGroups is random, as they are coming from a HashMap. We
-        // could make it more stable by e.g. using the roleGroups with the most replicas
-        // (but what about `null` replicas?) and sorting alphabetically otherwise. But this sounds
-        // like overkill for this edge-case.
         let old_warehouse_dir = old_role_groups_warehouse_dirs
             .chain(iter::once(old_role_warehouse_dir))
             .flatten()
