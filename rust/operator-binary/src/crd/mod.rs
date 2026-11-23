@@ -741,7 +741,6 @@ mod tests {
             .expect("Failed to parse HiveClusterSpec YAML");
 
         let v2: v1alpha2::HiveClusterSpec = v1.clone().tracking_into(&mut status, "$");
-        // assert_eq!(v2.cluster_config.deprecated_authentication, None);
         assert_eq!(
             v2.cluster_config.thrift_api,
             ThriftApiConfig {

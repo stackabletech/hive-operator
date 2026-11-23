@@ -137,14 +137,18 @@ impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
             if let Some(stackable_operator::versioned::ChangedValue { value, .. }) = upgrades
                 .extract_first_if(|u| u.json_path == __sv_cluster_config_iceberg_rest_catalog_path)
             {
-                cluster_config.iceberg_rest_catalog =  ::serde_json::from_value(value).expect("internal error: {__sv_cluster_config_iceberg_rest_catalog_path} must be serializable for spec.iceberg_rest_catalog");
+                cluster_config.iceberg_rest_catalog = ::serde_json::from_value(value).expect(
+                    "internal error: the tracked icebergRestCatalog must be deserializable",
+                );
             }
             if let Some(stackable_operator::versioned::ChangedValue { value, .. }) = upgrades
                 .extract_first_if(|u| {
                     u.json_path == __sv_cluster_config_warehouse_external_dir_path
                 })
             {
-                cluster_config.warehouse_external_dir =  ::serde_json::from_value(value).expect("internal error: {__sv_cluster_config_warehouse_external_dir_path} must be serializable for spec.thrift_api");
+                cluster_config.warehouse_external_dir = ::serde_json::from_value(value).expect(
+                    "internal error: the tracked warehouseExternalDir must be deserializable",
+                );
             }
             if upgrades.is_empty() {
                 status.changes().upgrades.remove("v1alpha2");
