@@ -41,6 +41,10 @@ impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
             .values()
             .map(|rg| &rg.config.config.warehouse_dir);
         // Yes, this logic is broken, but is impossible to do correctly and should be good enough.
+        // Also yes, the order of the roleGroups is random, as they are coming from a HashMap. We
+        // could make it more stable by e.g. using the roleGroups with the most replicas
+        // (but what about `null` replicas?) and sorting alphabetically otherwise. But this sounds
+        // like overkill for this edge-case.
         let old_warehouse_dir = old_role_groups_warehouse_dirs
             .chain(iter::once(old_role_warehouse_dir))
             .flatten()
