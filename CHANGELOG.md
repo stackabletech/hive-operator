@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#790]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
-- Add `containerdebug` config CRD ([#794]).
+- Add the `config.containerdebug` field to roles and role groups ([#794]).
 
 ### Removed
 
