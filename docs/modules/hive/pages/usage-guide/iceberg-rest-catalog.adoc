@@ -71,6 +71,10 @@ WARNING: If no `authentication` is configured, the REST catalog does not authent
 The REST catalog supports the authentication methods `oAuth2` (recommended), `jwt` and `simple`.
 Exactly one of them can be configured.
 
+WARNING: The REST catalog is served over plain HTTP, so bearer tokens (`oAuth2`, `jwt`) are sent unencrypted.
+Hive can only enable TLS for the REST catalog and the Thrift API together, and the operator does not support TLS for the Thrift API.
+Only expose it within trusted networks, e.g. via the default `cluster-internal` ListenerClass.
+
 === OAuth 2
 
 The HMS validates the JWT access tokens that clients send as bearer tokens:
