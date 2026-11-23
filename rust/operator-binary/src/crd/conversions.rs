@@ -26,8 +26,6 @@ impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
         let __sv_cluster_config_thrift_api_path = jthong_path(parent, "cluster_config.thrift_api");
         let __sv_cluster_config_iceberg_rest_catalog_path =
             jthong_path(parent, "cluster_config.iceberg_rest_catalog");
-        let __sv_cluster_config_warehouse_dir_path =
-            jthong_path(parent, "cluster_config.warehouse_dir");
         let __sv_cluster_config_warehouse_external_dir_path =
             jthong_path(parent, "cluster_config.warehouse_external_dir");
 
@@ -126,17 +124,19 @@ impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
             if let Some(stackable_operator::versioned::ChangedValue { value, .. }) =
                 upgrades.extract_first_if(|u| u.json_path == __sv_cluster_config_thrift_api_path)
             {
-                cluster_config.thrift_api =  ::serde_json::from_value(value).expect("internal error: {__sv_cluster_config_thrift_api_path} must be serializable for spec.thrift_api");
+                // Only restore what v1alpha1 can not express. The authentication exists in
+                // v1alpha1 (at `clusterConfig.authentication`), so a user might have changed it
+                // there, and that change must win over the tracked value. This is the idea behind
+                // `downgraded_value` in stackable-versioned, but as the authentication is converted
+                // 1:1, the v1alpha1 value always wins and there is nothing to compare against.
+                let tracked_thrift_api: v1alpha2::ThriftApiConfig = ::serde_json::from_value(value)
+                    .expect("internal error: the tracked thriftApi must be deserializable");
+                cluster_config.thrift_api.enabled = tracked_thrift_api.enabled;
             }
             if let Some(stackable_operator::versioned::ChangedValue { value, .. }) = upgrades
                 .extract_first_if(|u| u.json_path == __sv_cluster_config_iceberg_rest_catalog_path)
             {
                 cluster_config.iceberg_rest_catalog =  ::serde_json::from_value(value).expect("internal error: {__sv_cluster_config_iceberg_rest_catalog_path} must be serializable for spec.iceberg_rest_catalog");
-            }
-            if let Some(stackable_operator::versioned::ChangedValue { value, .. }) =
-                upgrades.extract_first_if(|u| u.json_path == __sv_cluster_config_warehouse_dir_path)
-            {
-                cluster_config.warehouse_dir =  ::serde_json::from_value(value).expect("internal error: {__sv_cluster_config_warehouse_dir_path} must be serializable for spec.thrift_api");
             }
             if let Some(stackable_operator::versioned::ChangedValue { value, .. }) = upgrades
                 .extract_first_if(|u| {
@@ -173,8 +173,6 @@ impl TrackingFrom<v1alpha2::HiveClusterSpec, HiveClusterStatusWithChangedValues>
         let __sv_cluster_config_thrift_api_path = jthong_path(parent, "cluster_config.thrift_api");
         let __sv_cluster_config_iceberg_rest_catalog_path =
             jthong_path(parent, "cluster_config.iceberg_rest_catalog");
-        let __sv_cluster_config_warehouse_dir_path =
-            jthong_path(parent, "cluster_config.warehouse_dir");
         let __sv_cluster_config_warehouse_external_dir_path =
             jthong_path(parent, "cluster_config.warehouse_external_dir");
 
@@ -193,11 +191,9 @@ impl TrackingFrom<v1alpha2::HiveClusterSpec, HiveClusterStatusWithChangedValues>
             value: ::serde_json::to_value(&new.cluster_config.iceberg_rest_catalog).unwrap(),
             downgraded_value: ::core::option::Option::None,
         });
-        upgrades.push(stackable_operator::versioned::ChangedValue {
-            json_path: __sv_cluster_config_warehouse_dir_path,
-            value: ::serde_json::to_value(&new.cluster_config.warehouse_dir).unwrap(),
-            downgraded_value: ::core::option::Option::None,
-        });
+        // The warehouseDir is not tracked: It is put on the metastore role config below, from where
+        // the upgrade reads it back. As it exists in v1alpha1, tracking it would also overwrite
+        // changes made in v1alpha1.
         upgrades.push(stackable_operator::versioned::ChangedValue {
             json_path: __sv_cluster_config_warehouse_external_dir_path,
             value: ::serde_json::to_value(&new.cluster_config.warehouse_external_dir).unwrap(),

@@ -694,6 +694,24 @@ mod tests {
                   roleGroups:
                     default:
                       replicas: 1
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  thriftApi:
+                    enabled: false # defaults to true
+                  icebergRestCatalog:
+                    enabled: true
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  warehouseDir: s3a://my-bucket/warehouse/
+                  warehouseExternalDir: s3a://my-bucket/warehouse/external/
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
         "#})
             .expect("Failed to parse HiveClusterSpec YAML")
         }
@@ -739,5 +757,69 @@ mod tests {
                 authentication: None
             }
         );
+    }
+
+    /// A HiveCluster as stored in v1alpha2, using settings v1alpha1 can not express (Iceberg REST
+    /// catalog, external warehouse directory).
+    fn stored_v1alpha2_spec() -> v1alpha2::HiveClusterSpec {
+        stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+          image:
+            productVersion: 1.2.3
+          clusterConfig:
+            icebergRestCatalog:
+              enabled: true
+            metadataDatabase:
+              postgresql:
+                host: postgresql
+                database: hive
+                credentialsSecretName: hive-credentials
+            warehouseDir: s3a://my-bucket/warehouse/
+            warehouseExternalDir: s3a://my-bucket/warehouse/external/
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+        "#})
+        .expect("Failed to parse HiveClusterSpec YAML")
+    }
+
+    /// A client still using v1alpha1 (e.g. `kubectl apply` of an old manifest) makes the API
+    /// server downgrade the stored v1alpha2 object, apply the change and upgrade it again, with the
+    /// status (and its tracked values) carried along. Kerberos added in v1alpha1 must survive this
+    /// instead of being replaced by the `thriftApi` tracked during the downgrade.
+    #[test]
+    fn cluster_config_keeps_thrift_authentication_edited_in_v1() {
+        let mut status = HiveClusterStatusWithChangedValues::default();
+        let stored = stored_v1alpha2_spec();
+
+        let mut v1: v1alpha1::HiveClusterSpec = stored.clone().tracking_into(&mut status, "$");
+        let kerberos = Some(ThriftAuthenticationConfig {
+            kerberos: security::KerberosConfig {
+                secret_class: SecretClassName::from_str("my-kerberos")
+                    .expect("valid SecretClass name"),
+            },
+        });
+        v1.cluster_config.authentication = kerberos.clone();
+        let v2: v1alpha2::HiveClusterSpec = v1.tracking_into(&mut status, "$");
+
+        let mut expected = stored;
+        expected.cluster_config.thrift_api.authentication = kerberos;
+        assert_eq!(v2, expected);
+    }
+
+    /// Same as [`cluster_config_keeps_thrift_authentication_edited_in_v1`], but for the warehouse
+    /// directory, which v1alpha1 has on the metastore role config.
+    #[test]
+    fn cluster_config_keeps_warehouse_dir_edited_in_v1() {
+        let mut status = HiveClusterStatusWithChangedValues::default();
+        let stored = stored_v1alpha2_spec();
+
+        let mut v1: v1alpha1::HiveClusterSpec = stored.clone().tracking_into(&mut status, "$");
+        v1.metastore.config.config.warehouse_dir = Some("s3a://other-bucket/warehouse/".to_owned());
+        let v2: v1alpha2::HiveClusterSpec = v1.tracking_into(&mut status, "$");
+
+        let mut expected = stored;
+        expected.cluster_config.warehouse_dir = "s3a://other-bucket/warehouse/".to_owned();
+        assert_eq!(v2, expected);
     }
 }
