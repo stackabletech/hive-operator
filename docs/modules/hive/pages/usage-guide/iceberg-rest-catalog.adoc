@@ -1,0 +1,172 @@
+= Iceberg REST catalog
+:description: Serve the Apache Iceberg REST catalog API from the Hive metastore, secure it with OAuth 2 and optionally disable the Thrift API.
+:hive-iceberg-rest-docs: https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/
+:hive-keycloak-docs: https://hive.apache.org/docs/latest/admin/oauth2/keycloak/
+:rfc-9068: https://www.rfc-editor.org/rfc/rfc9068
+
+WARNING: Support for the Iceberg REST catalog is experimental and may change in future releases.
+
+The Hive metastore (HMS) can serve the {hive-iceberg-rest-docs}[Apache Iceberg REST catalog API] in addition to its Thrift API.
+The catalog runs inside the HMS process and uses the same metadata database and xref:usage-guide/data-storage.adoc#warehouse-directory[warehouse directory].
+Iceberg clients that support the REST catalog can therefore access the Iceberg tables in the HMS without a Hive or Thrift client.
+
+The Iceberg REST catalog requires Hive 4.2.0 or newer.
+
+== Enabling the REST catalog
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    warehouseDir: s3a://my-bucket/warehouse/
+    warehouseExternalDir: s3a://my-bucket/warehouse/external/ # <1>
+    icebergRestCatalog:
+      enabled: true
+----
+<1> Namespaces created via the REST catalog without an explicit location are placed in this directory.
+
+IMPORTANT: Set `warehouseExternalDir` when using the REST catalog.
+Without it, the REST catalog can not create any namespace, not even one with an explicit location, and fails with `java.lang.NullPointerException: Warehouse location is not set: hive.metastore.warehouse.external.dir=null`.
+We (or Hive upstream) might improve the behavior in the https://github.com/stackabletech/docker-images/pull/1722[future], so this might become irrelevant.
+
+The catalog is served over plain HTTP on port `9001` (named `iceberg-rest`).
+The port is exposed by the role xref:usage-guide/listenerclass.adoc[Listener] and the headless role group Services, next to the Thrift port.
+Clients use the URI `http://<address>:9001/iceberg`, where `<address>` is the address of the Listener, e.g. `<cluster-name>-metastore.<namespace>.svc.cluster.local` for the default `cluster-internal` ListenerClass.
+
+The xref:reference/discovery.adoc[discovery ConfigMap] does not contain an entry for the REST catalog yet.
+
+[#migration]
+== Migrating existing Iceberg tables
+
+The REST catalog serves the same metadata as the Thrift API.
+Iceberg tables that were created via the Thrift API, e.g. by Trino using the Hive metastore, therefore show up in the REST catalog without any migration and keep their locations.
+Their schema, partitioning and history (e.g. for time travel) carry over as well.
+Hive databases show up as namespaces.
+
+Plain (non-Iceberg) Hive tables are not served by the REST catalog: they are neither listed nor can they be loaded.
+Keep the Thrift API enabled as long as clients need to access them.
+
+Views are not shared between the two APIs:
+
+* Trino views created via the Thrift API are stored as Hive views, which the REST catalog does not serve.
+  Recreate them via the REST catalog.
+* Iceberg views created via the REST catalog are listed by Trino via the Thrift API, but can not be read.
+
+You can move clients from the Thrift API to the REST catalog step by step:
+
+. Enable the REST catalog next to the Thrift API and set `warehouseExternalDir`, as described in <<_enabling_the_rest_catalog>>.
+  This restarts the HMS, existing tables are not modified.
+. Switch the clients to the REST catalog one by one.
+  Clients can use both APIs at the same time.
+  Changes made via one API are visible via the other one, including schema changes, row-level deletes and updates as well as table maintenance such as compaction.
+. Once no client uses the Thrift API anymore, disable it as described in <<_disabling_the_thrift_api>>.
+
+The https://github.com/stackabletech/hive-operator/blob/main/tests/templates/kuttl/iceberg-rest-catalog/[iceberg-rest-catalog integration test] runs through these steps with Trino.
+
+[#authentication]
+== Authentication
+
+WARNING: If no `authentication` is configured, the REST catalog does not authenticate requests at all and accepts every client that can reach the port.
+
+The REST catalog supports the authentication methods `oAuth2` (recommended), `jwt` and `simple`.
+Exactly one of them can be configured.
+
+WARNING: The REST catalog is served over plain HTTP, so bearer tokens (`oAuth2`, `jwt`) are sent unencrypted.
+Hive can only enable TLS for the REST catalog and the Thrift API together, and the operator does not support TLS for the Thrift API.
+Only expose it within trusted networks, e.g. via the default `cluster-internal` ListenerClass.
+
+=== OAuth 2
+
+The HMS validates the JWT access tokens that clients send as bearer tokens:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+      authentication:
+        oAuth2:
+          issuerUrl: https://keycloak.example.com/realms/my-realm # <1>
+          audience: hive-metastore # <2>
+----
+<1> The issuer of the access tokens.
+    On startup, the HMS fetches the server metadata from `<issuerUrl>/.well-known/oauth-authorization-server`, which must contain the `jwks_uri` used to validate the tokens.
+<2> The audience (`aud` claim) the access tokens must be issued for.
+
+The access tokens must also
+
+* have the JOSE header type `at+jwt` as defined in {rfc-9068}[RFC 9068], which some authorization servers do not use by default,
+* contain the scope `catalog`, which Iceberg clients request by default.
+
+The HMS uses the `sub` claim as the user name.
+The Hive documentation describes how to {hive-keycloak-docs}[configure Keycloak] accordingly.
+
+NOTE: The HMS fetches the server metadata only on startup.
+If that fails, e.g. because the issuer is unreachable, the HMS logs an error and starts *without* the REST catalog.
+The Pod then does not become ready, so the Thrift API is unavailable as well, and is restarted until the issuer is reachable.
+
+=== JWT
+
+The HMS accepts JSON Web Tokens (JWT) that clients send as bearer tokens and validates their signature using a JSON Web Key Set (JWKS):
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+      authentication:
+        jwt:
+          jwksUrls: # <1>
+            - https://keycloak.example.com/realms/my-realm/protocol/openid-connect/certs
+----
+<1> The URLs of the JWKS used to validate the signature of the tokens.
+    The HMS only falls back to another URL if fetching the JWKS fails, so all URLs need to serve the same keys, e.g. replicas of the same authorization server.
+    They can not be used to accept tokens of different issuers.
+    The HMS does not preserve the order of the URLs.
+
+The HMS uses the `sub` claim as the user name.
+
+WARNING: In this mode the HMS only checks the signature, the expiry and the presence of the `sub` claim.
+It does not check the issuer or the audience of a token.
+Every token signed by a key from the JWKS is accepted, e.g. any token of a Keycloak realm, regardless of the client it was issued for.
+Prefer <<_oauth_2,OAuth 2>>, which also checks the issuer, the audience and the scope.
+
+=== Simple
+
+The HMS takes the user name from the `x-actor-username` HTTP header of each request, without verifying it:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    icebergRestCatalog:
+      enabled: true
+      authentication:
+        simple: {}
+----
+
+WARNING: Clients can claim to be any user, so this mode is about as secure as no authentication.
+Only use it for testing, e.g. of authorization rules.
+
+== Disabling the Thrift API
+
+If clients only use the REST catalog, you can disable the Thrift API:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    thriftApi:
+      enabled: false
+    icebergRestCatalog:
+      enabled: true
+----
+
+The HMS can not switch its Thrift server off, so the operator binds it to the loopback interface of the Pod instead.
+The Thrift port is then neither exposed by the Listener nor by the Services, and the discovery ConfigMap does not contain the `HIVE` entry.
+At least one of the two APIs must be enabled.
+
+IMPORTANT: Keep `thriftApi.authentication` configured if you use a Kerberos-secured HDFS.
+The HMS uses the same Kerberos keytab to access HDFS, even when the Thrift API is disabled.

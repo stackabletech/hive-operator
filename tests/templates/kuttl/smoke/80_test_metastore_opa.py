@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
+import argparse
+import sys
+
 from hive_metastore_client import HiveMetastoreClient
 from hive_metastore_client.builders import (
-    DatabaseBuilder,
     ColumnBuilder,
+    DatabaseBuilder,
     SerDeInfoBuilder,
     StorageDescriptorBuilder,
     TableBuilder,
 )
-import argparse
+from thrift_files.libraries.thrift_hive_metastore_client.ttypes import MetaException
 
 
 def table(db_name, table_name, location):
@@ -62,14 +65,14 @@ if __name__ == "__main__":
     with HiveMetastoreClient(host, port) as hive_client:
         try:
             hive_client.create_database_if_not_exists(database)
-        except Exception as e:
+        except MetaException as e:
             print(f"[DENIED] {e}")
             print(
                 f"[SUCCESS] Test hive-metastore-opa-authorizer succeeded. Could not access database '{database_name}'!"
             )
-            exit(0)
+            sys.exit(0)
 
         print(
             f"[ERROR] Test hive-metastore-opa-authorizer failed. Could access database '{database_name}'!"
         )
-        exit(-1)
+        sys.exit(-1)

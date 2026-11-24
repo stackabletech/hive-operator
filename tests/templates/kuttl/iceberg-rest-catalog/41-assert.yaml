@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: sh orders.sh iceberg_rest | diff 41_orders.csv -
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FILTER (WHERE content = 0), count(DISTINCT partition), count(*) FILTER (WHERE content <> 0) FROM iceberg_rest.sales."orders$files"')" = 3,3,0
+  - script: test "$(sh trino-query.sh 'SELECT array_agg(id ORDER BY id) FROM iceberg_rest.sales.express_orders')" = '[3, 4, 7]'

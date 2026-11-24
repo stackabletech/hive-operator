@@ -67,10 +67,11 @@ use crate::{
         },
     },
     crd::{
-        Container, HIVE_PORT, HIVE_PORT_NAME, HiveRole, METRICS_PORT, METRICS_PORT_NAME,
-        STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME, STACKABLE_CONFIG_MOUNT_DIR,
-        STACKABLE_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_CONFIG_MOUNT_DIR,
-        STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME, STACKABLE_LOG_DIR_NAME,
+        Container, HIVE_PORT_NAME, HiveRole, ICEBERG_REST_CATALOG_PORT_NAME, METRICS_PORT,
+        METRICS_PORT_NAME, STACKABLE_CONFIG_DIR, STACKABLE_CONFIG_DIR_NAME,
+        STACKABLE_CONFIG_MOUNT_DIR, STACKABLE_CONFIG_MOUNT_DIR_NAME,
+        STACKABLE_LOG_CONFIG_MOUNT_DIR, STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME,
+        STACKABLE_LOG_DIR_NAME,
     },
 };
 
@@ -277,6 +278,30 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
         "}
     };
 
+    // If the Iceberg REST catalog is enabled, we probe it rather than Thrift:
+    // - HMS binds the Thrift socket before it starts the REST catalog, so an open REST port also
+    //   means that Thrift is listening (or bound to the loopback interface if disabled, see
+    //   `hive_site.rs`, where the kubelet can not reach it anyway).
+    // - If the REST catalog fails to initialize (e.g. its authentication), HMS logs an error and
+    //   keeps running with Thrift only (see `HiveMetaStore.createCatalogServlet`). Probing Thrift
+    //   would report such a Pod as ready.
+    // - HMS only tries to start the REST catalog once on startup, so it can only recover by a
+    //   restart. Hence the liveness probe checks the REST port as well. Restarting also takes Thrift
+    //   down, but it is unavailable anyway, as the Pod is not ready.
+    //
+    // The REST catalog embedded in HMS has no health endpoint (only the standalone REST catalog
+    // server has Spring Boot actuator endpoints). Every request to `/iceberg/*` without a bearer
+    // token is rejected with a 401 when authentication is enabled, which an HTTP probe treats as a
+    // failure, so we use a TCP probe. The port is only opened if the catalog is served.
+    let probe_port_name = if cluster.cluster_config.iceberg_rest_catalog_enabled {
+        ICEBERG_REST_CATALOG_PORT_NAME
+    } else {
+        HIVE_PORT_NAME
+    };
+    for (port_name, port) in cluster.cluster_config.api_ports() {
+        container_builder.add_container_port(port_name, port.into());
+    }
+
     let container_builder = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
@@ -324,7 +349,6 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             STACKABLE_LOG_CONFIG_MOUNT_DIR,
         )
         .expect("The mount paths are statically defined and there should be no duplicates.")
-        .add_container_port(HIVE_PORT_NAME, HIVE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .resources(merged_config.resources.clone().into())
         .readiness_probe(Probe {
@@ -332,7 +356,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             period_seconds: Some(10),
             failure_threshold: Some(5),
             tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HIVE_PORT_NAME.to_string()),
+                port: IntOrString::String(probe_port_name.to_string()),
                 ..TCPSocketAction::default()
             }),
             ..Probe::default()
@@ -341,7 +365,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
             initial_delay_seconds: Some(30),
             period_seconds: Some(10),
             tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HIVE_PORT_NAME.to_string()),
+                port: IntOrString::String(probe_port_name.to_string()),
                 ..TCPSocketAction::default()
             }),
             ..Probe::default()
@@ -447,7 +471,7 @@ pub(crate) fn build_metastore_rolegroup_statefulset(
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
-    if cluster.has_kerberos_enabled() {
+    if cluster.has_thrift_kerberos_enabled() {
         add_kerberos_pod_config(cluster, hive_role, container_builder, &mut pod_builder)
             .context(AddKerberosConfigSnafu)?;
     }
@@ -538,7 +562,7 @@ mod tests {
     /// [`DERBY_YAML`] with the operator-set `FILE_LOG_DIRECTORY` overridden on the
     /// metastore.
     const OVERRIDE_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -550,6 +574,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             envOverrides:
               FILE_LOG_DIRECTORY: /debug-override
@@ -560,7 +585,7 @@ mod tests {
 
     /// [`DERBY_YAML`] with Kerberos enabled.
     const KERBEROS_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -570,11 +595,13 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             roleGroups:
               default:
@@ -583,7 +610,7 @@ mod tests {
 
     /// [`KERBEROS_DERBY_YAML`] with the operator-set `KRB5_CONFIG` overridden on the metastore.
     const KERBEROS_OVERRIDE_DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -593,11 +620,13 @@ mod tests {
           image:
             productVersion: "4.0.0"
           clusterConfig:
-            authentication:
-              kerberos:
-                secretClass: kerberos
+            thriftApi:
+              authentication:
+                kerberos:
+                  secretClass: kerberos
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             envOverrides:
               KRB5_CONFIG: /custom/krb5.conf

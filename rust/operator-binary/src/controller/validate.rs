@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::product_image_selection,
     config::fragment,
@@ -16,6 +16,7 @@ use stackable_operator::{
         types::kubernetes::ConfigMapName,
     },
 };
+use url::Url;
 
 use crate::{
     controller::{
@@ -23,9 +24,10 @@ use crate::{
         ValidatedMetaStoreConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
-        HiveRole, MetaStoreConfig,
+        HiveRole,
         databases::{MetadataDatabaseConnection, derby_driver_class},
-        v1alpha1::{self, HiveMetastoreRoleConfig},
+        security::IcebergRestCatalogAuthenticationConfig,
+        v1alpha2::{self, HiveMetastoreRoleConfig, MetaStoreConfig},
     },
 };
 
@@ -79,6 +81,29 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display(
+        "the Thrift API and Iceberg REST catalog are both disabled, please enable {}",
+        if *iceberg_rest_catalog_supported {
+            "at least one"
+        } else {
+            "the Thrift API (the Iceberg REST catalog requires Hive 4.2.0 or newer)"
+        }
+    ))]
+    ThriftAndRestDisabled {
+        iceberg_rest_catalog_supported: bool,
+    },
+
+    #[snafu(display(
+        "the Iceberg REST catalog requires Hive 4.2.0 or newer, but {product_version:?} is used"
+    ))]
+    IcebergRestCatalogUnsupportedProductVersion { product_version: String },
+
+    #[snafu(display("invalid OAuth 2 issuer URL {issuer_url:?}"))]
+    InvalidOAuth2IssuerUrl {
+        source: url::ParseError,
+        issuer_url: String,
+    },
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -123,7 +148,7 @@ fn validate_logging(
 }
 
 pub fn validate_cluster(
-    hive: &v1alpha1::HiveCluster,
+    hive: &v1alpha2::HiveCluster,
     image_repository: &str,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
@@ -208,8 +233,77 @@ pub fn validate_cluster(
         .to_owned();
 
     let hdfs = hive.spec.cluster_config.hdfs.clone();
+    let thrift_api_enabled = hive.spec.cluster_config.thrift_api.enabled;
+    let iceberg_rest_catalog_enabled = hive.spec.cluster_config.iceberg_rest_catalog.enabled;
+    let thrift_kerberos_secret_class = hive.thrift_kerberos_secret_class();
+    let iceberg_rest_catalog_authentication = hive
+        .spec
+        .cluster_config
+        .iceberg_rest_catalog
+        .authentication
+        .clone();
+    if let Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) =
+        &iceberg_rest_catalog_authentication
+    {
+        Url::parse(&oauth2.issuer_url).context(InvalidOAuth2IssuerUrlSnafu {
+            issuer_url: &oauth2.issuer_url,
+        })?;
+    }
 
-    let kerberos_secret_class = hive.kerberos_secret_class();
+    // The Iceberg REST catalog is available since Hive 4.1.0, but only works since 4.2.0.
+    let product_version = &image.product_version;
+    // To be future-proof, this checks that it's neither 3.x, 4.0.x nor 4.1.x.
+    // 4.2.x and higher (including e.g. 5.x) work fine.
+    let iceberg_rest_catalog_supported = !(product_version.starts_with("3.")
+        || product_version.starts_with("4.0.")
+        || product_version.starts_with("4.1."));
+
+    ensure!(
+        thrift_api_enabled || iceberg_rest_catalog_enabled,
+        ThriftAndRestDisabledSnafu {
+            iceberg_rest_catalog_supported
+        }
+    );
+    ensure!(
+        !iceberg_rest_catalog_enabled || iceberg_rest_catalog_supported,
+        IcebergRestCatalogUnsupportedProductVersionSnafu { product_version }
+    );
+
+    if iceberg_rest_catalog_enabled && hive.spec.cluster_config.warehouse_external_dir.is_none() {
+        tracing::warn!(
+            "The Iceberg REST catalog is enabled, but clusterConfig.warehouseExternalDir is not set. \
+            Without it, the REST catalog may fail to create namespaces. \
+            Read on our REST catalog usage guide for details."
+        );
+    }
+
+    // Warn if a warehouse directory is on the local filesystem of the Pod.
+    let warehouse_dirs = [
+        (
+            "warehouseDir",
+            Some(&hive.spec.cluster_config.warehouse_dir),
+        ),
+        (
+            "warehouseExternalDir",
+            hive.spec.cluster_config.warehouse_external_dir.as_ref(),
+        ),
+    ];
+    let suggested_warehouse_dir = if hdfs.is_some() {
+        "hdfs://my-hdfs-cluster/warehouse/"
+    } else {
+        "s3a://my-bucket/warehouse/"
+    };
+    for (field, dir) in warehouse_dirs {
+        if let Some(dir) = dir
+            && is_on_local_filesystem(dir, hdfs.is_some())
+        {
+            tracing::warn!(
+                "clusterConfig.{field} [{dir}] is on the local filesystem of the Hive metastore pod, \
+                which is ephemeral: data written there is lost when the pod restarts. \
+                Use a full URI such as {suggested_warehouse_dir} instead."
+            );
+        }
+    }
 
     Ok(ValidatedCluster::new(
         name,
@@ -224,7 +318,12 @@ pub fn validate_cluster(
             hdfs,
             s3_connection_spec: dereferenced_objects.s3_connection_spec,
             hive_opa_config: dereferenced_objects.hive_opa_config,
-            kerberos_secret_class,
+            warehouse_dir: hive.spec.cluster_config.warehouse_dir.clone(),
+            warehouse_external_dir: hive.spec.cluster_config.warehouse_external_dir.clone(),
+            thrift_api_enabled,
+            iceberg_rest_catalog_enabled,
+            thrift_kerberos_secret_class,
+            iceberg_rest_catalog_authentication,
         },
         role_group_configs,
         dereferenced_objects.role_listener,
@@ -232,20 +331,31 @@ pub fn validate_cluster(
     ))
 }
 
+/// Whether the given warehouse directory ends up on the (ephemeral) local filesystem of the Pod.
+fn is_on_local_filesystem(dir: &str, hdfs_configured: bool) -> bool {
+    match Url::parse(dir) {
+        Ok(url) => url.scheme() == "file",
+        // Without a scheme, Hive resolves the path against the default filesystem, which is only
+        // HDFS if an HDFS connection (and thus its `core-site.xml`) is configured.
+        Err(url::ParseError::RelativeUrlWithoutBase) => !hdfs_configured,
+        Err(_) => false,
+    }
+}
+
 /// Merges and validates one role group into a [`HiveRoleGroupConfig`].
 fn validate_role_group_config(
     role_group_name: &RoleGroupName,
     role_group: &crate::crd::HiveRoleGroupType,
     role: &crate::crd::HiveRoleType,
-    default_config: &crate::crd::MetaStoreConfigFragment,
+    default_config: &crate::crd::v1alpha2::MetaStoreConfigFragment,
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<HiveRoleGroupConfig, Error> {
     let merged = with_validated_config::<
         MetaStoreConfig,
         JavaCommonConfig,
-        crate::crd::MetaStoreConfigFragment,
+        crate::crd::v1alpha2::MetaStoreConfigFragment,
         HiveMetastoreRoleConfig,
-        v1alpha1::HiveConfigOverrides,
+        v1alpha2::HiveConfigOverrides,
     >(role_group, role, default_config)
     .with_context(|_| ValidateConfigSnafu {
         role_group: role_group_name.clone(),
@@ -270,6 +380,7 @@ fn validate_role_group_config(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use stackable_operator::v2::builder::pod::container::EnvVarSet;
 
     use super::*;
@@ -354,7 +465,7 @@ mod tests {
         assert_eq!(cluster_config.hdfs, None);
         assert_eq!(cluster_config.s3_connection_spec, None);
         assert!(cluster_config.hive_opa_config.is_none());
-        assert_eq!(cluster_config.kerberos_secret_class, None);
+        assert_eq!(cluster_config.thrift_kerberos_secret_class, None);
 
         // A single metastore role with the single `default` role group.
         assert_eq!(cluster.role_group_configs.len(), 1);
@@ -373,7 +484,7 @@ mod tests {
         // A copy of `DERBY_YAML` whose role-group name violates the RFC 1123 label rules
         // (uppercase and underscore).
         let yaml = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -385,6 +496,7 @@ mod tests {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             roleGroups:
               Invalid_RG:
@@ -421,5 +533,26 @@ mod tests {
         };
 
         assert!(validate_logging(&logging, &None).is_err());
+    }
+
+    #[rstest]
+    #[case("/stackable/warehouse", false, true)]
+    // With HDFS, a path without a scheme is resolved against HDFS (`fs.defaultFS`)
+    #[case("/stackable/warehouse", true, false)]
+    #[case("file:///stackable/warehouse", false, true)]
+    #[case("file:///stackable/warehouse", true, true)]
+    #[case("s3a://my-bucket/warehouse/", false, false)]
+    #[case("hdfs://my-hdfs/warehouse/", true, false)]
+    #[case(
+        "abfs://container@account.dfs.core.windows.net/warehouse/",
+        false,
+        false
+    )]
+    fn local_warehouse_dirs(
+        #[case] dir: &str,
+        #[case] hdfs_configured: bool,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(is_on_local_filesystem(dir, hdfs_configured), expected);
     }
 }

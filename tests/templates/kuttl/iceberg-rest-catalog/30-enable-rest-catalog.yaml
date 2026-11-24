@@ -1,0 +1,24 @@
+---
+# Add a Trino catalog using the REST catalog
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: envsubst '$NAMESPACE' < 30_trino-catalog-rest.yaml | kubectl apply -n "$NAMESPACE" -f -
+---
+# Enable the Iceberg REST catalog next to the Thrift API.
+apiVersion: hive.stackable.tech/v1alpha2
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  clusterConfig:
+    # The REST catalog can not create any namespace (Trino schema) without warehouseExternalDir, not
+    # even one with an explicit location. Error message:
+    # ("java.lang.NullPointerException: Warehouse location is not set: hive.metastore.warehouse.external.dir=null").
+    #
+    # A fix in Hive itself is proposed in https://github.com/stackabletech/docker-images/pull/1722.
+    # As future Hive images might not need warehouseExternalDir, the operator only warns if it is
+    # missing instead of rejecting the HiveCluster.
+    warehouseExternalDir: s3a://lakehouse/warehouse/external/
+    icebergRestCatalog:
+      enabled: true

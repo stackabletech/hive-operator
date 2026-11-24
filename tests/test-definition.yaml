@@ -29,6 +29,14 @@ dimensions:
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 4.2.0,oci.stackable.tech/sdp/hive:4.2.0-stackable0.0.0-dev
+  - name: hive-rest
+    values:
+      # The Iceberg REST catalog requires Hive 4.2.0 or newer
+      - 4.2.0
+      - 4.2.1
+      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
+      # as in the example below.
+      # - 4.2.0,oci.stackable.tech/sdp/hive:4.2.0-stackable0.0.0-dev
   - name: hive-old
     values:
       - 3.1.3
@@ -38,6 +46,12 @@ dimensions:
   - name: hdfs-latest
     values:
       - 3.5.0
+  - name: trino-latest
+    values:
+      - "483"
+      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
+      # as in the example below.
+      # - 483,oci.stackable.tech/sdp/trino:483-stackable0.0.0-dev
   - name: zookeeper-latest
     values:
       - 3.9.6
@@ -118,6 +132,12 @@ tests:
   - name: external-access
     dimensions:
       - hive
+      - openshift
+  - name: iceberg-rest-catalog
+    dimensions:
+      - postgres
+      - hive-rest
+      - trino-latest
       - openshift
 suites:
   - name: nightly

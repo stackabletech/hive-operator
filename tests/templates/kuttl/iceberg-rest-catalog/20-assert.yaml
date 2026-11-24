@@ -1,0 +1,34 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 900
+commands:
+  - script: kubectl -n "$NAMESPACE" wait --for=condition=available hiveclusters.hive.stackable.tech/hive --timeout 10m
+  - script: kubectl -n "$NAMESPACE" wait --for=condition=available trinoclusters.trino.stackable.tech/trino --timeout 10m
+  - script: kubectl -n "$NAMESPACE" get cm hive -o json | jq -e '.data.HIVE' # Ensure the discovery CM is populated
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-metastore-default
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  name: hive-metastore
+spec:
+  ports:
+    - name: hive
+      port: 9083
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: trino-cli
+status:
+  readyReplicas: 1
+  replicas: 1

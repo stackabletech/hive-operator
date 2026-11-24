@@ -1,4 +1,4 @@
-//! Ensures that `Pod`s are configured and running for each [`v1alpha1::HiveCluster`]
+//! Ensures that `Pod`s are configured and running for each [`v1alpha2::HiveCluster`]
 
 mod apply;
 mod build;
@@ -41,6 +41,7 @@ use stackable_operator::{
         role_group_utils::ResourceNames,
         role_utils,
         types::{
+            common::Port,
             kubernetes::{ListenerClassName, SecretClassName},
             operator::{ControllerName, OperatorName, ProductName, ProductVersion},
         },
@@ -51,7 +52,12 @@ use strum::EnumDiscriminants;
 use crate::{
     HIVE_OPERATOR_NAME,
     controller::{apply::Applier, update_status::update_status},
-    crd::{APP_NAME, HdfsConnection, HiveRole, MetaStoreConfig, v1alpha1},
+    crd::{
+        APP_NAME, HIVE_PORT, HIVE_PORT_NAME, HdfsConnection, HiveRole, ICEBERG_REST_CATALOG_PORT,
+        ICEBERG_REST_CATALOG_PORT_NAME,
+        security::IcebergRestCatalogAuthenticationConfig,
+        v1alpha2::{self, MetaStoreConfig},
+    },
 };
 
 pub const HIVE_CONTROLLER_NAME: &str = "hivecluster";
@@ -105,7 +111,7 @@ impl ReconcilerError for Error {
 pub type HiveRoleGroupConfig = stackable_operator::v2::role_utils::RoleGroupConfig<
     ValidatedMetaStoreConfig,
     stackable_operator::v2::role_utils::JavaCommonConfig,
-    v1alpha1::HiveConfigOverrides,
+    v1alpha2::HiveConfigOverrides,
 >;
 
 /// A validated Hive metastore config: the merged [`MetaStoreConfig`] with its raw `logging`
@@ -118,7 +124,6 @@ pub struct ValidatedMetaStoreConfig {
     pub graceful_shutdown_timeout: Option<Duration>,
     pub logging: validate::ValidatedLogging,
     pub resources: Resources<crate::crd::MetastoreStorageConfig, NoRuntimeLimits>,
-    pub warehouse_dir: Option<String>,
 }
 
 impl ValidatedMetaStoreConfig {
@@ -126,33 +131,11 @@ impl ValidatedMetaStoreConfig {
     /// already-validated logging.
     fn from_merged(merged: MetaStoreConfig, logging: validate::ValidatedLogging) -> Self {
         Self {
-            warehouse_dir: merged.warehouse_dir,
             resources: merged.resources,
             logging,
             affinity: merged.affinity,
             graceful_shutdown_timeout: merged.graceful_shutdown_timeout,
         }
-    }
-
-    /// Wraps a merged [`MetaStoreConfig`] with trivial automatic logging, for builder tests
-    /// that only exercise the non-logging parts of the config.
-    #[cfg(test)]
-    pub(crate) fn from_merged_for_test(merged: MetaStoreConfig) -> Self {
-        use stackable_operator::{
-            product_logging::spec::AutomaticContainerLogConfig,
-            v2::product_logging::framework::ValidatedContainerLogConfigChoice,
-        };
-
-        Self::from_merged(
-            merged,
-            validate::ValidatedLogging {
-                hive_container: ValidatedContainerLogConfigChoice::Automatic(
-                    AutomaticContainerLogConfig::default(),
-                ),
-                vector_container: None,
-                enable_vector_agent: false,
-            },
-        )
     }
 }
 
@@ -161,7 +144,7 @@ impl ValidatedMetaStoreConfig {
 ///
 /// The cluster identity (`name`, `namespace`, `uid`) is captured here so that owner
 /// references for child objects can be built straight from this struct
-/// (via its [`Resource`] impl) without threading the raw [`v1alpha1::HiveCluster`]
+/// (via its [`Resource`] impl) without threading the raw [`v1alpha2::HiveCluster`]
 /// around.
 pub struct ValidatedCluster {
     /// `ObjectMeta` carrying `name`, `namespace` and `uid`, so this struct can act as the
@@ -246,33 +229,34 @@ impl ValidatedCluster {
         }
     }
 
-    /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured).
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.cluster_config.kerberos_secret_class.is_some()
+    /// Whether Kerberos is enabled for this cluster (a Kerberos `SecretClass` was configured for
+    /// the thrift API).
+    pub fn has_thrift_kerberos_enabled(&self) -> bool {
+        self.cluster_config.thrift_kerberos_secret_class.is_some()
     }
 }
 
-/// Lets [`ValidatedCluster`] stand in for the raw [`v1alpha1::HiveCluster`] when building owner
+/// Lets [`ValidatedCluster`] stand in for the raw [`v1alpha2::HiveCluster`] when building owner
 /// references and metadata for child objects. Kind/group/version are delegated to the CRD; the
 /// `metadata` (name, namespace, uid) is captured during validation.
 impl Resource for ValidatedCluster {
-    type DynamicType = <v1alpha1::HiveCluster as Resource>::DynamicType;
-    type Scope = <v1alpha1::HiveCluster as Resource>::Scope;
+    type DynamicType = <v1alpha2::HiveCluster as Resource>::DynamicType;
+    type Scope = <v1alpha2::HiveCluster as Resource>::Scope;
 
     fn kind(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::kind(dt)
+        v1alpha2::HiveCluster::kind(dt)
     }
 
     fn group(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::group(dt)
+        v1alpha2::HiveCluster::group(dt)
     }
 
     fn version(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::version(dt)
+        v1alpha2::HiveCluster::version(dt)
     }
 
     fn plural(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
-        v1alpha1::HiveCluster::plural(dt)
+        v1alpha2::HiveCluster::plural(dt)
     }
 
     fn meta(&self) -> &ObjectMeta {
@@ -305,7 +289,7 @@ impl NameIsValidLabelValue for ValidatedCluster {
 /// Cluster-wide settings resolved during validation and dereferencing.
 ///
 /// Everything the config-file builders need is resolved here so they never have to
-/// read the raw [`v1alpha1::HiveCluster`] spec.
+/// read the raw [`v1alpha2::HiveCluster`] spec.
 pub struct ValidatedClusterConfig {
     pub metadata_database_connection_details: JdbcDatabaseConnectionDetails,
     /// The resolved JDBC driver class (Derby version special-casing already applied).
@@ -316,15 +300,35 @@ pub struct ValidatedClusterConfig {
     pub hdfs: Option<HdfsConnection>,
     pub s3_connection_spec: Option<s3::v1alpha1::ConnectionSpec>,
     pub hive_opa_config: Option<dereference::ResolvedOpaConfig>,
-    /// The Kerberos `SecretClass` name, if Kerberos is enabled.
-    pub kerberos_secret_class: Option<SecretClassName>,
+
+    pub thrift_api_enabled: bool,
+    pub iceberg_rest_catalog_enabled: bool,
+
+    pub warehouse_dir: String,
+    pub warehouse_external_dir: Option<String>,
+
+    /// The Kerberos `SecretClass` name, if Kerberos is enabled for the Thrift API.
+    pub thrift_kerberos_secret_class: Option<SecretClassName>,
+    pub iceberg_rest_catalog_authentication: Option<IcebergRestCatalogAuthenticationConfig>,
 }
 
 impl ValidatedClusterConfig {
     /// Whether a `core-site.xml` with `hadoop.security.authentication=kerberos` is required:
     /// Kerberos is enabled and there is no HDFS backend (i.e. S3).
     pub fn needs_kerberos_core_site(&self) -> bool {
-        self.kerberos_secret_class.is_some() && self.hdfs.is_none()
+        self.thrift_kerberos_secret_class.is_some() && self.hdfs.is_none()
+    }
+
+    /// The ports of the enabled APIs (Thrift and/or Iceberg REST catalog), as `(name, port)`.
+    pub fn api_ports(&self) -> Vec<(&'static str, Port)> {
+        let mut ports = Vec::new();
+        if self.thrift_api_enabled {
+            ports.push((HIVE_PORT_NAME, HIVE_PORT));
+        }
+        if self.iceberg_rest_catalog_enabled {
+            ports.push((ICEBERG_REST_CATALOG_PORT_NAME, ICEBERG_REST_CATALOG_PORT));
+        }
+        ports
     }
 }
 
@@ -358,7 +362,7 @@ pub struct KubernetesResources<T> {
 }
 
 pub async fn reconcile_hive(
-    hive: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
+    hive: Arc<DeserializeGuard<v1alpha2::HiveCluster>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -408,7 +412,7 @@ pub async fn reconcile_hive(
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<v1alpha1::HiveCluster>>,
+    _obj: Arc<DeserializeGuard<v1alpha2::HiveCluster>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
@@ -424,7 +428,7 @@ pub(crate) mod test_support {
     use stackable_operator::utils::yaml_from_str_singleton_map;
 
     use super::{ValidatedCluster, dereference::DereferencedObjects, validate::validate_cluster};
-    use crate::crd::v1alpha1;
+    use crate::crd::v1alpha2;
 
     /// The expected `app.kubernetes.io/version` label value for the given product version.
     ///
@@ -444,7 +448,7 @@ pub(crate) mod test_support {
     /// (`simple-hive`) deliberately differs from the product name (`hive`), so tests asserting
     /// recommended labels catch swapped `name`/`instance` values.
     pub const DERBY_YAML: &str = r#"
-        apiVersion: hive.stackable.tech/v1alpha1
+        apiVersion: hive.stackable.tech/v1alpha2
         kind: HiveCluster
         metadata:
           name: simple-hive
@@ -456,18 +460,19 @@ pub(crate) mod test_support {
           clusterConfig:
             metadataDatabase:
               derby: {}
+            warehouseDir: s3a://my-bucket/warehouse/
           metastore:
             roleGroups:
               default:
                 replicas: 1
         "#;
 
-    pub fn minimal_hive(yaml: &str) -> v1alpha1::HiveCluster {
+    pub fn minimal_hive(yaml: &str) -> v1alpha2::HiveCluster {
         yaml_from_str_singleton_map(yaml).expect("invalid test HiveCluster YAML")
     }
 
     /// Runs the real validate step against a minimal (S3/OPA-free) fixture.
-    pub fn validated_cluster(hive: &v1alpha1::HiveCluster) -> ValidatedCluster {
+    pub fn validated_cluster(hive: &v1alpha2::HiveCluster) -> ValidatedCluster {
         validate_cluster(
             hive,
             "oci.example.org",
@@ -510,7 +515,7 @@ mod tests {
     fn reconcile_exits_early_for_deleted_cluster() {
         let hive = yaml_serde::from_str(
             r#"
-apiVersion: hive.stackable.tech/v1alpha1
+apiVersion: hive.stackable.tech/v1alpha2
 kind: HiveCluster
 metadata:
   name: hive

@@ -4,4 +4,4 @@ kind: TestAssert
 commands:
   - script: >-
       kubectl exec --namespace="$NAMESPACE" hive-test-runner-0 --
-      python /tmp/test_log_aggregation.py -n "$NAMESPACE"
+      python /tmp/06_test_log_aggregation.py -n "$NAMESPACE"

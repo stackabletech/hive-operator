@@ -1,10 +1,25 @@
 ---
+global:
+  security:
+    allowInsecureImages: true # needed starting with Chart version 16.3.0 if modifying images
+
+image:
+  repository: bitnamilegacy/postgresql
+
 volumePermissions:
   enabled: false
+  image:
+    repository: bitnamilegacy/os-shell
   securityContext:
     runAsUser: auto
 
+metrics:
+  image:
+    repository: bitnamilegacy/postgres-exporter
+
 primary:
+  extendedConfiguration: |
+    password_encryption=md5
   podSecurityContext:
 {% if test_scenario['values']['openshift'] == 'true' %}
     enabled: false
@@ -20,10 +35,6 @@ primary:
     limits:
       memory: "128Mi"
       cpu: "1"
-
-shmVolume:
-  chmod:
-    enabled: false
 
 auth:
   username: hive

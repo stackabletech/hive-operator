@@ -1,0 +1,6 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: envsubst '$NAMESPACE' < 20_hive.yaml | kubectl apply -n "$NAMESPACE" -f -
+  - script: kubectl apply -n "$NAMESPACE" -f 20_trino.yaml

@@ -1,0 +1,18 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  # Writes, schema evolution and row-level changes via either API are visible via the other one
+  - script: sh orders.sh iceberg_rest | diff 31_orders.csv -
+  - script: sh compare-catalogs.sh
+  - script: test "$(sh trino-query.sh 'SELECT id, discount FROM iceberg_thrift.sales.orders WHERE discount IS NOT NULL')" = 4,1.00
+  # Views are not shared: The Iceberg view created via the REST catalog is listed, but can not be
+  # read by Trino via the Thrift API
+  - script: test "$(sh trino-query.sh 'SELECT array_agg(id ORDER BY id) FROM iceberg_rest.sales.express_orders')" = '[3, 4]'
+  - script: sh trino-query.sh 'SELECT * FROM iceberg_thrift.sales.express_orders' 2>&1 | grep -q 'Not an Iceberg table'
+  # Namespaces created via the REST catalog without a location are placed in warehouseExternalDir
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM iceberg_thrift.marketing.campaigns')" = 2
+  - script: sh trino-query.sh 'SELECT DISTINCT "$path" FROM iceberg_rest.marketing.campaigns' | grep -q '^s3a://lakehouse/warehouse/external/marketing.db/'
+  # The plain Hive table is still accessible via the Thrift API
+  - script: test "$(sh trino-query.sh 'SELECT count(*) FROM hive.sales.legacy_orders')" = 1

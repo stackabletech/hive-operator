@@ -6,7 +6,7 @@ use databases::MetadataDatabaseConnection;
 pub use product_logging::spec::{
     ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
 };
-use security::AuthenticationConfig;
+use security::ThriftAuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
     commons::{
@@ -44,11 +44,11 @@ use stackable_operator::{
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
-use v1alpha1::HiveMetastoreRoleConfig;
 
-use crate::crd::affinity::get_affinity;
+use crate::crd::{affinity::get_affinity, security::IcebergRestCatalogAuthenticationConfig};
 
 pub mod affinity;
+mod conversions;
 pub mod databases;
 pub mod security;
 
@@ -69,6 +69,8 @@ constant!(pub STACKABLE_LOG_CONFIG_MOUNT_DIR_NAME: VolumeName = "log-config-moun
 // Default ports
 pub const HIVE_PORT_NAME: &str = "hive";
 pub const HIVE_PORT: Port = Port(9083);
+pub const ICEBERG_REST_CATALOG_PORT_NAME: &str = "iceberg-rest";
+pub const ICEBERG_REST_CATALOG_PORT: Port = Port(9001);
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: Port = Port(9084);
 
@@ -90,24 +92,27 @@ const DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_min
 constant!(METASTORE_ROLE_NAME: RoleName = "metastore");
 
 pub type HiveRoleType = Role<
-    MetaStoreConfigFragment,
-    v1alpha1::HiveConfigOverrides,
-    v1alpha1::HiveMetastoreRoleConfig,
+    v1alpha2::MetaStoreConfigFragment,
+    v1alpha2::HiveConfigOverrides,
+    v1alpha2::HiveMetastoreRoleConfig,
     JavaCommonConfig,
 >;
 
 pub type HiveRoleGroupType =
-    RoleGroup<MetaStoreConfigFragment, JavaCommonConfig, v1alpha1::HiveConfigOverrides>;
+    RoleGroup<v1alpha2::MetaStoreConfigFragment, JavaCommonConfig, v1alpha2::HiveConfigOverrides>;
 
 #[versioned(
     version(name = "v1alpha1"),
+    version(name = "v1alpha2"),
+    options(k8s(experimental_conversion_tracking)),
     crates(
         kube_core = "stackable_operator::kube::core",
         kube_client = "stackable_operator::kube::client",
         k8s_openapi = "stackable_operator::k8s_openapi",
         schemars = "stackable_operator::schemars",
         versioned = "stackable_operator::versioned"
-    )
+    ),
+    skip(from) // TODO: Can we only skip between v1alpha1 and v1alpha2 to be future-proof?
 )]
 pub mod versioned {
     /// A Hive cluster stacklet. This resource is managed by the Stackable operator for Apache Hive.
@@ -126,7 +131,8 @@ pub mod versioned {
     pub struct HiveClusterSpec {
         /// Hive metastore settings that affect all roles and role groups.
         /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-        pub cluster_config: v1alpha1::HiveClusterConfig,
+        #[versioned(nested)]
+        pub cluster_config: HiveClusterConfig,
 
         // no doc - docs in ClusterOperation struct.
         #[serde(default)]
@@ -140,7 +146,12 @@ pub mod versioned {
         pub image: ProductImage,
 
         // no doc - docs in Role struct.
-        pub metastore: HiveRoleType,
+        pub metastore: Role<
+            MetaStoreConfigFragment,
+            HiveConfigOverrides,
+            HiveMetastoreRoleConfig,
+            JavaCommonConfig,
+        >,
     }
 
     // TODO: move generic version to op-rs?
@@ -159,7 +170,10 @@ pub mod versioned {
     #[serde(rename_all = "camelCase")]
     pub struct HiveClusterConfig {
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
-        pub authentication: Option<AuthenticationConfig>,
+        ///
+        /// Moved to `.spec.clusterConfig.thriftApi.authentication` in v1alpha2.
+        #[versioned(removed(in = "v1alpha2"))]
+        pub authentication: Option<ThriftAuthenticationConfig>,
 
         /// Authorization options for Hive.
         /// Learn more in the [Hive authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security#authorization).
@@ -168,6 +182,16 @@ pub mod versioned {
         /// Configure the database where the Hive metastore stores all it's internal metadata, such
         /// as schema and tables.
         pub metadata_database: MetadataDatabaseConnection,
+
+        /// Start the Hive metastore Thrift API (enabled by default).
+        #[versioned(added(in = "v1alpha2"))]
+        #[serde(default)]
+        pub thrift_api: ThriftApiConfig,
+
+        /// Experimental support for starting an Iceberg REST catalog server (disabled by default).
+        #[versioned(added(in = "v1alpha2"))]
+        #[serde(default)]
+        pub iceberg_rest_catalog: IcebergRestCatalogConfig,
 
         /// HDFS connection specification.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -178,12 +202,92 @@ pub mod versioned {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub s3: Option<s3::v1alpha1::InlineConnectionOrReference>,
 
+        /// The location of default database for the Hive warehouse (e.g. `s3a://my-bucket/my-warehouse`).
+        ///
+        /// Maps to the `hive.metastore.warehouse.dir` setting.
+        #[versioned(added(in = "v1alpha2"))]
+        pub warehouse_dir: String,
+
+        /// Optional external location of Hive warehouse (e.g. `s3a://my-bucket/my-warehouse/external`).
+        ///
+        /// Maps to the `hive.metastore.warehouse.external.dir` setting. If not specified the operator
+        /// will *not* pass the setting to the Hive metastore and will let it default internally.
+        #[versioned(added(in = "v1alpha2"))]
+        pub warehouse_external_dir: Option<String>,
+
         /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<ConfigMapName>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ThriftApiConfig {
+        /// Whether the Thrift API is exposed (defaults to `true`).
+        ///
+        /// Hive can not switch the Thrift server off, so if disabled it is bound to the loopback
+        /// interface and not exposed via the Service and Listener.
+        #[serde(default = "default_thrift_api_enabled")]
+        pub enabled: bool,
+
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
+        ///
+        /// Only Kerberos is supported. The Hive metastore also uses it to access a Kerberos-secured
+        /// HDFS, so keep it configured in that case, even if `enabled` is `false`.
+        pub authentication: Option<ThriftAuthenticationConfig>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct IcebergRestCatalogConfig {
+        /// Whether the Iceberg REST catalog is started (defaults to `false`).
+        /// Requires Hive 4.2.0 or newer.
+        #[serde(default = "default_iceberg_rest_catalog_enabled")]
+        pub enabled: bool,
+
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/iceberg-rest-catalog#authentication).
+        ///
+        /// If not specified, the Iceberg REST catalog does not authenticate requests at all.
+        pub authentication: Option<IcebergRestCatalogAuthenticationConfig>,
+    }
+
+    #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+    #[fragment_attrs(
+        derive(
+            Clone,
+            Debug,
+            Default,
+            Deserialize,
+            Merge,
+            JsonSchema,
+            PartialEq,
+            Serialize
+        ),
+        serde(rename_all = "camelCase")
+    )]
+    pub struct MetaStoreConfig {
+        /// The location of default database for the Hive warehouse.
+        /// Maps to the `hive.metastore.warehouse.dir` setting.
+        ///
+        /// Moved to `.spec.clusterConfig.warehouseDir` in v1alpha2.
+        #[versioned(removed(in = "v1alpha2"))]
+        pub warehouse_dir: Option<String>,
+
+        #[fragment_attrs(serde(default))]
+        pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
+
+        #[fragment_attrs(serde(default))]
+        pub logging: Logging<Container>,
+
+        #[fragment_attrs(serde(default))]
+        pub affinity: StackableAffinity,
+
+        /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+        #[fragment_attrs(serde(default))]
+        pub graceful_shutdown_timeout: Option<Duration>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
@@ -197,34 +301,70 @@ pub mod versioned {
     }
 }
 
-impl Default for v1alpha1::HiveMetastoreRoleConfig {
+fn default_thrift_api_enabled() -> bool {
+    true
+}
+
+fn default_iceberg_rest_catalog_enabled() -> bool {
+    false
+}
+
+impl Default for v1alpha2::HiveMetastoreRoleConfig {
     fn default() -> Self {
-        v1alpha1::HiveMetastoreRoleConfig {
+        v1alpha2::HiveMetastoreRoleConfig {
             listener_class: metastore_default_listener_class(),
             common: Default::default(),
         }
     }
 }
 
-impl HasStatusCondition for v1alpha1::HiveCluster {
+impl Default for v1alpha2::ThriftApiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_thrift_api_enabled(),
+            authentication: None,
+        }
+    }
+}
+
+impl Default for v1alpha2::IcebergRestCatalogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_iceberg_rest_catalog_enabled(),
+            authentication: None,
+        }
+    }
+}
+
+impl Default for v1alpha1::HiveMetastoreRoleConfig {
+    fn default() -> Self {
+        Self {
+            common: Default::default(),
+            listener_class: metastore_default_listener_class(),
+        }
+    }
+}
+
+impl HasStatusCondition for v1alpha2::HiveCluster {
     fn conditions(&self) -> Vec<ClusterCondition> {
         match &self.status {
-            Some(status) => status.conditions.clone(),
+            Some(status) => status.status.conditions.clone(),
             None => vec![],
         }
     }
 }
 
-impl v1alpha1::HiveCluster {
-    pub fn role_config(&self, role: &HiveRole) -> &HiveMetastoreRoleConfig {
+impl v1alpha2::HiveCluster {
+    pub fn role_config(&self, role: &HiveRole) -> &v1alpha2::HiveMetastoreRoleConfig {
         match role {
             HiveRole::MetaStore => &self.spec.metastore.role_config,
         }
     }
 
-    pub fn kerberos_secret_class(&self) -> Option<SecretClassName> {
+    pub fn thrift_kerberos_secret_class(&self) -> Option<SecretClassName> {
         self.spec
             .cluster_config
+            .thrift_api
             .authentication
             .as_ref()
             .map(|a| &a.kerberos)
@@ -237,6 +377,37 @@ impl v1alpha1::HiveCluster {
             .authorization
             .as_ref()
             .and_then(|a| a.opa.as_ref())
+    }
+}
+
+impl v1alpha2::MetaStoreConfig {
+    pub(crate) fn default_config(
+        cluster_name: &str,
+        role: &HiveRole,
+        opa_config: Option<&OpaConfig>,
+    ) -> v1alpha2::MetaStoreConfigFragment {
+        v1alpha2::MetaStoreConfigFragment {
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1000m".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("768Mi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: MetastoreStorageConfigFragment {
+                    data: PvcConfigFragment {
+                        capacity: Some(Quantity("0Mi".to_owned())), // "0Mi" is a marker for us, so we don't warn unnecessarily
+                        storage_class: None,
+                        selectors: None,
+                    },
+                },
+            },
+            logging: product_logging::spec::default_logging(),
+            affinity: get_affinity(cluster_name, role, opa_config),
+            graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
+        }
     }
 }
 
@@ -329,71 +500,6 @@ pub struct MetastoreStorageConfig {
     pub data: PvcConfig,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct MetaStoreConfig {
-    /// The location of default database for the Hive warehouse.
-    /// Maps to the `hive.metastore.warehouse.dir` setting.
-    pub warehouse_dir: Option<String>,
-
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<MetastoreStorageConfig, NoRuntimeLimits>,
-
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<Container>,
-
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
-}
-
-impl MetaStoreConfig {
-    pub(crate) fn default_config(
-        cluster_name: &str,
-        role: &HiveRole,
-        opa_config: Option<&OpaConfig>,
-    ) -> MetaStoreConfigFragment {
-        MetaStoreConfigFragment {
-            warehouse_dir: None,
-            resources: ResourcesFragment {
-                cpu: CpuLimitsFragment {
-                    min: Some(Quantity("250m".to_owned())),
-                    max: Some(Quantity("1000m".to_owned())),
-                },
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("768Mi".to_owned())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
-                storage: MetastoreStorageConfigFragment {
-                    data: PvcConfigFragment {
-                        capacity: Some(Quantity("0Mi".to_owned())), // "0Mi" is a marker for us, so we don't warn unnecessarily
-                        storage_class: None,
-                        selectors: None,
-                    },
-                },
-            },
-            logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role, opa_config),
-            graceful_shutdown_timeout: Some(DEFAULT_METASTORE_GRACEFUL_SHUTDOWN_TIMEOUT),
-        }
-    }
-}
-
 #[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HiveClusterStatus {
@@ -406,10 +512,11 @@ pub struct HiveClusterStatus {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::versioned::test_utils::RoundtripTestData;
+    use stackable_operator::versioned::{TrackingInto, test_utils::RoundtripTestData};
     use strum::IntoEnumIterator;
 
     use super::*;
+    use crate::crd::v1alpha2::{IcebergRestCatalogConfig, ThriftApiConfig};
 
     #[test]
     fn test_constants() {
@@ -500,7 +607,7 @@ mod tests {
                             name: prepared-logs
                   configOverrides:
                     hive-site.xml:
-                      hive.metastore.warehouse.dir: /stackable/warehouse/override
+                      hive.metastore.warehouse.dir: s3a://override
                       common-var: role-value
                       role-var: role-value
                   envOverrides:
@@ -526,5 +633,193 @@ mod tests {
         "#})
             .expect("Failed to parse HiveClusterSpec YAML")
         }
+    }
+
+    impl RoundtripTestData for v1alpha2::HiveClusterSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  warehouseDir: s3a://my-bucket/warehouse/
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  thriftApi:
+                    enabled: true
+                    authentication:
+                      kerberos:
+                        secretClass: my-kerberos
+                  icebergRestCatalog:
+                    enabled: false
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  warehouseDir: s3a://my-bucket/warehouse/
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  thriftApi:
+                    enabled: true
+                    authentication:
+                      kerberos:
+                        secretClass: my-kerberos
+                  icebergRestCatalog:
+                    enabled: true # defaults to false
+                    authentication:
+                      oAuth2:
+                        issuerUrl: https://keycloak.my-namespace.svc.cluster.local:8443/realms/test
+                        audience: hive-metastore
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  warehouseDir: s3a://my-bucket/warehouse/
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
+              - image:
+                  productVersion: 1.2.3
+                clusterConfig:
+                  thriftApi:
+                    enabled: false # defaults to true
+                  icebergRestCatalog:
+                    enabled: true
+                  metadataDatabase:
+                    postgresql:
+                      host: postgresql
+                      database: hive
+                      credentialsSecretName: hive-credentials
+                  warehouseDir: s3a://my-bucket/warehouse/
+                  warehouseExternalDir: s3a://my-bucket/warehouse/external/
+                metastore:
+                  roleGroups:
+                    default:
+                      replicas: 1
+        "#})
+            .expect("Failed to parse HiveClusterSpec YAML")
+        }
+    }
+
+    #[test]
+    fn cluster_config_v1_to_v2_keeps_thrift_authentication() {
+        let mut status = HiveClusterStatusWithChangedValues::default();
+        let v1: v1alpha1::HiveClusterSpec =
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+              image:
+                productVersion: 1.2.3
+              clusterConfig:
+                authentication:
+                  kerberos:
+                    secretClass: my-kerberos
+                metadataDatabase:
+                  postgresql:
+                    host: postgresql
+                    database: hive
+                    credentialsSecretName: hive-credentials
+              metastore:
+                roleGroups:
+                  default:
+                    replicas: 1
+        "#})
+            .expect("Failed to parse HiveClusterSpec YAML");
+
+        let v2: v1alpha2::HiveClusterSpec = v1.clone().tracking_into(&mut status, "$");
+        assert_eq!(
+            v2.cluster_config.thrift_api,
+            ThriftApiConfig {
+                enabled: true,
+                // Assert that the old authentication (Kerberos) is still active
+                authentication: v1.cluster_config.authentication
+            }
+        );
+        assert_eq!(
+            v2.cluster_config.iceberg_rest_catalog,
+            IcebergRestCatalogConfig {
+                enabled: false,
+                authentication: None
+            }
+        );
+    }
+
+    /// A HiveCluster as stored in v1alpha2, using settings v1alpha1 can not express (Iceberg REST
+    /// catalog, external warehouse directory).
+    fn stored_v1alpha2_spec() -> v1alpha2::HiveClusterSpec {
+        stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+          image:
+            productVersion: 1.2.3
+          clusterConfig:
+            icebergRestCatalog:
+              enabled: true
+            metadataDatabase:
+              postgresql:
+                host: postgresql
+                database: hive
+                credentialsSecretName: hive-credentials
+            warehouseDir: s3a://my-bucket/warehouse/
+            warehouseExternalDir: s3a://my-bucket/warehouse/external/
+          metastore:
+            roleGroups:
+              default:
+                replicas: 1
+        "#})
+        .expect("Failed to parse HiveClusterSpec YAML")
+    }
+
+    /// A client still using v1alpha1 (e.g. `kubectl apply` of an old manifest) makes the API
+    /// server downgrade the stored v1alpha2 object, apply the change and upgrade it again, with the
+    /// status (and its tracked values) carried along. Kerberos added in v1alpha1 must survive this
+    /// instead of being replaced by the `thriftApi` tracked during the downgrade.
+    #[test]
+    fn cluster_config_keeps_thrift_authentication_edited_in_v1() {
+        let mut status = HiveClusterStatusWithChangedValues::default();
+        let stored = stored_v1alpha2_spec();
+
+        let mut v1: v1alpha1::HiveClusterSpec = stored.clone().tracking_into(&mut status, "$");
+        let kerberos = Some(ThriftAuthenticationConfig {
+            kerberos: security::KerberosConfig {
+                secret_class: SecretClassName::from_str("my-kerberos")
+                    .expect("valid SecretClass name"),
+            },
+        });
+        v1.cluster_config.authentication = kerberos.clone();
+        let v2: v1alpha2::HiveClusterSpec = v1.tracking_into(&mut status, "$");
+
+        let mut expected = stored;
+        expected.cluster_config.thrift_api.authentication = kerberos;
+        assert_eq!(v2, expected);
+    }
+
+    /// Same as [`cluster_config_keeps_thrift_authentication_edited_in_v1`], but for the warehouse
+    /// directory, which v1alpha1 has on the metastore role config.
+    #[test]
+    fn cluster_config_keeps_warehouse_dir_edited_in_v1() {
+        let mut status = HiveClusterStatusWithChangedValues::default();
+        let stored = stored_v1alpha2_spec();
+
+        let mut v1: v1alpha1::HiveClusterSpec = stored.clone().tracking_into(&mut status, "$");
+        v1.metastore.config.config.warehouse_dir = Some("s3a://other-bucket/warehouse/".to_owned());
+        let v2: v1alpha2::HiveClusterSpec = v1.tracking_into(&mut status, "$");
+
+        let mut expected = stored;
+        expected.cluster_config.warehouse_dir = "s3a://other-bucket/warehouse/".to_owned();
+        assert_eq!(v2, expected);
     }
 }

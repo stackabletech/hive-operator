@@ -45,13 +45,13 @@ pub(crate) mod test_support {
         controller::{ValidatedClusterConfig, test_support::DERBY_YAML},
         crd::{
             databases::{MetadataDatabaseConnection, derby_driver_class},
-            v1alpha1,
+            v1alpha2,
         },
     };
 
     /// Build a minimal Derby-backed [`ValidatedClusterConfig`] for builder tests.
     pub fn derby_cluster_config() -> ValidatedClusterConfig {
-        let hive: v1alpha1::HiveCluster =
+        let hive: v1alpha2::HiveCluster =
             stackable_operator::utils::yaml_from_str_singleton_map(DERBY_YAML)
                 .expect("valid HiveCluster YAML");
         let metadata_database_connection_details = hive
@@ -77,7 +77,21 @@ pub(crate) mod test_support {
             hdfs: None,
             s3_connection_spec: None,
             hive_opa_config: None,
-            kerberos_secret_class: None,
+            thrift_api_enabled: hive.spec.cluster_config.thrift_api.enabled,
+            iceberg_rest_catalog_enabled: hive.spec.cluster_config.iceberg_rest_catalog.enabled,
+            warehouse_dir: hive.spec.cluster_config.warehouse_dir.clone(),
+            warehouse_external_dir: hive.spec.cluster_config.warehouse_external_dir.clone(),
+            thrift_kerberos_secret_class: hive
+                .spec
+                .cluster_config
+                .thrift_api
+                .authentication
+                .map(|a| a.kerberos.secret_class),
+            iceberg_rest_catalog_authentication: hive
+                .spec
+                .cluster_config
+                .iceberg_rest_catalog
+                .authentication,
         }
     }
 

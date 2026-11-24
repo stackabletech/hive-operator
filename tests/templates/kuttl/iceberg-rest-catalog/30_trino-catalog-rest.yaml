@@ -1,0 +1,22 @@
+---
+# The same Iceberg tables, accessed via the Iceberg REST catalog of the Hive metastore.
+apiVersion: trino.stackable.tech/v1alpha2
+kind: TrinoCatalog
+metadata:
+  name: iceberg-rest
+  labels:
+    trino: trino
+spec:
+  name:
+    inferred:
+      replaceHyphensWithUnderscores: true # iceberg_rest
+  connector:
+    iceberg:
+      catalog:
+        rest:
+          # The address of the Listener for the default cluster-internal ListenerClass
+          hostname: hive-metastore.$NAMESPACE.svc.cluster.local
+          port: 9001
+          path: /iceberg
+      s3:
+        reference: garage

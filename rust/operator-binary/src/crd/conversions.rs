@@ -1,0 +1,291 @@
+//! Adapted from the conversions `stackable-versioned` generates. Once the macro supports all
+//! changes made here, it can generate them instead.
+//!
+//! Tests for these functions are the roundtrip tests on the [`HiveCluster`](crate::crd::v1alpha2::HiveClusterSpec)
+//! and the `cluster_config_*` tests next to it in `crd/mod.rs`.
+
+use std::{collections::BTreeMap, iter};
+
+use stackable_operator::{
+    v2::role_utils::{CommonConfiguration, JavaCommonConfig, Role, RoleGroup},
+    versioned::{ExtractIfExt as _, TrackingFrom, TrackingStatus as _, jthong_path},
+};
+
+use crate::crd::{HiveClusterStatusWithChangedValues, v1alpha1, v1alpha2};
+
+impl TrackingFrom<v1alpha1::HiveClusterSpec, HiveClusterStatusWithChangedValues>
+    for v1alpha2::HiveClusterSpec
+{
+    fn tracking_from(
+        old: v1alpha1::HiveClusterSpec,
+        status: &mut HiveClusterStatusWithChangedValues,
+        parent: &str,
+    ) -> Self {
+        // We need to model the paths exactly the same way `stackable-versioned` does, so that we
+        // can switch to macro magic later.
+        let __sv_cluster_config_thrift_api_path = jthong_path(parent, "cluster_config.thrift_api");
+        let __sv_cluster_config_iceberg_rest_catalog_path =
+            jthong_path(parent, "cluster_config.iceberg_rest_catalog");
+        let __sv_cluster_config_warehouse_external_dir_path =
+            jthong_path(parent, "cluster_config.warehouse_external_dir");
+
+        // v1alpha1 allows a warehouseDir on the role and on every role group, although it is a
+        // cluster-wide setting. v1alpha2 has a single one, so only one of them can be kept.
+        // So we try our best to migrate it correctly.
+        let old_role_warehouse_dir = &old.metastore.config.config.warehouse_dir;
+        // The roleGroups come from a HashMap, which has a random iteration order (that even
+        // differs between conversions of the same object). So we sort them by name to keep the
+        // conversion deterministic.
+        let old_role_groups_warehouse_dirs = old
+            .metastore
+            .role_groups
+            .iter()
+            .collect::<BTreeMap<_, _>>()
+            .into_values()
+            .map(|rg| &rg.config.config.warehouse_dir);
+        // The first role group (by name) with an explicit warehouseDir wins, as it overrides the
+        // role one for that role group, then the role, then the v1alpha1 default.
+        let old_warehouse_dir = old_role_groups_warehouse_dirs
+            .chain(iter::once(old_role_warehouse_dir))
+            .flatten()
+            .next();
+        // Fill with the old (really bad) default
+        let old_warehouse_dir = old_warehouse_dir
+            .map(String::as_str)
+            .unwrap_or_else(|| "/stackable/warehouse");
+
+        let mut cluster_config = v1alpha2::HiveClusterConfig {
+            authorization: old.cluster_config.authorization,
+            metadata_database: old.cluster_config.metadata_database,
+            thrift_api: v1alpha2::ThriftApiConfig {
+                enabled: true,
+                authentication: old.cluster_config.authentication,
+            },
+            iceberg_rest_catalog: v1alpha2::IcebergRestCatalogConfig {
+                enabled: false,
+                authentication: None,
+            },
+            hdfs: old.cluster_config.hdfs,
+            s3: old.cluster_config.s3,
+            warehouse_dir: old_warehouse_dir.to_owned(),
+            warehouse_external_dir: None,
+            vector_aggregator_config_map_name: old.cluster_config.vector_aggregator_config_map_name,
+        };
+
+        #[expect(clippy::type_complexity)]
+        let upgrade_common_config: fn(
+            CommonConfiguration<
+                v1alpha1::MetaStoreConfigFragment,
+                JavaCommonConfig,
+                v1alpha1::HiveConfigOverrides,
+            >,
+        ) -> CommonConfiguration<
+            v1alpha2::MetaStoreConfigFragment,
+            JavaCommonConfig,
+            v1alpha2::HiveConfigOverrides,
+        > = |old| CommonConfiguration {
+            config: v1alpha2::MetaStoreConfigFragment {
+                resources: old.config.resources,
+                logging: old.config.logging,
+                affinity: old.config.affinity,
+                graceful_shutdown_timeout: old.config.graceful_shutdown_timeout,
+            },
+            config_overrides: v1alpha2::HiveConfigOverrides {
+                hive_site_xml: old.config_overrides.hive_site_xml,
+                security_properties: old.config_overrides.security_properties,
+            },
+            env_overrides: old.env_overrides,
+            cli_overrides: old.cli_overrides,
+            pod_overrides: old.pod_overrides,
+            product_specific_common_config: old.product_specific_common_config,
+        };
+
+        let metastore = Role {
+            config: upgrade_common_config(old.metastore.config),
+            role_config: v1alpha2::HiveMetastoreRoleConfig {
+                common: old.metastore.role_config.common,
+                listener_class: old.metastore.role_config.listener_class,
+            },
+            role_groups: old
+                .metastore
+                .role_groups
+                .into_iter()
+                .map(|(rg_name, rg)| {
+                    (
+                        rg_name,
+                        RoleGroup {
+                            config: upgrade_common_config(rg.config),
+                            replicas: rg.replicas,
+                        },
+                    )
+                })
+                .collect(),
+        };
+
+        if let Some(upgrades) = status.changes().upgrades.get_mut("v1alpha2") {
+            if let Some(stackable_operator::versioned::ChangedValue { value, .. }) =
+                upgrades.extract_first_if(|u| u.json_path == __sv_cluster_config_thrift_api_path)
+            {
+                // Only restore what v1alpha1 can not express. The authentication exists in
+                // v1alpha1 (at `clusterConfig.authentication`), so a user might have changed it
+                // there, and that change must win over the tracked value. This is the idea behind
+                // `downgraded_value` in stackable-versioned, but as the authentication is converted
+                // 1:1, the v1alpha1 value always wins and there is nothing to compare against.
+                let tracked_thrift_api: v1alpha2::ThriftApiConfig = ::serde_json::from_value(value)
+                    .expect("internal error: the tracked thriftApi must be deserializable");
+                cluster_config.thrift_api.enabled = tracked_thrift_api.enabled;
+            }
+            if let Some(stackable_operator::versioned::ChangedValue { value, .. }) = upgrades
+                .extract_first_if(|u| u.json_path == __sv_cluster_config_iceberg_rest_catalog_path)
+            {
+                cluster_config.iceberg_rest_catalog = ::serde_json::from_value(value).expect(
+                    "internal error: the tracked icebergRestCatalog must be deserializable",
+                );
+            }
+            if let Some(stackable_operator::versioned::ChangedValue { value, .. }) = upgrades
+                .extract_first_if(|u| {
+                    u.json_path == __sv_cluster_config_warehouse_external_dir_path
+                })
+            {
+                cluster_config.warehouse_external_dir = ::serde_json::from_value(value).expect(
+                    "internal error: the tracked warehouseExternalDir must be deserializable",
+                );
+            }
+            if upgrades.is_empty() {
+                status.changes().upgrades.remove("v1alpha2");
+            }
+        }
+
+        Self {
+            cluster_config,
+            cluster_operation: old.cluster_operation,
+            object_overrides: old.object_overrides,
+            image: old.image,
+            metastore,
+        }
+    }
+}
+
+impl TrackingFrom<v1alpha2::HiveClusterSpec, HiveClusterStatusWithChangedValues>
+    for v1alpha1::HiveClusterSpec
+{
+    fn tracking_from(
+        new: v1alpha2::HiveClusterSpec,
+        status: &mut HiveClusterStatusWithChangedValues,
+        parent: &str,
+    ) -> Self {
+        // We need to model the paths exactly the same way `stackable-versioned` does, so that we
+        // can switch to macro magic later.
+        let __sv_cluster_config_thrift_api_path = jthong_path(parent, "cluster_config.thrift_api");
+        let __sv_cluster_config_iceberg_rest_catalog_path =
+            jthong_path(parent, "cluster_config.iceberg_rest_catalog");
+        let __sv_cluster_config_warehouse_external_dir_path =
+            jthong_path(parent, "cluster_config.warehouse_external_dir");
+
+        let upgrades = status
+            .changes()
+            .upgrades
+            .entry("v1alpha2".to_owned())
+            .or_default();
+        upgrades.push(stackable_operator::versioned::ChangedValue {
+            json_path: __sv_cluster_config_thrift_api_path,
+            value: ::serde_json::to_value(&new.cluster_config.thrift_api)
+                .expect("internal error: the thriftApi must be serializable"),
+            downgraded_value: ::core::option::Option::None,
+        });
+        upgrades.push(stackable_operator::versioned::ChangedValue {
+            json_path: __sv_cluster_config_iceberg_rest_catalog_path,
+            value: ::serde_json::to_value(&new.cluster_config.iceberg_rest_catalog)
+                .expect("internal error: the icebergRestCatalog must be serializable"),
+            downgraded_value: ::core::option::Option::None,
+        });
+        // The warehouseDir is not tracked: It is put on the metastore role config below, from where
+        // the upgrade reads it back. As it exists in v1alpha1, tracking it would also overwrite
+        // changes made in v1alpha1.
+        upgrades.push(stackable_operator::versioned::ChangedValue {
+            json_path: __sv_cluster_config_warehouse_external_dir_path,
+            value: ::serde_json::to_value(&new.cluster_config.warehouse_external_dir)
+                .expect("internal error: the warehouseExternalDir must be serializable"),
+            downgraded_value: ::core::option::Option::None,
+        });
+
+        #[expect(clippy::type_complexity)]
+        let downgrade_common_config: fn(
+            CommonConfiguration<
+                v1alpha2::MetaStoreConfigFragment,
+                JavaCommonConfig,
+                v1alpha2::HiveConfigOverrides,
+            >,
+        ) -> CommonConfiguration<
+            v1alpha1::MetaStoreConfigFragment,
+            JavaCommonConfig,
+            v1alpha1::HiveConfigOverrides,
+        > = |old| CommonConfiguration {
+            config: v1alpha1::MetaStoreConfigFragment {
+                resources: old.config.resources,
+                logging: old.config.logging,
+                affinity: old.config.affinity,
+                graceful_shutdown_timeout: old.config.graceful_shutdown_timeout,
+                // We only set the warehouse dir to the role config below explicitly (and not on the
+                // rolegroup ones).
+                warehouse_dir: None,
+            },
+            config_overrides: v1alpha1::HiveConfigOverrides {
+                hive_site_xml: old.config_overrides.hive_site_xml,
+                security_properties: old.config_overrides.security_properties,
+            },
+            env_overrides: old.env_overrides,
+            cli_overrides: old.cli_overrides,
+            pod_overrides: old.pod_overrides,
+            product_specific_common_config: old.product_specific_common_config,
+        };
+
+        let mut metastore = Role {
+            config: downgrade_common_config(new.metastore.config),
+            role_config: v1alpha1::HiveMetastoreRoleConfig {
+                common: new.metastore.role_config.common,
+                listener_class: new.metastore.role_config.listener_class,
+            },
+            role_groups: new
+                .metastore
+                .role_groups
+                .into_iter()
+                .map(|(rg_name, rg)| {
+                    (
+                        rg_name,
+                        RoleGroup {
+                            config: downgrade_common_config(rg.config),
+                            replicas: rg.replicas,
+                        },
+                    )
+                })
+                .collect(),
+        };
+
+        // The warehouseDir migration is a bit more complicated (see the upgrade path), so we only
+        // restore the new warehouse path to the role-level config, and don't set anything on the
+        // roleGroups.
+        //
+        // The v1alpha1 default "/stackable/warehouse" is not restored, so that a roundtrip starting
+        // with `null` ends up with `null` as well.
+        if new.cluster_config.warehouse_dir != "/stackable/warehouse" {
+            metastore.config.config.warehouse_dir = Some(new.cluster_config.warehouse_dir);
+        }
+
+        let cluster_config = v1alpha1::HiveClusterConfig {
+            authentication: new.cluster_config.thrift_api.authentication,
+            authorization: new.cluster_config.authorization,
+            metadata_database: new.cluster_config.metadata_database,
+            hdfs: new.cluster_config.hdfs,
+            s3: new.cluster_config.s3,
+            vector_aggregator_config_map_name: new.cluster_config.vector_aggregator_config_map_name,
+        };
+        Self {
+            cluster_config,
+            cluster_operation: new.cluster_operation,
+            object_overrides: new.object_overrides,
+            image: new.image,
+            metastore,
+        }
+    }
+}
