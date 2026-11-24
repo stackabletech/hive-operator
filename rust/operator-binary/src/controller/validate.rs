@@ -16,6 +16,7 @@ use stackable_operator::{
         types::kubernetes::ConfigMapName,
     },
 };
+use url::Url;
 
 use crate::{
     controller::{
@@ -260,6 +261,34 @@ pub fn validate_cluster(
         );
     }
 
+    // Print warning in case a local filesystem os used as warehouse dir.
+    let warehouse_dirs = [
+        (
+            "warehouseDir",
+            Some(&hive.spec.cluster_config.warehouse_dir),
+        ),
+        (
+            "warehouseExternalDir",
+            hive.spec.cluster_config.warehouse_external_dir.as_ref(),
+        ),
+    ];
+    let suggested_warehouse_dir = if hdfs.is_some() {
+        "hdfs://my-hdfs-cluster/warehouse/"
+    } else {
+        "s3a://my-bucket/warehouse/"
+    };
+    for (field, dir) in warehouse_dirs {
+        if let Some(dir) = dir
+            && is_on_local_filesystem(dir, hdfs.is_some())
+        {
+            tracing::warn!(
+                "clusterConfig.{field} [{dir}] is on the local filesystem of the Hive metastore pod, \
+                which is ephemeral: data written there is lost when the pod restarts. \
+                Use a full URI such as {suggested_warehouse_dir} instead."
+            );
+        }
+    }
+
     Ok(ValidatedCluster::new(
         name,
         namespace,
@@ -284,6 +313,17 @@ pub fn validate_cluster(
         dereferenced_objects.role_listener,
         dereferenced_objects.existing_discovery_config_map,
     ))
+}
+
+/// Whether the given warehouse directory ends up on the (ephemeral) local filesystem of the Pod.
+fn is_on_local_filesystem(dir: &str, hdfs_configured: bool) -> bool {
+    match Url::parse(dir) {
+        Ok(url) => url.scheme() == "file",
+        // Without a scheme, Hive resolves the path against the default filesystem, which is only
+        // HDFS if an HDFS connection (and thus its `core-site.xml`) is configured.
+        Err(url::ParseError::RelativeUrlWithoutBase) => !hdfs_configured,
+        Err(_) => false,
+    }
 }
 
 /// Merges and validates one role group into a [`HiveRoleGroupConfig`].
@@ -324,6 +364,7 @@ fn validate_role_group_config(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use stackable_operator::v2::builder::pod::container::EnvVarSet;
 
     use super::*;
@@ -476,5 +517,26 @@ mod tests {
         };
 
         assert!(validate_logging(&logging, &None).is_err());
+    }
+
+    #[rstest]
+    #[case("/stackable/warehouse", false, true)]
+    // With HDFS, a path without a scheme is resolved against HDFS (`fs.defaultFS`)
+    #[case("/stackable/warehouse", true, false)]
+    #[case("file:///stackable/warehouse", false, true)]
+    #[case("file:///stackable/warehouse", true, true)]
+    #[case("s3a://my-bucket/warehouse/", false, false)]
+    #[case("hdfs://my-hdfs/warehouse/", true, false)]
+    #[case(
+        "abfs://container@account.dfs.core.windows.net/warehouse/",
+        false,
+        false
+    )]
+    fn local_warehouse_dirs(
+        #[case] dir: &str,
+        #[case] hdfs_configured: bool,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(is_on_local_filesystem(dir, hdfs_configured), expected);
     }
 }
