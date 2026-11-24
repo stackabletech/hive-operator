@@ -249,6 +249,26 @@ mod tests {
     }
 
     #[test]
+    fn oauth2_issuer_without_path_is_not_altered() {
+        let mut cluster_config = derby_cluster_config();
+        cluster_config.iceberg_rest_catalog_enabled = true;
+        cluster_config.iceberg_rest_catalog_security = Some(
+            serde_json::from_value(serde_json::json!({
+                "oAuth2": {"issuerUrl": "https://idp.example.com", "audience": "hive"}
+            }))
+            .expect("valid OAuth 2 config"),
+        );
+
+        let data = build(&cluster_config, "4.2.0", BTreeMap::new(), BTreeMap::new())
+            .expect("build hive-site");
+
+        assert_eq!(
+            data.get("metastore.catalog.servlet.auth.oauth2.issuer"),
+            Some(&"https://idp.example.com".to_string())
+        );
+    }
+
+    #[test]
     fn s3_connection_emits_s3a_settings() {
         let cluster_config = s3_cluster_config();
 

@@ -26,6 +26,7 @@ use crate::{
     crd::{
         HiveRole,
         databases::{MetadataDatabaseConnection, derby_driver_class},
+        security::IcebergRestCatalogAuthenticationConfig,
         v1alpha2::{self, HiveMetastoreRoleConfig, MetaStoreConfig},
     },
 };
@@ -97,6 +98,12 @@ pub enum Error {
         "the Iceberg REST catalog requires Hive 4.2.0 or newer, but {product_version} is used"
     ))]
     IcebergRestCatalogUnsupportedProductVersion { product_version: String },
+
+    #[snafu(display("invalid OAuth 2 issuer URL {issuer_url}"))]
+    InvalidOAuth2IssuerUrl {
+        source: url::ParseError,
+        issuer_url: String,
+    },
 }
 
 /// Validated logging configuration for the Hive metastore and (optional) Vector container.
@@ -235,6 +242,13 @@ pub fn validate_cluster(
         .iceberg_rest_catalog
         .authentication
         .clone();
+    if let Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) =
+        &iceberg_rest_catalog_security
+    {
+        Url::parse(&oauth2.issuer_url).context(InvalidOAuth2IssuerUrlSnafu {
+            issuer_url: &oauth2.issuer_url,
+        })?;
+    }
 
     // The Iceberg REST catalog is available since Hive 4.1.0, but only works since 4.2.0.
     let product_version = &image.product_version;

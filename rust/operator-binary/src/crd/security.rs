@@ -58,7 +58,12 @@ pub struct OAuth2AuthenticationConfig {
     /// `jwks_uri` used to validate access tokens.
     ///
     /// TODO: Should this be a <host,port,path.tls> struct instead?
-    pub issuer_url: Url,
+    // This is a String rather than a `Url`, as the issuer must match the one reported by the
+    // authorization server exactly (RFC 8414), but `Url` normalizes an empty path to `/`, e.g.
+    // `https://idp.example.com` would become `https://idp.example.com/`. Instead, the URL is
+    // checked during validation.
+    #[schemars(extend("format" = "uri"))]
+    pub issuer_url: String,
 
     /// The audience the JWT access tokens must be issued for.
     pub audience: String,
