@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental support for the Iceberg REST catalog served by the Hive metastore (Hive `4.2.0` and
+  newer), configured via `spec.clusterConfig.icebergRestCatalog`. It supports `oAuth2`, `jwt` and
+  `simple` authentication ([#797]).
+  The Thrift API can be disabled via `spec.clusterConfig.thriftApi.enabled`, e.g. if clients only
+  use the Iceberg REST catalog ([#797]).
+- Log a warning if `spec.clusterConfig.warehouseDir` or `spec.clusterConfig.warehouseExternalDir`
+  is on the ephemeral local filesystem of the Pod ([#797]).
+
+### Changed
+
+- Add `HiveCluster` version `v1alpha2`, which is now the storage version. `v1alpha1` objects are
+  converted automatically by the conversion webhook, which requires the operator to maintain its
+  CRDs (the default) ([#797]). In `v1alpha2`:
+  - The required `spec.clusterConfig.warehouseDir` replaces the `warehouseDir` of the role and role
+    groups, as it is a cluster-wide setting. The previous default `/stackable/warehouse` was on the
+    ephemeral local filesystem of the Pod.
+  - The optional `spec.clusterConfig.warehouseExternalDir` sets `hive.metastore.warehouse.external.dir`.
+  - `spec.clusterConfig.authentication` moved to `spec.clusterConfig.thriftApi.authentication`.
+
+[#797]: https://github.com/stackabletech/hive-operator/pull/797
+
 ## [26.11.0] - 2026-11-20
 
 ## [26.11.0-rc1] - 2026-11-19
