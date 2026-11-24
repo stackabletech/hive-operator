@@ -167,3 +167,6 @@ spec:
 The HMS can not switch its Thrift server off, so the operator binds it to the loopback interface of the Pod instead.
 The Thrift port is then neither exposed by the Listener nor by the Services, and the discovery ConfigMap does not contain the `HIVE` entry.
 At least one of the two APIs must be enabled.
+
+IMPORTANT: Keep `thriftApi.authentication` configured if you use a Kerberos-secured HDFS.
+The HMS uses the same Kerberos keytab to access HDFS, even when the Thrift API is disabled.

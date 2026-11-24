@@ -235,7 +235,8 @@ pub mod versioned {
 
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
         ///
-        /// Only Kerberos is supported.
+        /// Only Kerberos is supported. The Hive metastore also uses it to access a Kerberos-secured
+        /// HDFS, so keep it configured in that case, even if `enabled` is `false`.
         pub authentication: Option<ThriftAuthenticationConfig>,
     }
 

@@ -238,6 +238,8 @@ pub fn validate_cluster(
 
     // The Iceberg REST catalog is available since Hive 4.1.0, but only works since 4.2.0.
     let product_version = &image.product_version;
+    // To be future proof this expression checks that it's nether 3.x, 4.0.x or 4.1.x.
+    // 4.2.x and higher (including e.g. 5.x) work fine.
     let iceberg_rest_catalog_supported = !(product_version.starts_with("3.")
         || product_version.starts_with("4.0.")
         || product_version.starts_with("4.1."));
