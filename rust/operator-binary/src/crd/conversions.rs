@@ -189,12 +189,14 @@ impl TrackingFrom<v1alpha2::HiveClusterSpec, HiveClusterStatusWithChangedValues>
             .or_default();
         upgrades.push(stackable_operator::versioned::ChangedValue {
             json_path: __sv_cluster_config_thrift_api_path,
-            value: ::serde_json::to_value(&new.cluster_config.thrift_api).unwrap(),
+            value: ::serde_json::to_value(&new.cluster_config.thrift_api)
+                .expect("internal error: the thriftApi must be serializable"),
             downgraded_value: ::core::option::Option::None,
         });
         upgrades.push(stackable_operator::versioned::ChangedValue {
             json_path: __sv_cluster_config_iceberg_rest_catalog_path,
-            value: ::serde_json::to_value(&new.cluster_config.iceberg_rest_catalog).unwrap(),
+            value: ::serde_json::to_value(&new.cluster_config.iceberg_rest_catalog)
+                .expect("internal error: the icebergRestCatalog must be serializable"),
             downgraded_value: ::core::option::Option::None,
         });
         // The warehouseDir is not tracked: It is put on the metastore role config below, from where
@@ -202,7 +204,8 @@ impl TrackingFrom<v1alpha2::HiveClusterSpec, HiveClusterStatusWithChangedValues>
         // changes made in v1alpha1.
         upgrades.push(stackable_operator::versioned::ChangedValue {
             json_path: __sv_cluster_config_warehouse_external_dir_path,
-            value: ::serde_json::to_value(&new.cluster_config.warehouse_external_dir).unwrap(),
+            value: ::serde_json::to_value(&new.cluster_config.warehouse_external_dir)
+                .expect("internal error: the warehouseExternalDir must be serializable"),
             downgraded_value: ::core::option::Option::None,
         });
 

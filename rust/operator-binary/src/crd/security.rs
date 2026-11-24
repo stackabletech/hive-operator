@@ -35,10 +35,12 @@ pub enum IcebergRestCatalogAuthenticationConfig {
     /// authenticated username, without verifying it. You may use it to test authorized access,
     /// but this mode is not recommended in a production environment.
     Simple {},
+
     /// OAuth 2 is the industry standard for authenticating Iceberg client usernames. You can
     /// integrate Hive Metastore with your Authorization Server, e.g., Keycloak, to protect Iceberg
     /// resources.
     OAuth2(OAuth2AuthenticationConfig),
+
     /// Configure Hive Metastore so that its Iceberg REST API accepts a JSON Web Token (JWT) as a
     /// bearer token in the Authorization header. Hive Metastore derives the username from the `sub`
     /// claim of a properly-signed JWT.

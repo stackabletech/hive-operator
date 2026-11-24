@@ -84,7 +84,7 @@ pub fn build(
             ICEBERG_REST_CATALOG_PORT.to_string(),
         );
 
-        let auth_type = match &cluster_config.iceberg_rest_catalog_security {
+        let auth_type = match &cluster_config.iceberg_rest_catalog_authentication {
             None => "none",
             Some(IcebergRestCatalogAuthenticationConfig::Simple {}) => "simple",
             Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) => {
@@ -252,7 +252,7 @@ mod tests {
     fn oauth2_issuer_without_path_is_not_altered() {
         let mut cluster_config = derby_cluster_config();
         cluster_config.iceberg_rest_catalog_enabled = true;
-        cluster_config.iceberg_rest_catalog_security = Some(
+        cluster_config.iceberg_rest_catalog_authentication = Some(
             serde_json::from_value(serde_json::json!({
                 "oAuth2": {"issuerUrl": "https://idp.example.com", "audience": "hive"}
             }))

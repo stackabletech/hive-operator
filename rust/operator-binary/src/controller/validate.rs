@@ -95,11 +95,11 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "the Iceberg REST catalog requires Hive 4.2.0 or newer, but {product_version} is used"
+        "the Iceberg REST catalog requires Hive 4.2.0 or newer, but {product_version:?} is used"
     ))]
     IcebergRestCatalogUnsupportedProductVersion { product_version: String },
 
-    #[snafu(display("invalid OAuth 2 issuer URL {issuer_url}"))]
+    #[snafu(display("invalid OAuth 2 issuer URL {issuer_url:?}"))]
     InvalidOAuth2IssuerUrl {
         source: url::ParseError,
         issuer_url: String,
@@ -236,14 +236,14 @@ pub fn validate_cluster(
     let thrift_api_enabled = hive.spec.cluster_config.thrift_api.enabled;
     let iceberg_rest_catalog_enabled = hive.spec.cluster_config.iceberg_rest_catalog.enabled;
     let thrift_kerberos_secret_class = hive.thrift_kerberos_secret_class();
-    let iceberg_rest_catalog_security = hive
+    let iceberg_rest_catalog_authentication = hive
         .spec
         .cluster_config
         .iceberg_rest_catalog
         .authentication
         .clone();
     if let Some(IcebergRestCatalogAuthenticationConfig::OAuth2(oauth2)) =
-        &iceberg_rest_catalog_security
+        &iceberg_rest_catalog_authentication
     {
         Url::parse(&oauth2.issuer_url).context(InvalidOAuth2IssuerUrlSnafu {
             issuer_url: &oauth2.issuer_url,
@@ -323,7 +323,7 @@ pub fn validate_cluster(
             thrift_api_enabled,
             iceberg_rest_catalog_enabled,
             thrift_kerberos_secret_class,
-            iceberg_rest_catalog_security,
+            iceberg_rest_catalog_authentication,
         },
         role_group_configs,
         dereferenced_objects.role_listener,

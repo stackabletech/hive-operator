@@ -87,7 +87,7 @@ pub(crate) mod test_support {
                 .thrift_api
                 .authentication
                 .map(|a| a.kerberos.secret_class),
-            iceberg_rest_catalog_security: hive
+            iceberg_rest_catalog_authentication: hive
                 .spec
                 .cluster_config
                 .iceberg_rest_catalog

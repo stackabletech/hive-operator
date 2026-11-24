@@ -309,7 +309,7 @@ pub struct ValidatedClusterConfig {
 
     /// The Kerberos `SecretClass` name, if Kerberos is enabled for the Thrift API.
     pub thrift_kerberos_secret_class: Option<SecretClassName>,
-    pub iceberg_rest_catalog_security: Option<IcebergRestCatalogAuthenticationConfig>,
+    pub iceberg_rest_catalog_authentication: Option<IcebergRestCatalogAuthenticationConfig>,
 }
 
 impl ValidatedClusterConfig {
