@@ -252,7 +252,7 @@ pub fn validate_cluster(
 
     // The Iceberg REST catalog is available since Hive 4.1.0, but only works since 4.2.0.
     let product_version = &image.product_version;
-    // To be future proof this expression checks that it's nether 3.x, 4.0.x or 4.1.x.
+    // To be future-proof, this checks that it's neither 3.x, 4.0.x nor 4.1.x.
     // 4.2.x and higher (including e.g. 5.x) work fine.
     let iceberg_rest_catalog_supported = !(product_version.starts_with("3.")
         || product_version.starts_with("4.0.")
@@ -277,7 +277,7 @@ pub fn validate_cluster(
         );
     }
 
-    // Print warning in case a local filesystem os used as warehouse dir.
+    // Warn if a warehouse directory is on the local filesystem of the Pod.
     let warehouse_dirs = [
         (
             "warehouseDir",

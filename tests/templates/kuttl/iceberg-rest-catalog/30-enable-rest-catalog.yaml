@@ -16,9 +16,9 @@ spec:
     # even one with an explicit location. Error message:
     # ("java.lang.NullPointerException: Warehouse location is not set: hive.metastore.warehouse.external.dir=null").
     #
-    # There are ideas to fix this in Hive itself (https://github.com/stackabletech/docker-images/pull/1722),
-    # but I'm not sure if and when we will merge that. Because of that, I also did *not* add this as
-    # an error to hive-operator, as future hive images might not require this.
+    # A fix in Hive itself is proposed in https://github.com/stackabletech/docker-images/pull/1722.
+    # As future Hive images might not need warehouseExternalDir, the operator only warns if it is
+    # missing instead of rejecting the HiveCluster.
     warehouseExternalDir: s3a://lakehouse/warehouse/external/
     icebergRestCatalog:
       enabled: true
