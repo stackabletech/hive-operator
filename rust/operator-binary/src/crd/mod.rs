@@ -231,7 +231,7 @@ pub mod versioned {
         /// Hive can not switch the Thrift server off, so if disabled it is bound to the loopback
         /// interface and not exposed via the Service and Listener.
         #[serde(default = "default_thrift_api_enabled")]
-        enabled: bool,
+        pub enabled: bool,
 
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/security).
         ///
@@ -246,7 +246,7 @@ pub mod versioned {
         /// Whether the Iceberg REST catalog is started (defaults to `false`).
         /// Requires Hive 4.2.0 or newer.
         #[serde(default = "default_iceberg_rest_catalog_enabled")]
-        enabled: bool,
+        pub enabled: bool,
 
         /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/hive/usage-guide/iceberg-rest-catalog#authentication).
         ///

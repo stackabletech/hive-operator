@@ -1,5 +1,5 @@
 -- Write and compact via the REST catalog while the Thrift API is disabled. Commits take locks in the
--- Hive metastore, which the REST catalog does via the Thrift server bound to the loopback interface.
+-- Hive metastore, which the embedded REST catalog does in-process, not via the Thrift server.
 INSERT INTO iceberg_rest.sales.orders
 SELECT * FROM (
   VALUES
