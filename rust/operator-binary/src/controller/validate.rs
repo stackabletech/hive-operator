@@ -4,6 +4,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
     config::fragment,
+    crd::containerdebug,
     product_logging::spec::Logging,
     role_utils::GenericRoleConfig,
     v2::{
@@ -62,6 +63,12 @@ pub enum Error {
     #[snafu(display("failed to validate the config for role group {role_group}"))]
     ValidateConfig {
         source: fragment::ValidationError,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("invalid containerdebug configuration for role group {role_group}"))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
         role_group: RoleGroupName,
     },
 
@@ -251,6 +258,15 @@ fn validate_role_group_config(
         role_group: role_group_name.clone(),
     })?;
 
+    let containerdebug = merged
+        .config
+        .config
+        .containerdebug
+        .validate()
+        .with_context(|_| InvalidContainerdebugConfigSnafu {
+            role_group: role_group_name.clone(),
+        })?;
+
     let logging = validate_logging(
         &merged.config.config.logging,
         vector_aggregator_config_map_name,
@@ -258,7 +274,11 @@ fn validate_role_group_config(
 
     Ok(HiveRoleGroupConfig {
         replicas: merged.replicas,
-        config: ValidatedMetaStoreConfig::from_merged(merged.config.config, logging),
+        config: ValidatedMetaStoreConfig::from_merged(
+            merged.config.config,
+            containerdebug,
+            logging,
+        ),
         config_overrides: merged.config.config_overrides,
         env_overrides: merged.config.env_overrides.into(),
         // Hive does not use CLI overrides; the field is carried through the merge but unused.
@@ -395,6 +415,93 @@ mod tests {
         assert!(
             matches!(&error, Error::ParseRoleGroupName { role_group, .. } if role_group == "Invalid_RG"),
             "unexpected error: {error:?}"
+        );
+    }
+
+    /// A role `config` that does not mention `containerdebug` still gets the default, so the
+    /// `containerdebug` field of the CRD must be optional.
+    #[test]
+    fn containerdebug_defaults_when_not_configured() {
+        use stackable_operator::crd::containerdebug::{
+            DEFAULT_INTERVAL, ValidatedContainerdebugConfig,
+        };
+
+        let yaml = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            config:
+              gracefulShutdownTimeout: 1h
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+        let cluster = match validate_yaml(yaml) {
+            Ok(cluster) => cluster,
+            Err(error) => panic!("the cluster is valid, but: {error:?}"),
+        };
+        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
+
+        assert_eq!(
+            cluster.role_group_configs[&HiveRole::MetaStore][&role_group_name]
+                .config
+                .containerdebug,
+            ValidatedContainerdebugConfig::Enabled {
+                interval: DEFAULT_INTERVAL
+            }
+        );
+    }
+
+    /// An invalid `containerdebug` config fails the validation, naming the role group.
+    #[test]
+    fn zero_containerdebug_interval_fails_validation() {
+        let yaml = r#"
+        apiVersion: hive.stackable.tech/v1alpha1
+        kind: HiveCluster
+        metadata:
+          name: simple-hive
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: "4.0.0"
+          clusterConfig:
+            metadataDatabase:
+              derby: {}
+          metastore:
+            config:
+              containerdebug:
+                interval: 0s
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+
+        let error = expect_validate_err(yaml);
+        let chain: Vec<String> =
+            std::iter::successors(Some(&error as &dyn std::error::Error), |error| {
+                error.source()
+            })
+            .map(ToString::to_string)
+            .collect();
+
+        assert_eq!(
+            chain,
+            [
+                "invalid containerdebug configuration for role group default",
+                "the containerdebug interval must not be zero",
+            ]
         );
     }
 
