@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add the `config.containerdebug` field to roles and role groups ([#794]).
+
+[#794]: https://github.com/stackabletech/hive-operator/pull/794
+
+## [26.11.0] - 2026-11-20
+
+## [26.11.0-rc1] - 2026-11-19
+
+### Added
+
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field ([#767]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#770]).
 - Document that the Stackable Hive images restore the `get_table` and `get_table_objects_by_name` Thrift methods removed by HIVE-26537, and assert it in the smoke test ([#766]).
@@ -13,7 +23,6 @@ All notable changes to this project will be documented in this file.
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#790]).
 - The metastore now has a default affinity to the OPA Pods when OPA authorization is configured ([#772]).
-- Add the `config.containerdebug` field to roles and role groups ([#794]).
 
 ### Removed
 
@@ -87,7 +96,6 @@ All notable changes to this project will be documented in this file.
 [#785]: https://github.com/stackabletech/hive-operator/pull/785
 [#787]: https://github.com/stackabletech/hive-operator/pull/787
 [#790]: https://github.com/stackabletech/hive-operator/pull/790
-[#794]: https://github.com/stackabletech/hive-operator/pull/794
 
 ## [26.7.0] - 2026-07-21
 
